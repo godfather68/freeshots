@@ -1,0 +1,373 @@
+# Stage 1 backend: run the models on a schedule, publish JSON, deploy the static site.
+# Design, state handling and recovery: docs/platform.md, "Stage 1 (GitHub Pages + Actions)".
+#
+#   update  (contents: write, actions: write)  restore state -> python -m shots.worker run-once --force ->
+#           save state -> export JSON -> verify against the DB -> commit data/*.json to the `data` branch
+#   build   (contents: read)                   npm ci && npm run build with the exported JSON (no write token here)
+#   deploy  (pages: write, id-token: write)    actions/deploy-pages
+#
+# Never published: data/raw (source downloads), data/shots.db (holds source results), models. They live
+# only in the repository's Actions cache.
+name: Update and publish
+
+on:
+  schedule:
+    - cron: "23 */3 * * *"  # every 3 hours, off the hour (GitHub delays or drops jobs queued at :00)
+  workflow_dispatch:
+    inputs:
+      allow_fresh_state:
+        description: "Start from an empty database if the cached one cannot be restored (the live record restarts)"
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:  # one run at a time: a new run waits for the running one, nothing is cancelled half-way
+  group: shots-update
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  TZ: UTC
+  PYTHONUTF8: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  STATE_PREFIX: shots-state-v1-
+  PAST_PREFIX: shots-fd-past-v1-
+  CURRENT_PREFIX: shots-fd-current-v1-
+  MODELS_PREFIX: shots-models-v1-
+  DATA_BRANCH: data
+
+jobs:
+  update:
+    name: Update, export, record
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: write  # push the regenerated JSON to the data branch (and nothing else)
+      actions: write   # list / delete superseded caches
+    outputs:
+      exported: ${{ steps.site.outputs.exported }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false  # the token is passed only to the one step that pushes
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install (pinned)
+        run: |
+          # lightgbm needs the OpenMP runtime; GitHub's Ubuntu images ship it, this is a guard.
+          ldconfig -p | grep -q 'libgomp\.so\.1' || sudo apt-get install -y --no-install-recommends libgomp1
+          python -m pip install -r requirements.lock
+          python -m pip install --no-deps -e .  # editable: the package locates data/ from its own path
+
+      - name: Cache keys
+        id: keys
+        run: python -m shots.worker.ci keys >> "$GITHUB_OUTPUT"
+
+      # Finished seasons never change upstream: one cache per season, read on every run (so never evicted).
+      - name: Restore raw downloads of past seasons
+        id: past
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.keys.outputs.past_paths }}
+          key: ${{ env.PAST_PREFIX }}${{ steps.keys.outputs.season }}
+          restore-keys: ${{ env.PAST_PREFIX }}
+
+      # The running season is re-fetched with conditional requests (ETags), so keep its files between runs.
+      - name: Restore raw downloads of the current season
+        id: current
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.keys.outputs.current_paths }}
+          key: ${{ env.CURRENT_PREFIX }}${{ steps.keys.outputs.season }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ env.CURRENT_PREFIX }}${{ steps.keys.outputs.season }}-
+
+      # The live record. Caches are immutable, so every run saves under a new key and restores the newest.
+      # The path list is constant on purpose: a cache is only restored by the exact path list that saved it.
+      - name: Restore state (database, derived files)
+        id: state
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.keys.outputs.state_paths }}
+          key: ${{ env.STATE_PREFIX }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ env.STATE_PREFIX }}
+
+      - name: Restore trained models
+        id: models
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: models_store
+          key: ${{ env.MODELS_PREFIX }}${{ steps.keys.outputs.lock }}-${{ github.run_id }}
+          restore-keys: ${{ env.MODELS_PREFIX }}${{ steps.keys.outputs.lock }}-
+
+      # A failed restore must not silently restart the record: if a cached database exists but did not
+      # arrive, stop here (the next run retries) unless the run was started with allow_fresh_state.
+      - name: Guard the live record
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MATCHED: ${{ steps.state.outputs.cache-matched-key }}
+          ALLOW_FRESH: ${{ inputs.allow_fresh_state }}
+        run: |
+          if [ -n "$MATCHED" ] && [ -f data/shots.db ]; then
+            echo "Restored state from cache $MATCHED"
+            python -m shots.worker.ci db-check --write-baseline "$RUNNER_TEMP/db-before.json"
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$ALLOW_FRESH" != "true" ]; then
+            # Fails closed: if the cache list cannot be read, the run stops rather than assume there is none.
+            existing=$(gh cache list --key "$STATE_PREFIX" --limit 5 --json id --jq 'length')
+            if [ "$existing" != "0" ]; then
+              echo "::error::A cached database exists (prefix $STATE_PREFIX) but was not restored. Not starting from an empty database. Re-run; to deliberately restart the live record, run the workflow manually with allow_fresh_state."
+              exit 1
+            fi
+          fi
+          rm -f data/shots.db data/shots.db-wal data/shots.db-shm
+          echo "::warning::No cached database: starting from an empty one. The live record restarts now (meta.json record.since); see docs/platform.md, Stage 1, Recovery."
+          echo "fresh=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run the update cycle
+        id: update
+        continue-on-error: true  # a partial update (e.g. the source site is down) still exports and saves state
+        timeout-minutes: 50
+        run: python -m shots.worker run-once --force
+
+      - name: Check the database
+        id: dbcheck
+        if: ${{ !cancelled() && steps.guard.outcome == 'success' }}
+        run: |
+          python -m shots.worker.ci db-check --baseline "$RUNNER_TEMP/db-before.json"
+          python -m shots.worker.ci prune-fixtures --keep 3
+
+      - name: Save state
+        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.keys.outputs.state_paths }}
+          key: ${{ env.STATE_PREFIX }}${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save raw downloads of the current season
+        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' && hashFiles('data/raw/football-data/*/*.csv') != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.keys.outputs.current_paths }}
+          key: ${{ env.CURRENT_PREFIX }}${{ steps.keys.outputs.season }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save raw downloads of past seasons (once per season)
+        if: ${{ steps.update.outcome == 'success' && steps.past.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.keys.outputs.past_paths }}
+          key: ${{ env.PAST_PREFIX }}${{ steps.keys.outputs.season }}
+
+      - name: Fingerprint the models
+        id: mh
+        if: ${{ !cancelled() && steps.guard.outcome == 'success' }}
+        env:
+          LOCK: ${{ steps.keys.outputs.lock }}
+        run: |
+          if ls models_store/*/metadata.json >/dev/null 2>&1; then
+            hash=$(cat $(ls models_store/*/metadata.json | sort) | sha256sum | cut -c1-16)
+            echo "key=${MODELS_PREFIX}${LOCK}-${hash}" >> "$GITHUB_OUTPUT"
+          else
+            echo "key=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save trained models (only when retrained)
+        if: ${{ !cancelled() && steps.mh.outputs.key != '' && steps.mh.outputs.key != steps.models.outputs.cache-matched-key }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: models_store
+          key: ${{ steps.mh.outputs.key }}
+
+      - name: Delete superseded caches (keep the 5 newest databases)
+        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          prune() {  # prune <key prefix> <keep>
+            gh cache list --key "$1" --limit 100 --sort created_at --order desc --json id --jq ".[$2:][].id" \
+              | while read -r id; do gh cache delete "$id" || true; done
+          }
+          prune "$STATE_PREFIX" 5
+          prune "$CURRENT_PREFIX" 2
+          prune "$MODELS_PREFIX" 2
+
+      # ---- publish: the public audit trail. Only data/*.json (our predictions) ever reaches this branch.
+      - name: Check out the data branch
+        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          basic=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$basic"
+          auth="AUTHORIZATION: basic $basic"
+          rc=0
+          git -c "http.https://github.com/.extraheader=$auth" ls-remote --exit-code --heads origin "$DATA_BRANCH" >/dev/null || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            git -c "http.https://github.com/.extraheader=$auth" fetch --no-tags --depth=1 origin "$DATA_BRANCH"
+            git worktree add -B "$DATA_BRANCH" site-data FETCH_HEAD
+          elif [ "$rc" -eq 2 ]; then  # ls-remote --exit-code: 2 = no such branch
+            echo "First run: creating the $DATA_BRANCH branch"
+            git worktree add --orphan -b "$DATA_BRANCH" site-data
+          else
+            echo "::error::cannot read the remote branches (git ls-remote exit code $rc)"
+            exit 1
+          fi
+
+      - name: Export JSON
+        id: export
+        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' }}
+        run: |
+          python -m shots.export --out site-data/data
+          python -m shots.export.verify --dir site-data/data  # independent check against the database
+          cp .github/data-branch-README.md site-data/README.md
+
+      - name: Commit the data branch (only when something changed)
+        if: ${{ !cancelled() && steps.export.outcome == 'success' }}
+        working-directory: site-data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Refuse to publish anything but the four JSON files and the README.
+          extra=$(git status --porcelain --untracked-files=all | awk '{print $2}' | grep -vE '^(data/(meta|board|results|track)\.json|README\.md)$' || true)
+          if [ -n "$extra" ]; then echo "::error::unexpected files in the data branch: $extra"; exit 1; fi
+          git add -- README.md data/meta.json data/board.json data/results.json data/track.json
+          if git diff --cached --quiet; then
+            echo "No change in the published data: nothing to commit."
+            exit 0
+          fi
+          msg=$(python -m shots.worker.ci describe data/meta.json)
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --quiet -m "$msg"
+          basic=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$basic"
+          auth="AUTHORIZATION: basic $basic"
+          # A plain push: never forced. History is the proof of what was predicted before kick-off.
+          git -c "http.https://github.com/.extraheader=$auth" push origin "HEAD:refs/heads/$DATA_BRANCH"
+
+      - name: Export JSON for the site (fresh timestamp)
+        id: site
+        if: ${{ !cancelled() && steps.export.outcome == 'success' }}
+        run: |
+          python -m shots.export --out site-export --meta always
+          python -m shots.export.verify --dir site-export
+          echo "exported=true" >> "$GITHUB_OUTPUT"
+
+      - name: Hand the JSON to the site build
+        if: ${{ !cancelled() && steps.site.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: site-data
+          path: site-export/*.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Summary
+        if: ${{ always() }}
+        env:
+          UPDATE: ${{ steps.update.outcome }}
+          FRESH: ${{ steps.guard.outputs.fresh }}
+        run: |
+          {
+            echo "### Shots update"
+            echo "- update cycle: \`$UPDATE\`; database started empty: \`${FRESH:-unknown}\`"
+            if [ -f site-export/meta.json ]; then
+              python -m shots.worker.ci describe site-export/meta.json --markdown
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail the run if the update cycle failed
+        if: ${{ steps.update.outcome == 'failure' }}
+        run: |
+          echo "::error::python -m shots.worker run-once reported failures (see its log). State was saved and whatever could be exported was published."
+          exit 1
+
+  build:
+    name: Build the site
+    needs: update
+    if: ${{ !cancelled() && needs.update.outputs.exported == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      site: ${{ steps.frontend.outputs.present }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Is there a frontend?
+        id: frontend
+        run: |
+          if [ -f frontend/package.json ] && [ -f frontend/package-lock.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::frontend/package.json not found: the JSON was committed to the data branch, no site was built."
+          fi
+
+      - name: Set up Node
+        if: ${{ steps.frontend.outputs.present == 'true' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Put the exported JSON in place
+        if: ${{ steps.frontend.outputs.present == 'true' }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: site-data
+          path: frontend/public/data
+
+      - name: Build
+        if: ${{ steps.frontend.outputs.present == 'true' }}
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Check what will be published
+        if: ${{ steps.frontend.outputs.present == 'true' }}
+        run: |
+          for f in meta board results track; do test -s "frontend/dist/data/$f.json" || { echo "::error::frontend/dist/data/$f.json is missing"; exit 1; }; done
+          bad=$(find frontend/dist -type f \( -name '*.db' -o -name '*.db-*' -o -name '*.csv' -o -name '*.parquet' -o -name '*.joblib' -o -name '*.ics' -o -name '*.key' \) | head -20)
+          if [ -n "$bad" ]; then echo "::error::source data or database files in the site: $bad"; exit 1; fi
+
+      - name: Upload the Pages artifact
+        if: ${{ steps.frontend.outputs.present == 'true' }}
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: frontend/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.build.outputs.site == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% from "_ui.html" import help, lock with context %}
+{% block title %}{{ (r.home_team ~ ' v ' ~ r.away_team) if r else 'Match' }} &middot; Shots board{% endblock %}
+
+{% block content %}
+<p class="crumb"><a href="{{ back }}">&larr; Upcoming matches</a></p>
+<header class="mhead">
+  <p class="meta"><span>{{ r.competition }}</span>{% if r.round %}<span>{{ r.round.replace('Regular Season - ', 'Round ') }}</span>{% endif %}
+    <span>{{ day_label }}{% if r.kickoff %}, {{ r.kickoff }}{% endif %}</span></p>
+  <h1>{{ r.home_team }} <span class="vs">v</span> {{ r.away_team }}</h1>
+  <p class="badges">
+    {% if r.odds %}<span class="badge ok">odds published</span> {{ help('odds') }}{% else %}<span class="badge">no odds yet</span> {{ help('no_odds') }}{% endif %}
+    {% if r.cold_start %}<span class="badge warn">cold start</span> {{ help('cold_start') }}{% endif %}
+  </p>
+</header>
+
+<p class="oneline">
+  There is a <b>{{ pct(p) }}</b> chance this game has <b>{{ f.n }} or more shots</b> in total.
+  The model's middle estimate is <b>{{ '%.0f'|format(r.expected_shots) }}</b>{% if r.lb_80 is not none %}, and it is 80% sure of <b>at least {{ r.lb_80 }}</b>{% endif %}.
+</p>
+
+<section class="summary" aria-label="Headline numbers">
+  <div class="clear {{ band }}"><b>{{ pct(p) }}</b><span>chance of {{ f.n }}+ total shots</span>{{ help('probability') }}</div>
+  <div><b>{{ '%.0f'|format(r.expected_shots) }}</b><span>expected shots (median)</span>{{ help('expected') }}</div>
+  <div><b>{{ r.lb_80 if r.lb_80 is not none else '–' }}+</b><span>shots, 80% sure</span>{{ help('sure80') }}</div>
+  <div><b>{{ '%+.1f'|format(r.above_league) }}</b><span>vs league average ({{ r.league_avg_shots }})</span>{{ help('vs_league') }}</div>
+</section>
+
+<section class="card" aria-labelledby="h-curve">
+  <h2 id="h-curve">Chance of reaching each shot count</h2>
+  <figure class="chart">
+    <figcaption class="hint">Each point is the chance that the match has <em>at least</em> that many total shots (both teams, on and off target, blocked included).
+       The big dot is your threshold ({{ f.n }}); the small dots are where the curve meets the 70, 80 and 90% lines.</figcaption>
+    {{ svg }}
+    <p class="reading"><b>How to read it.</b> The line falls from left to right because reaching more shots is always less likely.
+      At <b>{{ f.n }}+</b> shots it sits at <b>{{ pct(p) }}</b>.
+      {% for b in bound_rows if b.lb is not none %}For {{ b.q }}% confidence you can only claim <b>{{ b.lb }}+</b>{{ '; ' if not loop.last else '.' }}{% endfor %}</p>
+    <details class="datatable">
+      <summary>Show these numbers as a table</summary>
+      <div class="tw">
+        <table>
+          <caption class="sr">Chance that {{ r.home_team }} v {{ r.away_team }} has at least n total shots</caption>
+          <thead><tr><th scope="col">Total shots</th><th scope="col">Chance of at least that many</th></tr></thead>
+          <tbody>{% for n, pp in curve_rows %}<tr {% if n == f.n %}class="sel"{% endif %}><th scope="row">{{ n }}+</th><td>{{ pct(pp) }}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    </details>
+  </figure>
+  <form class="inline" method="get" action="/match/{{ r.match_id }}">
+    {% for k, v in f.items() if k != 'n' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <div class="slider"><label for="n">Threshold: <output for="n" data-fmt="{v}">{{ f.n }}</output> shots {{ help('threshold') }}</label>
+      <input type="range" id="n" name="n" min="{{ ns[0] }}" max="{{ ns[1] }}" value="{{ f.n }}" data-default="{{ N_DEFAULT }}"></div>
+    <button type="submit">Update</button>
+  </form>
+</section>
+
+{% if has_team %}
+<section class="card" id="teams" aria-labelledby="h-teams">
+  <h2 id="h-teams">Shots by team <span class="badge xp">experimental</span> {{ help('experimental') }}</h2>
+  <p class="hint">Expected shots: <b>{{ r.home_team }} {{ '%.1f'|format(r.home_mean) }}</b> &ndash; <b>{{ '%.1f'|format(r.away_mean) }} {{ r.away_team }}</b>.
+     Team numbers are experimental: they pass the overall calibration checks on 2025/26 but not yet the per-competition check, so treat them more loosely than the match total.</p>
+  <figure class="chart">
+    <figcaption class="legend"><span class="key home">{{ r.home_team }} (solid)</span> <span class="key away">{{ r.away_team }} (dashed)</span></figcaption>
+    {{ team_svg }}
+    <p class="reading"><b>How to read it.</b> Each line is one team's chance of having <em>at least</em> n shots on its own. At <b>{{ tn }}+</b> shots,
+      {{ r.home_team }} is at <b>{{ pct(team_p.home) }}</b> and {{ r.away_team }} at <b>{{ pct(team_p.away) }}</b>.</p>
+    <details class="datatable">
+      <summary>Show these numbers as a table</summary>
+      <div class="tw">
+        <table>
+          <caption class="sr">Chance that each team has at least n shots</caption>
+          <thead><tr><th scope="col">Team shots</th><th scope="col">{{ r.home_team }}</th><th scope="col">{{ r.away_team }}</th></tr></thead>
+          <tbody>{% for n, hp, ap in team_rows %}<tr {% if n == tn %}class="sel"{% endif %}><th scope="row">{{ n }}+</th><td>{{ pct(hp) }}</td><td>{{ pct(ap) }}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    </details>
+  </figure>
+  <form class="inline" method="get" action="/match/{{ r.match_id }}#teams">
+    {% for k, v in f.items() if k not in ('tn', 'side', 'tp') %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <div class="slider"><label for="tn">Team threshold: <output for="tn" data-fmt="{v}">{{ tn }}</output> shots</label>
+      <input type="range" id="tn" name="tn" min="{{ team_ns[0] }}" max="{{ team_ns[1] }}" value="{{ tn }}" data-default="{{ TN_DEFAULT }}"></div>
+    <button type="submit">Update</button>
+  </form>
+  <div class="tw">
+  <table>
+    <caption class="sr">Team shot bounds</caption>
+    <thead><tr><th scope="col">Confidence</th><th scope="col">{{ r.home_team }}</th><th scope="col">{{ r.away_team }}</th></tr></thead>
+    <tbody>
+      <tr class="sel"><th scope="row">Chance of {{ tn }}+ shots</th><td>{{ pct(team_p.home) }}</td><td>{{ pct(team_p.away) }}</td></tr>
+      <tr><th scope="row">Median</th><td>{{ r.home_median if r.home_median is not none else '–' }}</td><td>{{ r.away_median if r.away_median is not none else '–' }}</td></tr>
+      {% for b in team_bounds %}
+      <tr><th scope="row">{{ b.q }}% sure: at least</th><td>{{ b.home if b.home is not none else '–' }}</td><td>{{ b.away if b.away is not none else '–' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% elif access.team %}
+<section class="card locked" aria-labelledby="h-teams">
+  <h2 id="h-teams">Shots by team</h2>
+  <p>See how many shots each side is expected to take, and the chance either team reaches a count of your choice.</p>
+  <p>{{ lock() }}</p>
+</section>
+{% endif %}
+
+<div class="two">
+<section class="card" aria-labelledby="h-floors">
+  <h2 id="h-floors">Safe floors {{ help('sure80') }}</h2>
+  <div class="tw">
+  <table>
+    <caption class="sr">Lowest total shots the model is confident of</caption>
+    <thead><tr><th scope="col">Confidence</th><th scope="col">At least</th><th scope="col">Model's P at that count</th></tr></thead>
+    <tbody>
+    {% for b in bound_rows %}
+    <tr><th scope="row">{{ b.q }}% sure</th><td><b>{{ b.lb if b.lb is not none else '–' }}</b> shots</td><td>{{ pct(b.p) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">Bounds are whole numbers, so the real chance at the bound is usually a little above the stated confidence.</p>
+</section>
+
+<section class="card" aria-labelledby="h-league">
+  <h2 id="h-league">Against the league {{ help('vs_league') }}</h2>
+  {% set mx = [r.expected_shots, r.league_avg_shots, 1]|max * 1.15 %}
+  <div class="cmp">
+    <div><span>This match</span><span class="track" aria-hidden="true"><i class="me" style="width:{{ (r.expected_shots / mx * 100)|round(1) }}%"></i></span><b>{{ '%.0f'|format(r.expected_shots) }}</b></div>
+    <div><span>{{ r.competition }} average</span><span class="track" aria-hidden="true"><i class="lg" style="width:{{ (r.league_avg_shots / mx * 100)|round(1) }}%"></i></span><b>{{ r.league_avg_shots }}</b></div>
+  </div>
+  <p>This match is expected to have <b>{{ '%.1f'|format(r.above_league|abs) }}</b> shots
+     {{ 'more' if r.above_league > 0 else 'fewer' }} than the typical {{ r.competition }} game.</p>
+</section>
+</div>
+
+<div class="two">
+<section class="card" aria-labelledby="h-thr">
+  <h2 id="h-thr">Chance by threshold</h2>
+  <div class="tw">
+  <table>
+    <caption class="sr">Chance of reaching selected shot counts</caption>
+    <thead><tr><th scope="col">Total shots</th><th scope="col">P(at least)</th></tr></thead>
+    <tbody>
+    {% for n, pp in key_rows %}<tr {% if n == f.n %}class="sel"{% endif %}><th scope="row">{{ n }}+</th><td>{{ pct(pp) }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="h-how">
+  <h2 id="h-how">How this was scored</h2>
+  <dl>
+    <dt>Model</dt><dd><code>{{ r.model }}</code></dd>
+    <dt>Odds</dt>
+    <dd>{% if r.odds %}Published ({{ pct(r.mkt_p_over25) }} market chance of over 2.5 goals), so the odds model was used.
+        {% else %}Not published yet, so the separate no-odds model was used. It never sees missing odds as a value.{% endif %}</dd>
+    {% if r.cold_start %}<dt>Cold start</dt><dd>At least one team has fewer than 5 earlier matches in our data; treat this number with extra caution.</dd>{% endif %}
+  </dl>
+  <p><a href="/about">What do these numbers mean?</a></p>
+</section>
+</div>
+{% endblock %}

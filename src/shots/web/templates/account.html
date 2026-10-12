@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Your account &middot; Shots board{% endblock %}
+{% block content %}
+<div class="pagehead"><h1>Your account</h1></div>
+{% include "_authmsg.html" %}
+<div class="two">
+<section class="card" aria-labelledby="h-me">
+  <h2 id="h-me">Details</h2>
+  <dl><dt>Email</dt><dd>{{ user.email }}</dd>
+    <dt>Plan</dt><dd>{{ plan.name if plan else 'None' }}</dd></dl>
+  {% if mine %}<h3>Your plan includes</h3>
+  <ul class="incl">{% for i in mine %}<li class="{{ 'yes' if i.included else 'no' }}"><span class="sr">{{ 'Included: ' if i.included else 'Not included: ' }}</span>{{ i.text }}</li>{% endfor %}</ul>{% endif %}
+  <p><a href="/pricing">Compare plans</a></p>
+</section>
+<section class="card" aria-labelledby="h-pw">
+  <h2 id="h-pw">Change password</h2>
+  <form class="authform" method="post" action="/auth/password">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field"><label for="current_password">Current password</label>
+      <input type="password" id="current_password" name="current_password" autocomplete="current-password" required {% if auth_error == 'invalid_credentials' %}aria-invalid="true" aria-describedby="form-error"{% endif %}></div>
+    <div class="field"><label for="new_password">New password</label>
+      <input type="password" id="new_password" name="new_password" autocomplete="new-password" required minlength="{{ password_min_length }}" maxlength="{{ password_max_length }}" aria-describedby="pw-rules">
+      <p class="hint" id="pw-rules">At least {{ password_min_length }} characters, not common, and not containing your email address.</p></div>
+    <div class="field"><label for="new_password_confirm">Repeat the new password</label>
+      <input type="password" id="new_password_confirm" name="new_password_confirm" autocomplete="new-password" required></div>
+    <button type="submit">Change password</button>
+  </form>
+  <p class="hint">Changing it signs you out on your other devices.</p>
+</section>
+</div>
+<section class="card" aria-labelledby="h-out">
+  <h2 id="h-out">Sign out</h2>
+  <form class="signout-row" method="post" action="/auth/logout-all">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <p>Lost a device or used a shared computer? This signs you out everywhere, including here.</p>
+    <button type="submit" class="quiet">Sign out everywhere</button>
+  </form>
+</section>
+{% endblock %}

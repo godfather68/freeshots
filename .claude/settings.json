@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(python -m shots:*)",
+      "Bash(python src/*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "PowerShell(python -m pytest:*)",
+      "PowerShell(git status:*)",
+      "PowerShell(git diff:*)"
+    ]
+  }
+}

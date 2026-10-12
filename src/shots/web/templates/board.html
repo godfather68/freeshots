@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% from "_ui.html" import help, lock, guide_steps with context %}
+{% block title %}Upcoming matches &middot; Shots board{% endblock %}
+
+{% macro prob(r, f) %}
+<span class="prob {{ r.band }}" title="Chance of {{ f.n }} or more total shots">
+  <span class="pbar" aria-hidden="true"><i style="width:{{ (r.p * 100)|round(1) }}%"></i></span>
+  <b>{{ pct(r.p) }}</b>
+</span>
+{% endmacro %}
+
+{% macro matchrow(r, f, qs, show_day) %}
+<li class="match {{ r.band }}{% if r.p >= STRONG %} strong{% endif %}">
+  <div class="when">
+    <span class="ko">{{ r.kickoff or '–' }}</span>
+    {% if show_day %}<span class="dd">{{ r._day.strftime('%a %d %b') }}</span>{% endif %}
+  </div>
+  <div class="who">
+    <a class="teams" href="/match/{{ r.match_id }}{{ '?' ~ qs if qs }}">{{ r.home_team }} <span class="vs">v</span> {{ r.away_team }}</a>
+    <div class="meta">
+      <span>{{ r.competition }}</span>{% if r.round %}<span>{{ r.round.replace('Regular Season - ', 'Round ') }}</span>{% endif %}
+      {% if r.odds %}<span class="badge ok" title="Market odds were published, so the odds model scored this match">odds</span>
+      {% else %}<span class="badge" title="No odds published yet; scored by the no-odds model">no odds</span>{% endif %}
+      {% if r.cold_start %}<span class="badge warn" title="A team has fewer than 5 earlier matches in our data">cold start</span>{% endif %}
+    </div>
+  </div>
+  <div class="pcell">{{ prob(r, f) }}<small>chance of {{ f.n }}+ shots</small>
+    {% if f.side and r.tp is not none %}
+    <span class="prob tprob {{ r.tband }}" title="Chance that the {{ r.tside }} team has {{ f.tn }} or more shots (experimental)">
+      <span class="pbar" aria-hidden="true"><i style="width:{{ (r.tp * 100)|round(1) }}%"></i></span><b>{{ pct(r.tp) }}</b></span>
+    <small>{{ r.tside }} team {{ f.tn }}+ shots <span class="badge xp">experimental</span></small>
+    {% endif %}
+  </div>
+  <div class="exp"><b>{{ '%.0f'|format(r.expected_shots) }}</b><small>expected shots</small>
+    {% if r.home_mean is not none and r.away_mean is not none %}
+    <small class="split" title="Expected shots by team, home – away (experimental)"><span class="sr">home </span>{{ '%.0f'|format(r.home_mean) }} – {{ '%.0f'|format(r.away_mean) }}<span class="sr"> away</span><span class="xp" aria-hidden="true">exp.</span></small>
+    {% endif %}
+  </div>
+  <div class="lbc"><b>{{ r.lb_80 if r.lb_80 is not none else '–' }}+</b><small>80% sure</small></div>
+  <div class="abv {{ 'up' if r.above_league > 0.5 else 'down' if r.above_league < -0.5 else 'flat' }}"
+       title="League average is {{ r.league_avg_shots }} shots per match">
+    <b>{{ '%+.1f'|format(r.above_league) }}</b><small>vs league avg</small>
+  </div>
+</li>
+{% endmacro %}
+
+{% block content %}
+{% set qs = f.qs() %}
+<div class="pagehead">
+  <h1>Upcoming matches</h1>
+  <p class="lede">How many shots will each game have? Every match shows the chance it reaches your shot threshold (total shots, both teams), so you can spot the busy games before kick-off.</p>
+</div>
+
+<section class="guide" id="guide" aria-labelledby="guide-title">
+  <div class="ghead">
+    <h2 id="guide-title">New here? Three things to know</h2>
+    <button type="button" class="gclose" hidden>Hide this guide</button>
+  </div>
+  {{ guide_steps(f.n) }}
+  <p class="gnote">Look for the <span class="qmark" aria-hidden="true">?</span><span class="sr">question-mark buttons</span> next to any term for a plain-English explanation. You can bring this guide back any time with <a href="/#guide" data-guide-open>Quick guide</a> at the top of the page.</p>
+</section>
+
+<p id="result-status" class="sr" role="status" aria-live="polite"></p>
+<div class="layout">
+<form class="filters" method="get" action="/" id="filters" aria-labelledby="filters-title">
+  <div class="fhead">
+    <h2 id="filters-title">Filters{% if chips %} <span class="count" id="filters-count">{{ chips|length }}<span class="sr"> active</span></span>{% endif %}</h2>
+    <button type="button" class="fclose" hidden>Close<span class="sr"> filters</span></button>
+  </div>
+  <a class="skipres" href="#results">Skip filters and go to the matches</a>
+
+  <fieldset>
+    <legend>How many shots? {{ help('threshold') }}</legend>
+    <label class="slider" for="n">At least <output for="n" data-fmt="{v}">{{ f.n }}</output> total shots</label>
+    <input type="range" id="n" name="n" min="{{ N_LO }}" max="{{ N_HI }}" step="1" value="{{ f.n }}" data-default="{{ N_DEFAULT }}">
+  </fieldset>
+
+  <fieldset>
+    <legend>How likely? {{ help('probability') }}</legend>
+    <label class="slider" for="p">Minimum chance <output for="p" data-fmt="{v}%">{{ f.pmin }}%</output></label>
+    <input type="range" id="p" name="p" min="0" max="95" step="5" value="{{ f.pmin }}" data-default="0">
+    <p class="hint">0% shows every match. Rows at {{ (STRONG * 100)|round|int }}% or more are highlighted.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>When?</legend>
+    <div class="radios">
+      {% for o in when_opts %}
+      {% if o.locked %}
+      <span class="chip-locked"><span>{{ o.label }}</span> {{ lock() }}</span>
+      {% else %}
+      <label class="chip-radio"><input type="radio" name="when" value="{{ o.key }}" {% if f.when == o.key %}checked{% endif %}><span>{{ o.label }}</span></label>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Leagues</legend>
+    <div class="quick">
+      {% for key, label in GROUPS.items() %}
+      <label class="chip-check"><input type="checkbox" name="grp" value="{{ key }}" {% if key in f.groups %}checked{% endif %}><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+    {% for g in league_groups %}
+    <div class="country"><h3>{{ g.country }}</h3>
+      {% for l in g.leagues %}
+      <label class="chip-check"><input type="checkbox" name="league" value="{{ l.name }}" {% if l.name in f.leagues %}checked{% endif %}>
+        <span>{{ l.name.replace(g.country ~ ' ', '') }} <em>{{ l.count }}</em></span></label>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    {% if access.leagues %}<p class="lockline">More leagues: {{ lock() }}</p>{% endif %}
+  </fieldset>
+
+  {% if has_team %}
+  <fieldset>
+    <legend>One team's shots <span class="badge xp">experimental</span> {{ help('experimental') }}</legend>
+    <div class="radios">
+      <label class="chip-radio"><input type="radio" name="side" value="" {% if not f.side %}checked{% endif %}><span>Off</span></label>
+      {% for key, label in SIDES.items() %}
+      <label class="chip-radio"><input type="radio" name="side" value="{{ key }}" {% if f.side == key %}checked{% endif %}><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+    <label class="slider" for="tn">Team has at least <output for="tn" data-fmt="{v}">{{ f.tn }}</output> shots</label>
+    <input type="range" id="tn" name="tn" min="{{ TN_LO }}" max="{{ TN_HI }}" step="1" value="{{ f.tn }}" data-default="{{ TN_DEFAULT }}">
+    <label class="slider" for="tp">Team minimum chance <output for="tp" data-fmt="{v}%">{{ f.tp }}%</output></label>
+    <input type="range" id="tp" name="tp" min="0" max="95" step="5" value="{{ f.tp }}" data-default="0">
+    <p class="hint">Pick home, away or either team (the better of the two chances).</p>
+  </fieldset>
+  {% elif access.team %}
+  <section class="locked" aria-labelledby="lk-team">
+    <h3 id="lk-team">One team's shots</h3>
+    <p class="hint">Filter by a single team reaching a shot count, for example &ldquo;either team has 15+ shots&rdquo;.</p>
+    <p>{{ lock() }}</p>
+  </section>
+  {% endif %}
+
+  <fieldset>
+    <legend>More options</legend>
+    <label class="text" for="q">Team name</label>
+    <input type="search" id="q" name="q" value="{{ f.q }}" placeholder="e.g. Atletico, Koln" autocomplete="off">
+    <label class="check"><input type="checkbox" name="odds" value="1" {% if f.odds %}checked{% endif %}> Odds published only {{ help('odds') }}</label>
+    <label class="check"><input type="checkbox" name="nocold" value="1" {% if f.nocold %}checked{% endif %}> Hide cold starts {{ help('cold_start') }}</label>
+    <p class="hint rangehead" id="exp-range-h">Expected shots between {{ help('expected') }}</p>
+    <div class="pair" role="group" aria-labelledby="exp-range-h">
+      <input type="number" name="smin" aria-label="Minimum expected shots" min="{{ S_LO|int }}" max="{{ S_HI|int }}" step="1" inputmode="numeric" value="{{ '%g'|format(f.smin) if f.smin is not none }}" placeholder="min">
+      <input type="number" name="smax" aria-label="Maximum expected shots" min="{{ S_LO|int }}" max="{{ S_HI|int }}" step="1" inputmode="numeric" value="{{ '%g'|format(f.smax) if f.smax is not none }}" placeholder="max">
+    </div>
+    <label class="text" for="sort">Sort by</label>
+    <select id="sort" name="sort">{% for key, label in SORTS.items() %}<option value="{{ key }}" {% if f.sort == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  </fieldset>
+
+  <div class="actions">
+    <button type="submit">Apply filters</button>
+    <button type="button" class="fdone" hidden>Show matches</button>
+    <a class="reset" href="/">Reset</a>
+  </div>
+</form>
+
+<div class="mainc" id="board-live" data-status="{{ result_text }}" data-shown="{{ shown }}">
+  <section class="summary" aria-label="Summary">
+    <div><b>{{ shown }}</b><span>of {{ total }} matches shown</span></div>
+    <div class="clear"><b>{{ strong }}</b><span>clear the {{ (STRONG * 100)|round|int }}% bar for {{ f.n }}+ shots</span>{{ help('bar') }}</div>
+    <div><b>{{ n_leagues }}</b><span>league{{ 's' if n_leagues != 1 }}</span></div>
+    <div><b>{{ f.n }}+</b><span>shot threshold</span>{{ help('threshold') }}</div>
+  </section>
+
+  <div class="toolbar">
+    <button type="button" class="ftoggle" aria-controls="filters" aria-expanded="false" hidden>Filters{% if chips %} ({{ chips|length }}){% endif %}</button>
+    <nav class="presets" aria-label="Quick views">
+      <span class="plabel">Quick views</span>
+      <ul>
+        {% for p in presets %}
+        <li>{% if p.locked %}<span class="preset locked">{{ p.label }} {{ lock() }}</span>
+          {% else %}<a class="preset" href="/?{{ p.qs }}" {% if p.active %}aria-current="true"{% endif %}>{{ p.label }}<span class="sr">: {{ p.blurb }}</span></a>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </nav>
+  </div>
+
+  {% if chips %}
+  <ul class="chips" aria-label="Active filters">
+    {% for label, rest in chips %}
+    <li><a href="/{{ '?' ~ rest if rest }}" title="Remove this filter">{{ label }} <span aria-hidden="true">&times;</span><span class="sr">remove</span></a></li>
+    {% endfor %}
+    <li><a class="clearall" href="/">Reset all</a></li>
+  </ul>
+  {% endif %}
+
+  {% if locked_requested %}
+  <p class="notice">{% for v in locked_requested %}{{ v }}{{ ', ' if not loop.last }}{% endfor %} {{ 'is' if locked_requested|length == 1 else 'are' }} not part of your current plan, so {{ 'it is' if locked_requested|length == 1 else 'they are' }} left out. {{ lock() }}</p>
+  {% endif %}
+
+  <section class="results" aria-label="Matches" id="results" tabindex="-1">
+  {% if not rows %}
+  <div class="empty">
+    <h2>No matches fit these filters</h2>
+    {% if total == 0 %}
+    <p>The board has no upcoming matches{% if access.any %} in your plan{% endif %}. Rebuild it with <code>python -m shots update</code>, then reload.</p>
+    {% else %}
+    <p>{{ total }} upcoming matches are on the board, but none pass every filter. Here is what you can do next:</p>
+    <ul class="next">
+      {% for label, rest in chips %}<li><a href="/{{ '?' ~ rest if rest }}">Remove &ldquo;{{ label }}&rdquo;</a></li>{% endfor %}
+      <li><a href="/">Reset filters</a> to see all {{ total }} matches</li>
+    </ul>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="key">Badges: <span class="badge">no odds</span> {{ help('no_odds') }} <span class="badge warn">cold start</span> {{ help('cold_start') }}</p>
+  <div class="colhead">
+    <span class="c-when">Kick-off</span><span class="c-who">Match</span>
+    <span class="c-p">Chance of {{ f.n }}+ {{ help('probability') }}</span>
+    <span class="c-e">Expected shots {{ help('expected') }}</span>
+    <span class="c-l">80% sure {{ help('sure80') }}</span>
+    <span class="c-a">Vs league {{ help('vs_league') }}</span>
+  </div>
+  {% if f.sort == 'kickoff' %}
+    {% for g in groups %}
+    <section class="day">
+      <h2>{{ g.label }} <small>{{ g.rows|length }} match{{ 'es' if g.rows|length != 1 }}</small></h2>
+      <ol class="rows">{% for r in g.rows %}{{ matchrow(r, f, qs, false) }}{% endfor %}</ol>
+    </section>
+    {% endfor %}
+  {% else %}
+    <section class="day">
+      <h2>Ranked by {{ SORTS[f.sort].lower() }} <small>{{ rows|length }} matches</small></h2>
+      <ol class="rows">{% for r in rows %}{{ matchrow(r, f, qs, true) }}{% endfor %}</ol>
+    </section>
+  {% endif %}
+  {% endif %}
+  {% if access.any %}
+  <aside class="lockcard" aria-labelledby="lk-plan">
+    <h2 id="lk-plan">What your plan includes</h2>
+    <ul>
+      <li>{% if access.leagues %}{{ access.n_leagues }} league{{ 's' if access.n_leagues != 1 }}{% else %}All leagues{% endif %}</li>
+      <li>{% if access.days is not none %}Matches in the next {{ access.days }} day{{ 's' if access.days != 1 }}{% else %}The whole season ahead{% endif %}</li>
+      <li>{% if access.team %}No team-by-team numbers{% else %}Team-by-team numbers{% endif %}</li>
+    </ul>
+    <p>Anything outside your plan is not listed here. {{ lock() }} <a href="/pricing">Compare plans</a></p>
+  </aside>
+  {% endif %}
+  </section>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{# Shared macros. help(): inline glossary disclosure (native <details>, so it works without JavaScript).
+   lock(): the "Available on Pro" marker shown where the plan hides something. #}
+{% macro help(key, label=None) -%}
+{%- set t = GLOSSARY[key] -%}
+<details class="term"><summary><span class="sr">What does &ldquo;{{ label or t[0] }}&rdquo; mean?</span><span aria-hidden="true">?</span></summary><span class="pop" role="note"><b>{{ t[0] }}.</b> {{ t[1] }} <a href="/about#glossary">All terms</a></span></details>
+{%- endmacro %}
+
+{% macro lock(plan=None) -%}
+{%- set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') -%}
+<span class="lockmark"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>Available on <a href="{% if auth_on and not user %}/register?next={{ here|urlencode }}{% else %}/pricing{% endif %}">{{ plan or PLAN }}</a></span>
+{%- endmacro %}
+
+{% macro guide_steps(n=24) -%}
+<ol class="steps">
+  <li>
+    <h3>Read the headline</h3>
+    <p><b class="eg">70% chance of {{ n }}+ shots</b> means that in about 7 of 10 similar matches, both teams together take at least {{ n }} shots (on target, off target and blocked). It is a chance, not a promise.</p>
+  </li>
+  <li>
+    <h3>Bar and &ldquo;80% sure&rdquo;</h3>
+    <p>The <b>bar</b> shows that chance; the tick marks 70% and the fill turns green past it. <b>80% sure: 27+</b> is a safe floor: the model is 80% confident the match reaches at least 27 shots.</p>
+  </li>
+  <li>
+    <h3>Filter to what you want</h3>
+    <p>Move the <b>shots slider</b> to change the number you care about, then narrow by minimum chance, day or league, or tap a quick view. Every view has its own web address, so you can bookmark or share it.</p>
+  </li>
+</ol>
+{%- endmacro %}

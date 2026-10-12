@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Pricing &middot; Shots board{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <h1>Pricing</h1>
+  <p class="lede">Every plan shows the same calibrated numbers; they differ in how much of the board you can see. Paid plans are coming soon: payment is not open yet, so names and what each includes may still change.</p>
+</div>
+<section class="mine" aria-labelledby="h-mine">
+  <h2 id="h-mine">Your access right now</h2>
+  <ul>
+    <li>{% if access.leagues %}{{ access.n_leagues }} league{{ 's' if access.n_leagues != 1 }}{% else %}All leagues{% endif %}</li>
+    <li>{% if access.days is not none %}Matches in the next {{ access.days }} day{{ 's' if access.days != 1 }}{% else %}The whole season ahead{% endif %}</li>
+    <li>{% if access.team %}No team-by-team numbers{% else %}Team-by-team numbers (experimental){% endif %}</li>
+  </ul>
+  {% if auth_on and not user %}<p><a href="/register?next=%2Fpricing">Create a free account</a> or <a href="/login?next=%2Fpricing">sign in</a> to see your plan.</p>{% endif %}
+</section>
+<div class="plans">
+  {% for p in plans %}
+  <section class="card plan{% if p.current %} current{% endif %}" aria-labelledby="p-{{ p.key }}">
+    <h2 id="p-{{ p.key }}">{{ p.name }} {% if p.current %}<span class="badge ok">Your plan</span>{% endif %}</h2>
+    <p class="price">{% if p.key == 'free' %}Free{% else %}Coming soon{% endif %}</p>
+    <ul class="incl">{% for i in p.lines %}<li class="{{ 'yes' if i.included else 'no' }}"><span class="sr">{{ 'Included: ' if i.included else 'Not included: ' }}</span>{{ i.text }}</li>{% endfor %}</ul>
+  </section>
+  {% else %}
+  <p>Plan details are not available right now.</p>
+  {% endfor %}
+</div>
+{% endblock %}

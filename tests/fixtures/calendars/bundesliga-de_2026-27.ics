@@ -1,0 +1,16 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:1@matches.app
+SUMMARY:1. FC Heidenheim - Bayern München
+DTSTART:20261010T223000Z
+DESCRIPTION:Bundesliga · 2026/27 · Regular Season - 6 · Giornata 6 · To
+  be played
+END:VEVENT
+BEGIN:VEVENT
+UID:2@matches.app
+SUMMARY:FC Augsburg - Hamburger SV
+DTSTART:20261011T133000Z
+DESCRIPTION:Bundesliga · 2026/27 · Regular Season - 6 · Giornata 6 · To be played
+END:VEVENT
+END:VCALENDAR

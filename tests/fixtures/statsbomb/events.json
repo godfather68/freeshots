@@ -1,0 +1,12 @@
+[
+ {"period": 1, "type": {"name": "Pass"}, "team": {"name": "Chelsea"}},
+ {"period": 1, "type": {"name": "Shot"}, "team": {"name": "Chelsea"}, "shot": {"outcome": {"name": "Saved"}}},
+ {"period": 1, "type": {"name": "Shot"}, "team": {"name": "Chelsea"}, "shot": {"outcome": {"name": "Blocked"}}},
+ {"period": 1, "type": {"name": "Shot"}, "team": {"name": "Chelsea"}, "shot": {"outcome": {"name": "Off T"}}},
+ {"period": 2, "type": {"name": "Shot"}, "team": {"name": "Chelsea"}, "shot": {"outcome": {"name": "Goal"}}},
+ {"period": 2, "type": {"name": "Shot"}, "team": {"name": "Chelsea"}, "shot": {"outcome": {"name": "Post"}}},
+ {"period": 1, "type": {"name": "Shot"}, "team": {"name": "Arsenal"}, "shot": {"outcome": {"name": "Saved To Post"}}},
+ {"period": 2, "type": {"name": "Shot"}, "team": {"name": "Arsenal"}, "shot": {"outcome": {"name": "Saved Off Target"}}},
+ {"period": 2, "type": {"name": "Shot"}, "team": {"name": "Arsenal"}, "shot": {"outcome": {"name": "Wayward"}}},
+ {"period": 5, "type": {"name": "Shot"}, "team": {"name": "Arsenal"}, "shot": {"outcome": {"name": "Goal"}}}
+]

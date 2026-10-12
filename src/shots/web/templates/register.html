@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Create an account &middot; Shots board{% endblock %}
+{% block content %}
+<div class="authbox">
+  <h1>Create an account</h1>
+  <p class="lede">Free to join. You start on the Free plan; see <a href="/pricing">what each plan includes</a>.</p>
+  {% include "_authmsg.html" %}
+  <form class="authform" method="post" action="/auth/register">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field"><label for="email">Email address</label>
+      <input type="email" id="email" name="email" autocomplete="email" required {% if auth_error in ('invalid_email', 'email_taken', 'registration_failed') %}aria-invalid="true" aria-describedby="form-error"{% endif %}></div>
+    <div class="field"><label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="new-password" required minlength="{{ password_min_length }}" maxlength="{{ password_max_length }}"
+        aria-describedby="pw-rules{% if auth_error in ('weak_password', 'password_mismatch') %} form-error{% endif %}" {% if auth_error in ('weak_password', 'password_mismatch') %}aria-invalid="true"{% endif %}>
+      <p class="hint" id="pw-rules">At least {{ password_min_length }} characters. Avoid common passwords and anything containing your email address. A few random words works well.</p></div>
+    <div class="field"><label for="password_confirm">Repeat the password</label>
+      <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" required {% if auth_error == 'password_mismatch' %}aria-invalid="true" aria-describedby="form-error"{% endif %}></div>
+    <button type="submit">Create account</button>
+  </form>
+  <p>Already registered? <a href="/login{{ '?next=' ~ (next|urlencode) if next }}">Sign in</a>.</p>
+</div>
+{% endblock %}

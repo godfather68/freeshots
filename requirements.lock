@@ -1,0 +1,65 @@
+# Exact versions for CI and the scheduled GitHub Actions run (.github/workflows/).
+# Resolved from requirements.txt (the loose spec; edit that one) and tested with
+# Python 3.12 on Ubuntu 24.04 (x86_64), every package installed from a wheel.
+# Regenerate, in a fresh virtual environment of that Python version:
+#   python -m pip install -r requirements.txt && python -m pip freeze --exclude-editable > requirements.lock
+# (then restore this header). The saved-models cache is keyed on this file: changing it retrains.
+# System library needed by lightgbm on Linux: libgomp1 (present on GitHub's Ubuntu images).
+alembic==1.20.0
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+argon2-cffi==25.1.0
+argon2-cffi-bindings==26.1.0
+attrs==26.1.0
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.2
+click==8.5.0
+cloudpickle==3.1.2
+fastapi==0.143.0
+formulaic==1.2.2
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.20
+iniconfig==2.3.1
+interface_meta==2.0.1
+Jinja2==3.1.6
+joblib==1.6.0
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+lightgbm==4.7.0
+Mako==1.4.3
+MarkupSafe==3.0.4
+narwhals==2.27.1
+numpy==2.5.4
+opentelemetry-api==1.45.1
+packaging==26.3
+pandas==3.0.6
+patsy==1.0.3
+pluggy==1.6.0
+pyarrow==26.0.0
+pycparser==3.11
+pydantic==2.14.1
+pydantic_core==2.50.1
+Pygments==2.21.0
+pytest==9.1.1
+python-dateutil==2.9.0.post0
+PyYAML==6.0.3
+referencing==0.37.0
+requests==2.34.2
+rpds-py==2026.9.1
+scikit-learn==1.9.1
+scipy==1.18.1
+six==1.17.0
+SQLAlchemy==2.1.4
+starlette==1.7.0
+statsmodels==0.15.0
+tabulate==0.10.0
+threadpoolctl==3.7.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+urllib3==2.8.0
+uvicorn==0.54.0
+wrapt==2.5.0

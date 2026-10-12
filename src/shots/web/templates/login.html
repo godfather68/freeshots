@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Sign in &middot; Shots board{% endblock %}
+{% block content %}
+<div class="authbox">
+  <h1>Sign in</h1>
+  {% include "_authmsg.html" %}
+  <form class="authform" method="post" action="/auth/login">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field"><label for="email">Email address</label>
+      <input type="email" id="email" name="email" autocomplete="username" required {% if auth_error %}aria-invalid="true" aria-describedby="form-error"{% endif %}></div>
+    <div class="field"><label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required {% if auth_error %}aria-describedby="form-error"{% endif %}></div>
+    <button type="submit">Sign in</button>
+  </form>
+  <p>No account yet? <a href="/register{{ '?next=' ~ (next|urlencode) if next }}">Create one for free</a>.</p>
+</div>
+{% endblock %}

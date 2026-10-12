@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "shots-web",
+      "runtimeExecutable": "C:/Users/T. Farel ELLELY/Documents/Projects/Shots/.venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "shots.web"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "shots-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    }
+  ]
+}

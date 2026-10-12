@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Shots board{% endblock %}</title>
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Calibrated chances that an upcoming football match reaches a number of total shots.">
+<script src="/static/boot.js"></script>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="page-{{ page }}">
+<a class="skip" href="#main">Skip to main content</a>
+<header class="top">
+  <div class="wrap topbar">
+    <a class="brand" href="/">
+      <svg class="pitch-mark" viewBox="0 0 40 26" aria-hidden="true" focusable="false">
+        <rect x="1" y="1" width="38" height="24" rx="2"/><line x1="20" y1="1" x2="20" y2="25"/>
+        <circle cx="20" cy="13" r="5"/><rect x="1" y="7" width="6" height="12"/><rect x="33" y="7" width="6" height="12"/>
+      </svg>
+      <span>Shots board</span>
+    </a>
+    <nav aria-label="Main">
+      <ul>
+        <li><a href="/" {% if page in ('home', 'match') %}aria-current="page"{% endif %}>Matches</a></li>
+        <li><a href="/track" {% if page == 'track' %}aria-current="page"{% endif %}>Track record</a></li>
+        <li><a href="/about" {% if page == 'about' %}aria-current="page"{% endif %}>How it works</a></li>
+        <li><a href="/pricing" {% if page == 'pricing' %}aria-current="page"{% endif %}>Pricing</a></li>
+      </ul>
+    </nav>
+    <div class="acct">
+      <a class="guide-link" href="/#guide" data-guide-open>Quick guide</a>
+      {% include "_account.html" %}
+    </div>
+  </div>
+  {% if fresh %}
+  <div class="statusbar {{ fresh.level }}">
+    <div class="wrap">
+      <p class="fresh"><span class="dot" aria-hidden="true"></span>
+        {% if fresh.level != 'ok' %}<b class="sr">Warning: </b>{% endif %}<span>{{ fresh.text }}</span>
+        {% if fresh.detail %}<span class="why">{{ fresh.detail }}</span>{% endif %}</p>
+    </div>
+  </div>
+  {% endif %}
+</header>
+<main id="main" class="wrap" tabindex="-1">
+{% if board_missing %}
+  <section class="empty">
+    <h1>No board yet</h1>
+    {% if board_error == 'unreadable' %}
+    <p>The database exists but could not be read. Reload in a moment; if it persists, check <code>python -m shots.db status</code>.</p>
+    {% else %}
+    <p>The predictions are worked out ahead of time, and none have been built yet, so there is nothing to show. This is normal on a first run.</p>
+    {% endif %}
+    <p>Build it with <code>python -m shots update</code>, or <code>python -m shots.predict.board</code> (add <code>--no-refresh</code> to skip re-downloading results) followed by <code>python -m shots.db import</code>, then reload this page.</p>
+  </section>
+{% else %}
+  {% block content %}{% endblock %}
+{% endif %}
+</main>
+<footer class="foot">
+  <div class="wrap">
+  <p><b>Pre-match chances, not certainties.</b> Lineups, injuries and red cards are not in the model. <a href="/about">How it works</a> &middot; <a href="/about#glossary">Glossary</a> &middot; <a href="/track">Track record</a></p>
+  {% if meta and meta.built_at %}
+  <p>Data as of {{ meta.built_at.replace('T', ' ')[:16] }} &middot; results up to {{ meta.results_up_to }} &middot;
+     {{ meta.n_fixtures }} fixtures ({{ meta.n_with_odds }} with odds, {{ meta.n_without_odds }} without) &middot;
+     model{{ 's' if meta.models|length > 1 }}: {{ meta.models|join(', ') }}</p>
+  {% if stale_days %}<p class="warn">This board was built {{ stale_days }} day{{ 's' if stale_days != 1 }} ago; matches may have been played or odds may have appeared since.</p>{% endif %}
+  {% endif %}
+  <p>Rebuild with <code>python -m shots update</code> (or <code>python -m shots.predict.board</code> then <code>python -m shots.db import</code>). This page only reads the saved board; it never runs a model.</p>
+  </div>
+</footer>
+<script src="/static/app.js" defer></script>
+</body>
+</html>

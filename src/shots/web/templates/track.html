@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_ui.html" import help, lock with context %}
+{% block title %}Track record &middot; Shots board{% endblock %}
+
+{% block content %}
+<h1>Track record</h1>
+<p class="lede">How often did "P% sure" actually come true? Predictions made before the match, compared with the shots that were really counted. A model that is honest about its chances is called <b>calibrated</b> {{ help('calibrated') }}: its 70% calls land about 70% of the time.</p>
+
+<nav class="seg" aria-label="Record type">
+  <a href="/track?src=backfill" {% if src == 'backfill' %}aria-current="true"{% endif %}>2025/26 season replay (out of sample)</a>
+  <a href="/track?src=live" {% if src == 'live' %}aria-current="true"{% endif %}>Live scans ({{ counts.get('settled', 0) }} settled, {{ counts.get('pending', 0) }} pending)</a>
+</nav>
+
+{% if not has_data %}
+<div class="empty"><h2>Nothing to show here yet</h2>
+  <p>{% if src == 'live' %}No scanned picks have been settled against results yet. Picks are checked automatically once the matches have been played, so come back after the next round, or look at the <a href="/track?src=backfill">season replay</a> now.{% else %}The season replay has not been built. Run <code>python -m shots.predict.track</code> once to create it, or look at the <a href="/track?src=live">live scans</a>.{% endif %}</p></div>
+{% else %}
+<nav class="seg small" aria-label="Threshold">
+  <span>Threshold:</span>
+  {% for k in avail %}<a href="/track?src={{ src }}&amp;n={{ k }}" {% if k == n %}aria-current="true"{% endif %}>{{ k }}+</a>{% endfor %}
+</nav>
+
+{% set s = m.selected %}
+<section class="summary" aria-label="Headline">
+  <div><b>{{ total }}</b><span>matches scored at {{ n }}+ ({{ n_comp }} leagues)</span></div>
+  <div><b>{{ s.n }}</b><span>called at {{ (min_prob * 100)|round|int }}% or more</span></div>
+  <div class="clear"><b>{{ pct(s.hit_rate, 1) if s.n else '–' }}</b><span>of those reached {{ n }}+ shots</span></div>
+  <div><b>{{ pct(s.mean_p, 1) if s.n else '–' }}</b><span>average stated probability</span></div>
+</section>
+
+{% if s.n %}
+<p class="verdict">
+  Among matches the model rated {{ (min_prob * 100)|round|int }}% or higher, <b>{{ s.hits }} of {{ s.n }}</b> reached {{ n }}+ shots
+  ({{ pct(s.hit_rate, 1) }}, 95% range {{ pct(s.ci_lo) }} to {{ pct(s.ci_hi) }}) against an average stated probability of {{ pct(s.mean_p, 1) }}.
+  {% if s.ci_lo <= s.mean_p <= s.ci_hi %}The stated probability sits inside that range, so the numbers are consistent with the results.
+  {% elif s.hit_rate > s.mean_p %}The results ran a little better than stated, which is the safe side.
+  {% else %}The results ran below the stated probability; read the numbers a bit more cautiously.{% endif %}
+</p>
+{% endif %}
+
+<div class="two">
+<section class="card">
+  <h2>Stated against realised</h2>
+  <figure class="chart">
+    <figcaption class="hint">Each dot is a probability band. On the dashed diagonal, "70% sure" came true 70% of the time. Dot size grows with matches in the band.</figcaption>
+    <div class="relchart">{{ rel_svg }}</div>
+    <p class="reading"><b>How to read it.</b> Dots near the diagonal mean the stated chances can be trusted. Dots above it mean the results beat the forecast; below, they fell short. The table on the right has the same numbers.</p>
+  </figure>
+</section>
+<section class="card">
+  <h2>Reliability table</h2>
+  <div class="tw"><table>
+    <caption class="sr">Stated probability against how often it came true</caption>
+    <thead><tr><th scope="col">Stated band</th><th scope="col">Matches</th><th scope="col">Avg stated</th><th scope="col">Came true</th></tr></thead>
+    <tbody>{% for b in rel %}<tr><td>{{ b.band }}</td><td>{{ b.n }}</td><td>{{ pct(b.mean_p, 1) }}</td><td>{{ pct(b.realised, 1) }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="hint">Bands with few matches are noisy. A gap inside the 95% range is not evidence of a problem.</p>
+</section>
+</div>
+{% endif %}
+{% if access.track %}
+<aside class="lockcard" aria-labelledby="lk-track">
+  <h2 id="lk-track">Per-league breakdown</h2>
+  <p>See how the model did in each competition, not only overall.</p>
+  <p>{{ lock(PLAN_TOP) }}</p>
+</aside>
+{% endif %}
+{% endblock %}

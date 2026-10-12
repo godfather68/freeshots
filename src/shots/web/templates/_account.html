@@ -1,0 +1,11 @@
+{# Header account area: sign in / register when anonymous, account link and sign-out form when signed in. #}
+{% if user %}
+<a class="acct-link" href="/account" {% if page == 'account' %}aria-current="page"{% endif %}><span class="sr">Your account: </span>{{ user.email }}{% if plan %} <small>({{ plan.name }})</small>{% endif %}</a>
+<form class="signout" method="post" action="/auth/logout">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="quiet">Sign out</button>
+</form>
+{% elif auth_on %}
+<a class="acct-link" href="/login{% if page not in ('login', 'register') %}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}{% endif %}">Sign in</a>
+<a class="guide-link" href="/register">Register</a>
+{% endif %}
