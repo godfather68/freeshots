@@ -608,10 +608,157 @@
   },
   "live": {
    "label": "Live picks (saved before kick-off)",
-   "settled": 0,
-   "pending": 126,
+   "settled": 104,
+   "pending": 112,
    "void": 0,
-   "by_n": {}
+   "by_n": {
+    "24": {
+     "selected_min_prob": 0.7,
+     "n": 65,
+     "hits": 56,
+     "hit_rate": 0.8615,
+     "mean_stated": 0.8004,
+     "wilson95": [
+      0.7573,
+      0.9254
+     ],
+     "brier": 0.163,
+     "brier_baseline": 0.2305,
+     "reliability": [
+      {
+       "band": [
+        0.3,
+        0.4
+       ],
+       "n": 2,
+       "stated": 0.3655,
+       "realised": 1.0
+      },
+      {
+       "band": [
+        0.4,
+        0.5
+       ],
+       "n": 5,
+       "stated": 0.469,
+       "realised": 0.8
+      },
+      {
+       "band": [
+        0.5,
+        0.6
+       ],
+       "n": 5,
+       "stated": 0.5468,
+       "realised": 0.4
+      },
+      {
+       "band": [
+        0.6,
+        0.7
+       ],
+       "n": 27,
+       "stated": 0.6504,
+       "realised": 0.7407
+      },
+      {
+       "band": [
+        0.7,
+        0.8
+       ],
+       "n": 36,
+       "stated": 0.7558,
+       "realised": 0.8611
+      },
+      {
+       "band": [
+        0.8,
+        0.9
+       ],
+       "n": 25,
+       "stated": 0.846,
+       "realised": 0.84
+      },
+      {
+       "band": [
+        0.9,
+        1.0
+       ],
+       "n": 4,
+       "stated": 0.9168,
+       "realised": 1.0
+      }
+     ],
+     "by_league": [
+      {
+       "league": "germany-2-bundesliga",
+       "n": 9,
+       "hit_rate": 0.6667,
+       "stated": 0.8303
+      },
+      {
+       "league": "belgium-pro-league",
+       "n": 8,
+       "hit_rate": 0.875,
+       "stated": 0.7797
+      },
+      {
+       "league": "england-premier-league",
+       "n": 7,
+       "hit_rate": 1.0,
+       "stated": 0.7586
+      },
+      {
+       "league": "germany-bundesliga",
+       "n": 7,
+       "hit_rate": 1.0,
+       "stated": 0.8766
+      },
+      {
+       "league": "turkey-super-lig",
+       "n": 7,
+       "hit_rate": 1.0,
+       "stated": 0.7896
+      },
+      {
+       "league": "england-championship",
+       "n": 6,
+       "hit_rate": 0.5,
+       "stated": 0.7837
+      },
+      {
+       "league": "italy-serie-a",
+       "n": 5,
+       "hit_rate": 1.0,
+       "stated": 0.8218
+      },
+      {
+       "league": "italy-serie-b",
+       "n": 5,
+       "hit_rate": 0.6,
+       "stated": 0.7778
+      },
+      {
+       "league": "spain-segunda-division",
+       "n": 5,
+       "hit_rate": 1.0,
+       "stated": 0.7686
+      },
+      {
+       "league": "scotland-premiership",
+       "n": 3,
+       "hit_rate": 1.0,
+       "stated": 0.819
+      },
+      {
+       "league": "spain-la-liga",
+       "n": 3,
+       "hit_rate": 1.0,
+       "stated": 0.781
+      }
+     ]
+    }
+   }
   }
  }
 }

@@ -22,6 +22,7 @@
       {% if r.odds %}<span class="badge ok" title="Market odds were published, so the odds model scored this match">odds</span>
       {% else %}<span class="badge" title="No odds published yet; scored by the no-odds model">no odds</span>{% endif %}
       {% if r.cold_start %}<span class="badge warn" title="A team has fewer than 5 earlier matches in our data">cold start</span>{% endif %}
+      {% if r.experimental %}<span class="badge xp" title="Built from each club's domestic form; not validated on this competition and never settled">experimental</span>{% if r.data_quality and r.data_quality != 'full' %}<span class="badge warn" title="{% if r.data_quality == 'none' %}Neither club has shot data{% else %}One club has no shot data{% endif %}: a neutral league-average stand-in is used">{% if r.data_quality == 'none' %}no club data{% else %}partial data{% endif %}</span>{% endif %}{% endif %}
     </div>
   </div>
   <div class="pcell">{{ prob(r, f) }}<small>chance of {{ f.n }}+ shots</small>

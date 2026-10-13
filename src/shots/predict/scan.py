@@ -12,6 +12,12 @@ latest saved model (retrain if stale) -> calibrated P(total >= N) per fixture ->
 
 Every scanned fixture is saved to reports/picks/ (not only the selected ones), so picks can be
 settled against results later.
+
+Cross-border fixtures (UEFA Champions League; shots.ingest.cross_border) never enter the domestic
+feature pass: their features come from shots.features.cross_border and they are scored by the
+EXPERIMENTAL model (shots.models.cross_border), label "<no-odds model>-ucl-exp". When a scan
+contains such fixtures its output gains the columns `experimental` and `data_quality`; they can
+never be settled and are excluded from the track record.
 """
 
 from __future__ import annotations
@@ -23,10 +29,13 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import requests
 
+from shots.features.cross_border import build_cross_border_features
 from shots.features.team_form import build_features
+from shots.ingest import cross_border as xb
 from shots.ingest import football_data as fd
 from shots.models import MODELS
 from shots.models.persist import load, load_metadata, save
@@ -75,7 +84,8 @@ def gather_fixtures(start: date, days: int | None, use_calendar: bool = True) ->
         cal = cal[cal["date"] >= pd.Timestamp(start)]
         if len(fd_fx):
             cal = cal[~cal["match_id"].isin(fd_fx["match_id"])]
-        frames.append(cal.drop(columns=["round", "status"], errors="ignore"))
+        frames.append(cal.drop(columns=["round", "status", "kickoff_utc", "home_country", "away_country"],
+                               errors="ignore"))
     if not frames:
         return fd_fx
     fixtures = pd.concat(frames, ignore_index=True)
@@ -108,6 +118,29 @@ def latest_no_odds_model(name: str, played: pd.DataFrame, max_age_days: int) -> 
     return model, out.name
 
 
+def cross_border_model(nomodel, nolabel: str, played: pd.DataFrame, persist: bool = True):
+    """The experimental cross-border model on top of the no-odds model `nolabel` (saved under
+    models_store/cross_border/, so its team profiles stay fixed for the life of that model)."""
+    from shots.models import cross_border as xbm
+    from shots.models.cross_border import CrossBorderModel
+
+    path = STORE / "cross_border" / f"{nolabel}-exp"
+    if persist and (path / "model.joblib").exists():
+        saved = load(path)
+        current = (xbm.LEVEL_SD, xbm.SPLIT_SD, xbm.N_PROFILES, xbm.PROFILE_SEED)
+        if (saved.level_sd, saved.split_sd, saved.n_profiles, saved.seed) == current:
+            return saved
+        log.info("saved cross-border model has other parameters than the code; rebuilding")
+    train = no_odds_rows(played[played["total_shots"].notna()])
+    model = CrossBorderModel.from_base(nomodel, train)
+    if persist:
+        save(model, path, train, base_model=nolabel, status="experimental",
+             validation="reports/2026-10-13_champions_league.md",
+             note="not fitted or calibrated on any cross-border competition; global PIT fallback")
+        log.info("built the experimental cross-border model on %s -> %s", nolabel, path)
+    return model
+
+
 def latest_model(name: str, last_played: pd.Timestamp, max_age_days: int) -> Path:
     """Most recent saved model; retrain on all played matches if it is older than max_age_days."""
     saved = sorted(STORE.glob(f"{name}_*"), key=lambda p: load_metadata(p)["until"])
@@ -130,14 +163,33 @@ class Prepared:
     model_label: str
     nomodel: object | None = None
     nolabel: str | None = None
+    experimental: pd.Series | None = None  # True for cross-border fixtures (None = there are none)
+    xbmodel: object | None = None
+
+    def is_experimental(self) -> pd.Series:
+        if self.experimental is None:
+            return pd.Series(False, index=self.upcoming.index)
+        return self.experimental
 
     def routes(self):
         """Yield (mask, model, feature rows, label) per non-empty group: odds model for fixtures
-        with published odds, no-odds model (market features blanked) for the rest."""
-        if self.has_odds.any():
-            yield self.has_odds, self.model, self.upcoming, self.model_label
-        if (~self.has_odds).any():
-            yield ~self.has_odds, self.nomodel, no_odds_rows(self.upcoming), self.nolabel
+        with published odds, no-odds model (market features blanked) for the rest, and the
+        experimental cross-border model (one label per competition) for cross-border fixtures."""
+        exp = self.is_experimental()
+        if not exp.any():  # the domestic-only path, exactly as before cross-border fixtures existed
+            if self.has_odds.any():
+                yield self.has_odds, self.model, self.upcoming, self.model_label
+            if (~self.has_odds).any():
+                yield ~self.has_odds, self.nomodel, no_odds_rows(self.upcoming), self.nolabel
+            return
+        odds, plain = self.has_odds & ~exp, ~self.has_odds & ~exp
+        if odds.any():
+            yield odds, self.model, self.upcoming, self.model_label
+        if plain.any():
+            yield plain, self.nomodel, no_odds_rows(self.upcoming), self.nolabel
+        for comp in sorted(self.upcoming.loc[exp, "competition"].unique()):
+            yield (exp & (self.upcoming["competition"] == comp), self.xbmodel, no_odds_rows(self.upcoming),
+                   f"{self.nolabel}-{xb.BY_NAME[comp].label}")
 
 
 def prepare_upcoming(fixtures: pd.DataFrame, matches: pd.DataFrame, model_name: str = DEFAULT_MODEL,
@@ -146,16 +198,27 @@ def prepare_upcoming(fixtures: pd.DataFrame, matches: pd.DataFrame, model_name: 
     mode, fit) the odds and no-odds models. `fixtures` must carry a `kickoff` column."""
     t0 = time.time()
     kickoff = fixtures.set_index("match_id")["kickoff"]
+    # Cross-border fixtures are kept out of the domestic feature pass: domestic features, league
+    # priors and team histories are exactly what they are without them.
+    is_xb = fixtures["competition"].map(xb.is_cross_border).astype(bool)
+    xb_fixtures, fixtures = fixtures[is_xb], fixtures[~is_xb]
     combined = pd.concat([matches, fixtures.drop(columns="kickoff")], ignore_index=True)
     feats = build_features(combined)
     played = feats[feats["match_id"].isin(matches["match_id"])]
     upcoming = feats[feats["match_id"].isin(fixtures["match_id"])].reset_index(drop=True)
     upcoming = upcoming.drop(columns=["home_shots", "away_shots", "total_shots"], errors="ignore")
+    experimental = None
+    if len(xb_fixtures):
+        xrows = build_cross_border_features(matches, xb_fixtures.drop(columns="kickoff"), columns=upcoming.columns)
+        n_dom = len(upcoming)
+        upcoming = pd.concat([upcoming, xrows], ignore_index=True) if n_dom else xrows
+        experimental = pd.Series(np.arange(len(upcoming)) >= n_dom, index=upcoming.index)
     log.info("features for %d played + %d upcoming matches in %.0fs",
              len(played), len(upcoming), time.time() - t0)
 
     has_odds = upcoming[["mkt_p_home", "mkt_p_draw", "mkt_p_away", "mkt_p_over25"]].notna().all(axis=1)
-    nomodel = nolabel = None
+    nomodel = nolabel = xbmodel = None
+    need_noodds = bool((~has_odds).any())  # cross-border fixtures never have odds, so this covers them
     if as_of:
         model = MODELS[model_name]().fit(played[played["total_shots"].notna()])
         model_label = f"{model_name}_fit_before_{as_of}"
@@ -168,7 +231,9 @@ def prepare_upcoming(fixtures: pd.DataFrame, matches: pd.DataFrame, model_name: 
         model, model_label = load(model_dir), model_dir.name
         if (~has_odds).any():
             nomodel, nolabel = latest_no_odds_model(model_name, played, max_model_age_days)
-    return Prepared(upcoming, has_odds, kickoff, played, model, model_label, nomodel, nolabel)
+    if experimental is not None and need_noodds:
+        xbmodel = cross_border_model(nomodel, nolabel, played, persist=not as_of)
+    return Prepared(upcoming, has_odds, kickoff, played, model, model_label, nomodel, nolabel, experimental, xbmodel)
 
 
 def scan(shots: int = 24, min_prob: float = 0.70, model_name: str = DEFAULT_MODEL,
@@ -232,6 +297,9 @@ def scan(shots: int = 24, min_prob: float = 0.70, model_name: str = DEFAULT_MODE
     out.insert(out.columns.get_loc("league_avg_shots") + 1, "above_league",
                (out["expected_shots"] - out["league_avg_shots"]).round(1))
     out["selected"] = out[f"p_at_least_{shots}"] >= min_prob
+    if prep.is_experimental().any():  # only then: a domestic-only scan keeps its exact columns
+        out["experimental"] = prep.is_experimental().to_numpy()
+        out["data_quality"] = upcoming["data_quality"].where(prep.is_experimental(), "full").to_numpy()
     if as_of:
         actual = all_matches.set_index("match_id").eval("home_shots + away_shots")
         out["actual_shots"] = out["match_id"].map(actual).astype("Int64")
@@ -284,7 +352,7 @@ def main(argv=None) -> None:
     print(f"\n{int(out['selected'].sum())} of {len(out)} upcoming matches with P(total shots >= {args.shots}) "
           f">= {args.min_prob:.0%}{' (showing all)' if args.all else ''}\n")
     if len(shown):
-        view = shown.drop(columns=["match_id", "selected", "model"]).assign(**{pcol: shown[pcol].map("{:.0%}".format)})
+        view = shown.drop(columns=["match_id", "selected", "model", "experimental"], errors="ignore").assign(**{pcol: shown[pcol].map("{:.0%}".format)})
         print(view.to_string(index=False))
 
 

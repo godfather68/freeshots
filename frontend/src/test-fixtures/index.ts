@@ -33,17 +33,60 @@ function bound(curve: number[], start: number, q: number): number {
   return best
 }
 
-export const LEAGUES = [
+export const LEAGUES: Array<{ id: string; name: string; country: string; tier: number; avg: number; teams: string[]; featured?: boolean }> = [
   { id: 'england-premier-league', name: 'Premier League', country: 'England', tier: 1, avg: 27.8, teams: ['Man United', 'Tottenham', 'Arsenal', 'Chelsea', 'Liverpool', 'Newcastle', 'Aston Villa', 'Brighton'] },
   { id: 'spain-la-liga', name: 'La Liga', country: 'Spain', tier: 1, avg: 24.6, teams: ['Girona', 'Mallorca', 'Sevilla', 'Valencia', 'Real Betis', 'Villarreal', 'Getafe', 'Osasuna'] },
   { id: 'germany-bundesliga', name: 'Bundesliga', country: 'Germany', tier: 1, avg: 26.9, teams: ['Union Berlin', 'Freiburg', 'Mainz', 'Werder Bremen', 'Augsburg', 'Wolfsburg', 'Heidenheim', 'Köln'] },
   { id: 'italy-serie-a', name: 'Serie A', country: 'Italy', tier: 1, avg: 25.1, teams: ['Torino', 'Genoa', 'Lecce', 'Cagliari', 'Udinese', 'Parma', 'Verona', 'Como'] },
   { id: 'netherlands-eredivisie', name: 'Eredivisie', country: 'Netherlands', tier: 1, avg: 27.2, teams: ['Twente', 'Utrecht', 'Heerenveen', 'Sparta Rotterdam', 'Go Ahead Eagles', 'Zwolle', 'Groningen', 'NEC'] },
   { id: 'england-championship', name: 'Championship', country: 'England', tier: 2, avg: 25.9, teams: ['Leeds', 'Norwich', 'Bristol City', 'Hull', 'Swansea', 'Millwall', 'Preston', 'Stoke'] },
+  { id: 'uefa-champions-league', name: 'Champions League', country: 'Europe', tier: 0, avg: 26.4, featured: true, teams: ['Bayern', 'Inter', 'Benfica', 'Celtic', 'PSV', 'Galatasaray', 'Red Star', 'Young Boys'] },
 ]
 
 const DAYS = ['2026-10-12', '2026-10-13', '2026-10-17', '2026-10-18']
 const BUILT_AT = '2026-10-12T09:00:00Z'
+
+/** Champions League fixtures: experimental, with every data-quality level. Built apart so the league fixtures stay stable. */
+function buildEuropean(): Fixture[] {
+  const rnd = mulberry(23)
+  const lg = LEAGUES.find((l) => l.featured)!
+  const quality: Array<'full' | 'partial' | 'none'> = ['full', 'partial', 'none', 'full']
+  const out: Fixture[] = []
+  for (let g = 0; g < 4; g++) {
+    const mean = Math.round((lg.avg + (rnd() - 0.4) * 6) * 10) / 10
+    const curve = makeCurve(mean, 6.1, TOTAL)
+    const hm = Math.round(mean * 0.54 * 10) / 10
+    const am = Math.round((mean - hm) * 10) / 10
+    const hc = makeCurve(hm, 4, TEAM)
+    const ac = makeCurve(am, 3.8, TEAM)
+    const exp = Math.round(mean)
+    out.push({
+      id: `cl${String(g + 1).padStart(3, '0')}`,
+      league: lg.id,
+      round: 'League Phase - 3',
+      date: '2026-10-13',
+      kickoff_local: g < 2 ? '18:45' : '21:00',
+      kickoff_utc: g < 2 ? '2026-10-13T16:45:00Z' : '2026-10-13T19:00:00Z',
+      home: lg.teams[g * 2],
+      away: lg.teams[g * 2 + 1],
+      expected: exp,
+      lb: { '70': bound(curve, TOTAL[0], 0.7), '80': bound(curve, TOTAL[0], 0.8), '90': bound(curve, TOTAL[0], 0.9) },
+      league_avg: null,
+      above_league: null,
+      odds: false,
+      cold_start: false,
+      model: 'negbin_pit_comp-noodds_2026-10-05',
+      curve,
+      team: {
+        home: { mean: hm, median: Math.round(hm), lb80: bound(hc, TEAM[0], 0.8), curve: hc },
+        away: { mean: am, median: Math.round(am), lb80: bound(ac, TEAM[0], 0.8), curve: ac },
+      },
+      experimental: true,
+      data_quality: quality[g],
+    })
+  }
+  return out
+}
 
 function buildFixtures(): Fixture[] {
   const rnd = mulberry(7)
@@ -51,6 +94,7 @@ function buildFixtures(): Fixture[] {
   let idn = 0
   DAYS.forEach((date, di) => {
     LEAGUES.forEach((lg, li) => {
+      if (lg.featured) return // European fixtures are built apart
       // not every league plays every day
       if ((li + di) % 3 === 2 && di > 1) return
       if (di < 2 && li > 2 + di) return
@@ -92,6 +136,7 @@ function buildFixtures(): Fixture[] {
       }
     })
   })
+  out.push(...buildEuropean())
   return out.sort((x, y) => x.kickoff_utc.localeCompare(y.kickoff_utc) || x.league.localeCompare(y.league) || x.home.localeCompare(y.home))
 }
 
@@ -157,7 +202,7 @@ export const meta: Meta = {
 }
 
 const fixtures = buildFixtures()
-meta.leagues = LEAGUES.map((l) => ({ id: l.id, name: l.name, country: l.country, tier: l.tier, fixtures: fixtures.filter((f) => f.league === l.id).length }))
+meta.leagues = LEAGUES.map((l) => ({ id: l.id, name: l.name, country: l.country, tier: l.tier, fixtures: fixtures.filter((f) => f.league === l.id).length, ...(l.featured ? { featured: true } : {}) }))
 meta.counts = { fixtures: fixtures.length, with_odds: fixtures.filter((f) => f.odds).length, cold_start: fixtures.filter((f) => f.cold_start).length }
 
 export const board: Board = { schema: 1, fixtures }

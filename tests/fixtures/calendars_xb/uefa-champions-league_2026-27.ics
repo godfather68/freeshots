@@ -1,0 +1,40 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//matchesio//IT
+NAME:UEFA Champions League · 2026/27
+BEGIN:VEVENT
+UID:1@matches.app
+SUMMARY:Sabah FA - Slavia Praha
+DTSTART:20261013T164500Z
+DTEND:20261013T184500Z
+DESCRIPTION:UEFA Champions League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:2@matches.app
+SUMMARY:Aston Villa - Fenerbahçe
+DTSTART:20261014T190000Z
+DTEND:20261014T210000Z
+DESCRIPTION:UEFA Champions League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:3@matches.app
+SUMMARY:Viking - Bayern München
+DTSTART:20261013T190000Z
+DTEND:20261013T210000Z
+DESCRIPTION:UEFA Champions League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:4@matches.app
+SUMMARY:FC Porto - Paris Saint Germain
+DTSTART:20261103T200000Z
+DTEND:20261103T220000Z
+DESCRIPTION:UEFA Champions League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:5@matches.app
+SUMMARY:Sporting CP - Ünknown Çlub
+DTSTART:20261103T200000Z
+DTEND:20261103T220000Z
+DESCRIPTION:UEFA Champions League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+END:VCALENDAR

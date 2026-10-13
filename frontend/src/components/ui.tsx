@@ -1,25 +1,36 @@
 import { useId, useRef, useSyncExternalStore } from 'react'
-import type { KeyboardEvent, ReactNode } from 'react'
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { BAND_WORD, band, pct } from '../lib/curve'
-import { badgeHue, initials } from '../lib/format'
+import { badgeLook, initials, leagueHue } from '../lib/format'
 import { TERMS } from '../lib/glossary'
 import type { Store } from '../lib/storage'
+import type { Item, League } from '../lib/types'
 
 export function useStore<T>(s: Store<T>): T {
   return useSyncExternalStore(s.subscribe, s.get, s.get)
 }
 
-/** Initial-letter team badge with a deterministic colour. No club crests. */
+/** Initial-letter team badge: deterministic shape, pattern and colours per name. No club crests. */
 export function Badge({ name, size = 22 }: { name: string; size?: number }) {
-  const h = badgeHue(name)
+  const l = badgeLook(name)
+  const style = { width: size, height: size, fontSize: size * 0.4, '--h1': l.h1, '--h2': l.h2 } as CSSProperties
   return (
-    <span
-      className="tbadge"
-      aria-hidden="true"
-      style={{ width: size, height: size, fontSize: size * 0.42, background: `hsl(${h} 42% 30%)` }}
-    >
-      {initials(name)}
+    <span className={`tbadge ${l.shape} ${l.pattern}`} aria-hidden="true" style={style}>
+      <span>{initials(name)}</span>
     </span>
+  )
+}
+
+/** Our own neutral mark for featured competitions: a centre circle and halfway line on ink, in gold. Not a competition logo. */
+export function FeaturedMark({ size = 20 }: { size?: number }) {
+  return (
+    <svg className="fmark" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect width="24" height="24" rx="6" className="fm-bg" />
+      <line x1="12" y1="3.5" x2="12" y2="20.5" className="fm-ln" />
+      <circle cx="12" cy="12" r="5.2" className="fm-ln" fill="none" />
+      <circle cx="12" cy="12" r="1.6" className="fm-dot" />
+      <path d="M3.5 8.5h3v7h-3M20.5 8.5h-3v7h3" className="fm-ln" fill="none" />
+    </svg>
   )
 }
 
@@ -75,6 +86,36 @@ export function ProbPill({ p, label }: { p: number | null; label?: string }) {
       <b>{pct(p)}</b>
       <span className="pbar" aria-hidden="true"><i style={{ width: `${Math.round((p ?? 0) * 100)}%` }} /></span>
       {label ? <span className="sr">{label}</span> : null}
+    </span>
+  )
+}
+
+/** Flag (or our own mark for featured competitions) + name, with a deterministic gentle colour per league. */
+export function LeagueIcon({ league }: { league: Pick<League, 'country' | 'featured'> }) {
+  return league.featured ? <FeaturedMark size={22} /> : <Flag country={league.country} />
+}
+export const leagueStyle = (id: string): CSSProperties => ({ '--lh': leagueHue(id) }) as CSSProperties
+
+export function LeagueChip({ league }: { league: Pick<League, 'id' | 'name' | 'country' | 'featured'> }) {
+  return (
+    <span className={`lchip${league.featured ? ' featured' : ''}`} style={leagueStyle(league.id)}>
+      <LeagueIcon league={league} />
+      <span>{league.name}</span>
+    </span>
+  )
+}
+
+export const isLimited = (it: Pick<Item, 'dataQuality'>): boolean => it.dataQuality === 'partial' || it.dataQuality === 'none'
+
+/** Experimental / limited-data / cold-start tags. State is in the text and the border style, not only colour. */
+export function ItemTags({ item, cold = false }: { item: Pick<Item, 'experimental' | 'dataQuality' | 'coldStart'>; cold?: boolean }) {
+  const ltd = isLimited(item)
+  if (!item.experimental && !ltd && !(cold && item.coldStart)) return null
+  return (
+    <span className="tags">
+      {item.experimental && <span className="tag xp">Experimental</span>}
+      {ltd && <span className="tag ltd">Limited data</span>}
+      {cold && item.coldStart && <span className="tag cold">Cold start</span>}
     </span>
   )
 }

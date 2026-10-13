@@ -74,6 +74,13 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
   trail). No accounts in Stage 1. **Never publish raw source data, odds, the DB or scratch files**; the
   public branch is `main`, local `master` holds the older detailed history and is not pushed. Details:
   `docs/platform.md` "Stage 1".
+- **UEFA Champions League (experimental, added 2026-10-13):** fixtures from
+  `calendars/uefa-champions-league_2026-27.ics`; clubs map to their domestic team ids through
+  `src/shots/ingest/club_countries.csv`; predictions use each club's domestic form through the no-odds model
+  (`...-ucl-exp`), flagged `experimental` with `data_quality` full/partial/none. There is no UCL history, no
+  calibration evidence and no settlement source, so these never count in the official track record
+  (`v_experimental_picks`). New clubs or matchdays: extend the `.ics` and the mapping. Report:
+  `reports/2026-10-13_champions_league.md`.
 - Web UI (local, server-side rendered): `python -m shots.web` → http://127.0.0.1:8000. Reads the DB through
   `shots.db.repo.Repository` only (never runs a model, no SQL in routes). Access control is by entitlement,
   enforced in the repository queries. Preview config: `.claude/launch.json` (`shots-web`).

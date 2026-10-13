@@ -64,3 +64,21 @@ export function initials(name: string): string {
   if (words.length === 1) return words[0].slice(0, 2)
   return (words[0][0] + words[1][0]).toUpperCase()
 }
+
+export interface BadgeLook { h1: number; h2: number; shape: 'shield' | 'round' | 'hex' | 'tab'; pattern: 'solid' | 'hoops' | 'split' | 'sash' }
+const SHAPES: BadgeLook['shape'][] = ['shield', 'round', 'hex', 'tab']
+const PATTERNS: BadgeLook['pattern'][] = ['solid', 'hoops', 'split', 'sash']
+/** Deterministic badge look (shape, pattern, two related hues) from a team name. No club branding involved. */
+export function badgeLook(name: string): BadgeLook {
+  const h = badgeHue(name)
+  let g = 5381
+  for (let i = 0; i < name.length; i++) g = (Math.imul(g, 33) ^ name.charCodeAt(i)) >>> 0
+  return { h1: h, h2: (h + 28 + (g % 40)) % 360, shape: SHAPES[g % 4], pattern: PATTERNS[(g >>> 3) % 4] }
+}
+
+/** Deterministic hue for a league id (identity chips). */
+export function leagueHue(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0
+  return (h * 137) % 360
+}

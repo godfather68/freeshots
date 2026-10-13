@@ -1,5 +1,5 @@
 // Types for the static data contract (docs/static-api.md, schema 1).
-export interface League { id: string; name: string; country: string; tier: number; fixtures: number }
+export interface League { id: string; name: string; country: string; tier: number; fixtures: number; featured?: boolean }
 export interface Meta {
   schema: number
   built_at: string
@@ -12,6 +12,7 @@ export interface Meta {
   counts: { fixtures: number; with_odds: number; cold_start: number }
 }
 export interface TeamCurve { mean: number; median: number; lb80: number; curve: number[] }
+export type DataQuality = 'full' | 'partial' | 'none'
 export interface Bounds { '70': number; '80': number; '90': number }
 export interface Fixture {
   id: string
@@ -31,6 +32,10 @@ export interface Fixture {
   model: string
   curve: number[]
   team: { home: TeamCurve; away: TeamCurve } | null
+  /** Additive (optional): built from domestic form, not validated on this competition. */
+  experimental?: boolean
+  /** Additive (optional): how much domestic data both clubs had. */
+  data_quality?: DataQuality
 }
 export interface Board { schema: number; fixtures: Fixture[] }
 export interface Result {
@@ -81,6 +86,8 @@ export interface Item {
   lb: Bounds
   odds: boolean
   coldStart: boolean
+  experimental: boolean
+  dataQuality: DataQuality
   aboveLeague: number | null
   teamExpected: [number, number] | null
   finished: boolean

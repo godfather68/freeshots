@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useApp, useMedia } from '../lib/app'
 import { ListColumn } from '../components/ListColumn'
 import { Panel } from '../components/Panel'
+import { Hero } from '../components/Hero'
 import { Guide, TopPicks, TrackSummary } from '../components/Rail'
 
 export function BoardPage() {
@@ -41,6 +42,7 @@ export function BoardPage() {
   return (
     <div className={`board${open ? ' has-panel' : ''}`}>
       <h1 className="sr">Upcoming football matches: chance of reaching a total-shots line</h1>
+      <div className="g-hero" inert={open && sheet}><Hero /></div>
       <div className="g-list" inert={open && sheet}><ListColumn /></div>
       <aside className={`g-panel${open ? ' open' : ''}`} aria-label="Match detail" data-open={open}>
         {item ? (

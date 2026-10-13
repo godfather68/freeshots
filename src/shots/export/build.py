@@ -17,6 +17,9 @@ import pandas as pd
 from shots.db.access import FULL_ACCESS
 from shots.db.repo import Repository
 from shots.db.text import fold
+from shots.ingest.cross_border import BY_NAME as CROSS_BORDER
+
+FEATURED = frozenset(CROSS_BORDER)  # competitions the site pins first (meta.leagues[].featured)
 
 SCHEMA_VERSION = 1
 DEFAULT_TOTAL = 24  # default thresholds of the UI sliders (same as the server-rendered app)
@@ -24,6 +27,7 @@ DEFAULT_TEAM = 12
 SELECTED_MIN_PROB = 0.70
 RESULT_DAYS = 30
 LIVE_LABEL = "Live picks (saved before kick-off)"
+DATA_QUALITY = ("full", "partial", "none")
 
 
 class ExportError(RuntimeError):
@@ -122,6 +126,10 @@ def build_board(repo: Repository, today: date) -> tuple[dict, dict]:
             "curve": _curve(r["total_curve"], src["curve_n_min"], src["curve_n_max"], what),
             "team": team,
         })
+        if r.get("experimental"):  # additive; absent for ordinary (domestic) fixtures
+            fixtures[-1]["experimental"] = True
+            if r.get("data_quality") in DATA_QUALITY:  # unknown quality is left out, never reported as "full"
+                fixtures[-1]["data_quality"] = r["data_quality"]
     return {"schema": SCHEMA_VERSION, "fixtures": fixtures}, src
 
 
@@ -230,7 +238,8 @@ def build_meta(repo: Repository, built_at: datetime, board_src: dict, extra_leag
         if ids.setdefault(league_id(name), name) != name:
             raise ExportError(f"two competitions share the league id {league_id(name)!r}")
     leagues = sorted(({"id": league_id(n), "name": league_name(n, comps[n]["country"]), "country": comps[n]["country"],
-                       "tier": comps[n]["tier"], "fixtures": per_league.get(n, 0)} for n in names),
+                       "tier": comps[n]["tier"], "fixtures": per_league.get(n, 0),
+                       **({"featured": True} if n in FEATURED else {})} for n in names),
                      key=lambda d: (d["country"] or "", d["tier"] if d["tier"] is not None else 99, d["name"], d["id"]))
     job = repo.last_finished_job("update")
     has_team = board_src["team_n_min"] is not None

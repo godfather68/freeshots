@@ -66,7 +66,7 @@ function Shell({ now }: { now?: number }) {
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); main.current?.focus() }}>Skip to content</a>
       <header className="top">
         <div className="wrap topbar">
-          <a className="brand" href="#/"><PitchMark /><span>Shots board</span></a>
+          <a className="brand" href="#/"><PitchMark /><span><b>Shots</b> board</span></a>
           <nav aria-label="Main">
             <ul>
               <li><a href="#/" aria-current={here === 'board' ? 'page' : undefined}>Matches</a></li>
@@ -74,7 +74,7 @@ function Shell({ now }: { now?: number }) {
               <li><a href="#/how" aria-current={here === 'how' ? 'page' : undefined}>How it works</a></li>
             </ul>
           </nav>
-          <button type="button" className="quiet" onClick={openGuide}>Quick guide</button>
+          <button type="button" className="quiet guidebtn" onClick={openGuide}>Quick guide</button>
         </div>
         <Freshness now={now} />
       </header>

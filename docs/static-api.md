@@ -55,6 +55,31 @@ Rules
 - `team.*.curve[i]` = P(that team's shots >= thresholds.team[0] + i). `team` is `null` when the model
   has no team calibration. Team numbers are **experimental** and must be labelled so in the UI.
 
+### Experimental fixtures (additive, schema 1; UEFA Champions League)
+```json
+{"id": "…", "league": "uefa-champions-league", "home": "Viking", "away": "Bayern Munich", "…": "…",
+ "odds": false, "cold_start": true, "model": "negbin_pit_comp-noodds_2026-10-05-ucl-exp",
+ "curve": [0.9999, 0.9997], "team": null,
+ "experimental": true, "data_quality": "partial"}
+```
+- `experimental` is **`true` or absent** (never `false`). It marks a fixture of a competition we have no
+  shot history for: the numbers are built from each club's domestic league form, their calibration on that
+  competition is unknown, and the fixture can never be settled (no results source), so it never appears in
+  `results.json` or `track.json`. The UI must label these fixtures and must not present them as equal to
+  ordinary predictions. Method and limits: `reports/2026-10-13_champions_league.md`.
+- `data_quality` (only with `experimental`): `"full"` = both clubs have domestic shot data; `"partial"` = one
+  club has none and is replaced by a neutral stand-in (less informed; in practice barely wider); `"none"` = neither club has data (a
+  generic estimate from the level of the known clubs' leagues). Absent on ordinary fixtures (= full).
+- `team` is `null` for `partial` / `none` fixtures (a stand-in has no shots of its own); for `full` ones it is
+  present and doubly experimental (cross-league strength is not modelled; the split carries extra spread).
+- `league_avg` of such a fixture is the blend of the two clubs' domestic league averages (the mean of the
+  two; the known club's league when one is unknown), not an average of the competition itself.
+- `kickoff_local` / `date` are in the **home club's** country time zone.
+- In `meta.leagues`, the competition has `"featured": true` (**`true` or absent**), `"country": "Europe"`,
+  `"tier": 1`: `{"id": "uefa-champions-league", "name": "UEFA Champions League", "country": "Europe",
+  "tier": 1, "fixtures": 52, "featured": true}`. The site pins featured competitions first.
+- Ordinary fixtures and leagues carry none of these keys: their lines are byte-identical to before.
+
 ## `data/results.json` (matches finished in the last 30 days that had an official pre-match prediction)
 ```json
 {
@@ -100,7 +125,9 @@ The shapes above are unchanged. Details an implementer of the site needs (JSON S
   `track.records.backfill` (no backfill), and in a `by_n` entry `brier_baseline`, `hit_rate`, `mean_stated`,
   `wilson95` (no selected picks).
 - **Additive fields:** `meta.record.since` (start of the live record of the database behind this export; it
-  moves forward if the database had to be rebuilt) and `track.records.live.void`.
+  moves forward if the database had to be rebuilt), `track.records.live.void`, and, for cross-border
+  competitions only, fixture `experimental` / `data_quality` and league `featured` (see "Experimental
+  fixtures"). `meta.counts.cold_start` includes experimental fixtures with a club without data.
 - `meta.leagues` lists every league id used in any file; `fixtures` is 0 when a league only appears in
   `results.json` or `track.json`. League `name` has no country prefix ("Premier League").
 - `expected`, `lb.*`, `median`, `lb80` are integers; `mean` has 2 decimals; `league_avg` / `above_league` 1.

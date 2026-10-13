@@ -1,10 +1,10 @@
 import { useApp } from '../lib/app'
 import { pct, probAt } from '../lib/curve'
 import { dayLong } from '../lib/format'
-import { topPicks } from '../lib/items'
+import { topPicksInfo } from '../lib/items'
 import { entryFor, pc } from '../lib/track'
 import { guideStore } from '../lib/storage'
-import { Badge, ProbPill, useStore } from './ui'
+import { Badge, ItemTags, ProbPill, useStore } from './ui'
 
 export function GuideSteps({ n }: { n: number }) {
   return (
@@ -43,20 +43,23 @@ export function Guide() {
 
 export function TopPicks() {
   const { items, date, state, totalStart, href } = useApp()
-  const picks = topPicks(items, date, state.n, totalStart, 5)
+  const { picks, onlyExperimental } = topPicksInfo(items, date, state.n, totalStart, 5)
   return (
-    <section className="card" aria-labelledby="picks-h">
-      <h2 id="picks-h">Top picks, {dayLong(date)}</h2>
+    <section className="card picks-card" aria-labelledby="picks-h">
+      <div className="cardhead">
+        <h2 id="picks-h"><svg className="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 1.5v13M3 2.5h9l-2 3 2 3H3" /></svg>Top picks, {dayLong(date)}</h2>
+      </div>
       <p className="hint">Highest chance of {state.n}+ shots.</p>
+      {onlyExperimental && <p className="notice xp" role="note">Only experimental predictions today, so they are shown here. Trust them less.</p>}
       {picks.length === 0 ? (
         <p className="hint">No upcoming fixtures on this day.</p>
       ) : (
         <ol className="picks">
           {picks.map((it) => (
             <li key={it.id}>
-              <a href={href({ m: it.id, date })} aria-label={`${it.home} v ${it.away}, ${pct(probAt(it.curve, totalStart, state.n))}`}>
+              <a href={href({ m: it.id, date })} aria-label={`${it.home} v ${it.away}, ${pct(probAt(it.curve, totalStart, state.n))}${it.experimental ? ', experimental' : ''}`}>
                 <span className="pt"><Badge name={it.home} size={18} /><Badge name={it.away} size={18} /></span>
-                <span className="pn">{it.home} <span className="v">v</span> {it.away}</span>
+                <span className="pn">{it.home} <span className="v">v</span> {it.away}{it.experimental && onlyExperimental ? <ItemTags item={it} /> : null}</span>
                 <ProbPill p={probAt(it.curve, totalStart, state.n)} />
               </a>
             </li>
@@ -73,7 +76,7 @@ export function TrackSummary() {
   const live = t?.records.live
   const e = entryFor(t?.records.backfill, state.n)
   return (
-    <section className="card" aria-labelledby="track-h">
+    <section className="card proof-card" aria-labelledby="track-h">
       <h2 id="track-h">Track record</h2>
       {!t ? (
         <p className="hint">Track record not published yet.</p>

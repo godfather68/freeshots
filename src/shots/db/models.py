@@ -171,6 +171,11 @@ class Prediction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # run built before the match's kick-off (kickoff_utc, else a conservative estimate); migration 0002
     pre_match: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # migration 0004: scored by an experimental model (cross-border competitions; no settlement source).
+    # Never part of the official record (v_official_picks, results export). data_quality: full | partial |
+    # none = how many of the two clubs had domestic shot data (NULL = full).
+    experimental: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    data_quality: Mapped[str | None] = mapped_column(String(8))
 
     run: Mapped[PredictionRun] = relationship()
     match: Mapped[Match] = relationship()

@@ -10,7 +10,7 @@ export function buildItems(ds: Pick<Dataset, 'meta' | 'board' | 'results'>): Ite
     seen.add(r.id)
     items.push({
       id: r.id, league: r.league, date: r.date, time: null, home: r.home, away: r.away,
-      expected: r.expected, curve: r.curve, lb: r.lb, odds: r.odds, coldStart: false,
+      expected: r.expected, curve: r.curve, lb: r.lb, odds: r.odds, coldStart: false, experimental: false, dataQuality: 'full',
       aboveLeague: null, teamExpected: null, finished: true, actual: r.actual, fixture: null, result: r,
     })
   }
@@ -19,6 +19,7 @@ export function buildItems(ds: Pick<Dataset, 'meta' | 'board' | 'results'>): Ite
     items.push({
       id: f.id, league: f.league, date: f.date, time: f.kickoff_local, home: f.home, away: f.away,
       expected: f.expected, curve: f.curve, lb: f.lb, odds: f.odds, coldStart: f.cold_start,
+      experimental: f.experimental === true, dataQuality: f.data_quality ?? 'full',
       aboveLeague: f.above_league,
       teamExpected: f.team ? [f.team.home.mean, f.team.away.mean] : null,
       finished: false, actual: null, fixture: f, result: null,
@@ -99,7 +100,10 @@ export function sortItems(items: Item[], sort: Sort, n: number, totalStart: numb
 
 export interface Group { league: League; items: Item[] }
 
-/** Group by league, leagues ordered by tier then name (stable, so the list does not jump when sorting). */
+/** Featured competitions first, then tier, then name (stable, so the list does not jump when sorting). */
+export const byLeagueOrder = (a: League, b: League): number =>
+  Number(b.featured === true) - Number(a.featured === true) || a.tier - b.tier || a.name.localeCompare(b.name)
+
 export function groupByLeague(items: Item[], leagues: League[]): Group[] {
   const byId = new Map(leagues.map((l) => [l.id, l]))
   const groups = new Map<string, Group>()
@@ -111,15 +115,40 @@ export function groupByLeague(items: Item[], leagues: League[]): Group[] {
     }
     g.items.push(it)
   }
-  return [...groups.values()].sort((a, b) => a.league.tier - b.league.tier || a.league.name.localeCompare(b.league.name))
+  return [...groups.values()].sort((a, b) => byLeagueOrder(a.league, b.league))
 }
 
-/** Highest-probability upcoming fixtures on a day at threshold n. */
+const byChance = (n: number, totalStart: number) => (a: Item, b: Item) =>
+  (itemProb(b, n, totalStart) ?? 0) - (itemProb(a, n, totalStart) ?? 0) || (a.time ?? '').localeCompare(b.time ?? '')
+
+/** Upcoming fixtures on a day with a probability at n, best first. */
+function dayCandidates(items: Item[], date: string, n: number, totalStart: number): Item[] {
+  return items.filter((it) => !it.finished && it.date === date && itemProb(it, n, totalStart) !== null).sort(byChance(n, totalStart))
+}
+
+/**
+ * Highest-probability upcoming fixtures on a day at threshold n. Experimental fixtures are left out, unless the day
+ * has nothing else; then they are returned and `onlyExperimental` is true so the caller can label them.
+ */
+export function topPicksInfo(items: Item[], date: string, n: number, totalStart: number, limit = 5): { picks: Item[]; onlyExperimental: boolean } {
+  const all = dayCandidates(items, date, n, totalStart)
+  const solid = all.filter((it) => !it.experimental)
+  if (solid.length === 0 && all.length > 0) return { picks: all.slice(0, limit), onlyExperimental: true }
+  return { picks: solid.slice(0, limit), onlyExperimental: false }
+}
+
 export function topPicks(items: Item[], date: string, n: number, totalStart: number, limit = 5): Item[] {
-  return items
-    .filter((it) => !it.finished && it.date === date && itemProb(it, n, totalStart) !== null)
-    .sort((a, b) => (itemProb(b, n, totalStart) ?? 0) - (itemProb(a, n, totalStart) ?? 0) || (a.time ?? '').localeCompare(b.time ?? ''))
-    .slice(0, limit)
+  return topPicksInfo(items, date, n, totalStart, limit).picks
+}
+
+export interface DaySummary { matches: number; upcoming: number; clear70: number; best: Item | null; bestExperimental: boolean }
+
+/** Numbers for the hero strip: everything on the day, how many clear 70% at n, and the best pick. */
+export function summariseDay(items: Item[], date: string, n: number, totalStart: number): DaySummary {
+  const day = items.filter((it) => it.date === date)
+  const clear70 = day.filter((it) => (itemProb(it, n, totalStart) ?? 0) >= 0.7).length
+  const { picks, onlyExperimental } = topPicksInfo(items, date, n, totalStart, 1)
+  return { matches: day.length, upcoming: day.filter((it) => !it.finished).length, clear70, best: picks[0] ?? null, bestExperimental: onlyExperimental }
 }
 
 export function countLabel(shown: number, groups: number): string {

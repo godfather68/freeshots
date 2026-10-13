@@ -8,7 +8,7 @@ import { collapsedStore, favouritesStore, toggleIn } from '../lib/storage'
 import { CHIPS, SORTS, TABS } from '../lib/url'
 import type { Chip, ListTab, Sort } from '../lib/url'
 import { MatchRow } from './MatchRow'
-import { Flag, Help, Stepper, Tabs, useStore } from './ui'
+import { Help, LeagueIcon, Stepper, Tabs, leagueStyle, useStore } from './ui'
 
 const CHIP_LABEL: Record<Chip, string> = { all: 'All', p70: '70%+', odds: 'With odds', done: 'Finished' }
 const SORT_LABEL: Record<Sort, string> = { time: 'Kick-off time', prob: 'Highest chance', above: 'Most above league average' }
@@ -42,8 +42,11 @@ export function ListColumn() {
   const hasResults = (ds.results?.results.length ?? 0) > 0
   const activeLeagues = useMemo(() => {
     const used = new Set(items.map((i) => i.league))
-    return ds.meta.leagues.filter((l) => l.fixtures > 0 || used.has(l.id))
+    return ds.meta.leagues.filter((l) => l.fixtures > 0 || used.has(l.id)).sort((a, b) => Number(b.featured === true) - Number(a.featured === true) || ds.meta.leagues.indexOf(a) - ds.meta.leagues.indexOf(b))
   }, [ds.meta.leagues, items])
+
+  const featuredLeagues = activeLeagues.filter((l) => l.featured)
+  const otherLeagues = activeLeagues.filter((l) => !l.featured)
 
   // Keep the selected day centred in the strip without scrolling the page.
   useEffect(() => {
@@ -110,10 +113,10 @@ export function ListColumn() {
         {tab === 'leagues' ? (
           <ul className="leaguelist">
             {activeLeagues.map((l) => (
-              <li key={l.id}>
+              <li key={l.id} className={l.featured ? 'featured' : ''} style={leagueStyle(l.id)}>
                 <a href={href({ lg: l.id, tab: 'all' })}>
-                  <Flag country={l.country} />
-                  <span className="lname">{l.name}<small>{l.country}</small></span>
+                  <LeagueIcon league={l} />
+                  <span className="lname">{l.name}<small>{l.featured ? `Featured · ${l.country}` : l.country}</small></span>
                   <span className="count">{l.fixtures}<span className="sr"> upcoming matches</span></span>
                 </a>
               </li>
@@ -147,7 +150,16 @@ export function ListColumn() {
               <label className="sel">League
                 <select value={lg} onChange={(e) => set({ lg: e.target.value }, { replace: true })}>
                   <option value="">All leagues</option>
-                  {activeLeagues.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.country})</option>)}
+                  {featuredLeagues.length > 0 && (
+                    <optgroup label="Featured">
+                      {featuredLeagues.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.country})</option>)}
+                    </optgroup>
+                  )}
+                  {featuredLeagues.length > 0 ? (
+                    <optgroup label="All leagues">
+                      {otherLeagues.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.country})</option>)}
+                    </optgroup>
+                  ) : otherLeagues.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.country})</option>)}
                 </select>
               </label>
             </div>
@@ -161,12 +173,12 @@ export function ListColumn() {
                 const open = !collapsed.includes(g.league.id)
                 const gid = `grp-${g.league.id}`
                 return (
-                  <section key={g.league.id} className="group" aria-labelledby={`${gid}-h`}>
+                  <section key={g.league.id} className={`group${g.league.featured ? ' featured' : ''}`} style={leagueStyle(g.league.id)} aria-labelledby={`${gid}-h`}>
                     <h3 id={`${gid}-h`}>
                       <button type="button" className="ghead" aria-expanded={open} aria-controls={`${gid}-b`} onClick={() => toggleGroup(g.league.id)}>
                         <svg className="chev" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M3 4.5l3 3 3-3" /></svg>
-                        <Flag country={g.league.country} />
-                        <span className="lname">{g.league.name}<small>{g.league.country}</small></span>
+                        <LeagueIcon league={g.league} />
+                        <span className="lname">{g.league.name}<small>{g.league.featured ? `Featured · ${g.league.country}` : g.league.country}</small></span>
                         <span className="count">{g.items.length}<span className="sr"> matches</span></span>
                       </button>
                     </h3>

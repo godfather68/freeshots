@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { isHit, pct, probAt } from '../lib/curve'
 import { dayShort, dayNum, monthShort } from '../lib/format'
 import type { Item } from '../lib/types'
-import { Badge, ProbPill } from './ui'
+import { Badge, ItemTags, ProbPill, isLimited } from './ui'
 
 interface Props {
   item: Item
@@ -24,6 +24,8 @@ function MatchRowImpl({ item, n, totalStart, href, selected, starred, homeFav, a
   const time = item.finished ? 'FT' : (item.time ?? '')
   const aria =
     `${label}, ${item.finished ? 'finished' : `kick-off ${item.time}`}, ${pct(p)} chance of ${n}+ shots` +
+    (item.experimental ? ', experimental' : '') +
+    (isLimited(item) ? ', limited data' : '') +
     (item.actual ? `, actual ${item.actual.total} shots, ${hit ? 'hit' : 'miss'}` : '')
   return (
     <li className={`mrow${selected ? ' sel' : ''}${item.finished ? ' done' : ''}`}>
@@ -35,9 +37,10 @@ function MatchRowImpl({ item, n, totalStart, href, selected, starred, homeFav, a
         <span className="mteams">
           <span className="mteam"><Badge name={item.home} />{homeFav && <span className="fv" aria-hidden="true">&#9733;</span>}<span className="tn">{item.home}</span></span>
           <span className="mteam"><Badge name={item.away} />{awayFav && <span className="fv" aria-hidden="true">&#9733;</span>}<span className="tn">{item.away}</span></span>
+          <ItemTags item={item} />
         </span>
         <span className="mexp" aria-hidden="true">
-          {item.teamExpected ? `${Math.round(item.teamExpected[0])} – ${Math.round(item.teamExpected[1])}` : ''}
+          {item.teamExpected ? <><b>{Math.round(item.teamExpected[0])}</b><i>&ndash;</i><b>{Math.round(item.teamExpected[1])}</b></> : ''}
         </span>
         <span className="mprob" aria-hidden="true">
           <ProbPill p={p} />

@@ -195,15 +195,24 @@ class NegBinModel(ShotModel):
         return np.exp(X[s["cols"]].to_numpy() @ s["beta"])
 
     def total_pmf(self, rows: pd.DataFrame) -> np.ndarray:
-        mh, ma = self.side_mu(rows, "home"), self.side_mu(rows, "away")
+        return self.pmf_from_mu(self.side_mu(rows, "home"), self.side_mu(rows, "away"))
+
+    def pmf_from_mu(self, mh: np.ndarray, ma: np.ndarray) -> np.ndarray:
+        """Total-shots pmf for given home / away means (the fitted dispersions and dependence)."""
         ah, aa = self.sides_["home"]["alpha"], self.sides_["away"]["alpha"]
         if self.mode_ == "independent":
             return convolve_rows(nb_pmf(mh, ah, MAX_SIDE), nb_pmf(ma, aa, MAX_SIDE))
+        mu, alpha_t = self.moment_params(mh, ma)
+        return nb_pmf(mu, alpha_t, MAX_TOTAL)
+
+    def moment_params(self, mh: np.ndarray, ma: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """(mean, dispersion) of the single NB moment-matched to the total (``mode_ == "moment"``)."""
+        ah, aa = self.sides_["home"]["alpha"], self.sides_["away"]["alpha"]
         vh, va = mh + ah * mh ** 2, ma + aa * ma ** 2
         mu = mh + ma
         var = vh + va + 2 * self.rho_ * np.sqrt(vh * va)
         alpha_t = np.clip((var - mu) / mu ** 2, 0.0, None)
-        return nb_pmf(mu, alpha_t, MAX_TOTAL)
+        return mu, alpha_t
 
     def predict(self, rows: pd.DataFrame, confidences=CONFIDENCES) -> pd.DataFrame:
         pmf = self.total_pmf(rows)

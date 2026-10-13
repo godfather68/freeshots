@@ -6,6 +6,7 @@ import { audit, noHorizontalScroll } from './helpers'
 // Smoke test against the real published files (public/data), when present. No interception.
 const real = fs.existsSync(path.resolve(import.meta.dirname, '../public/data/board.json'))
 test.skip(!real, 'public/data/board.json not generated yet')
+test.setTimeout(240_000) // several axe runs per test; slow on busy machines
 
 for (const scheme of ['light', 'dark'] as const) {
   test(`real data: list, panel, track (${scheme})`, async ({ page }) => {

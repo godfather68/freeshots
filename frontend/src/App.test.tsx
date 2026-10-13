@@ -185,3 +185,68 @@ describe('pages and states', () => {
     expect(JSON.parse(localStorage.getItem('shots.guide')!).dismissed).toBe(true)
   })
 })
+
+describe('Champions League and experimental fixtures', () => {
+  const cl = board.fixtures.filter((f) => f.league === 'uefa-champions-league')
+  const day = '2026-10-13'
+
+  it('pins the featured league first and tags experimental / limited-data rows', async () => {
+    await mount(`#/?date=${day}`)
+    const heads = [...document.querySelectorAll('.ghead')]
+    expect(heads[0].textContent).toContain('Champions League')
+    expect(heads[0].textContent).toContain('Featured')
+    expect(document.querySelectorAll('.mlink .tag.xp')).toHaveLength(cl.length)
+    expect(document.querySelectorAll('.mlink .tag.ltd')).toHaveLength(cl.filter((f) => f.data_quality !== 'full').length)
+    const opts = [...document.querySelectorAll('optgroup')].map((g) => g.getAttribute('label'))
+    expect(opts).toEqual(['Featured', 'All leagues'])
+  })
+
+  it('panel shows the experimental notice and the limited-data line', async () => {
+    const partial = cl.find((f) => f.data_quality === 'partial')!
+    await mount(`#/?date=${day}&m=${partial.id}`)
+    expect(screen.getByText(/Built from each club.s domestic form\. Not yet validated on Champions League matches\./)).toBeInTheDocument()
+    expect(document.querySelector('.notice.ltd')).toHaveTextContent('One or both clubs have no domestic data in our sources.')
+  })
+
+  it('a full-quality experimental fixture has the notice but no limited-data line', async () => {
+    const full = cl.find((f) => f.data_quality === 'full')!
+    await mount(`#/?date=${day}&m=${full.id}`)
+    expect(screen.getByText(/Not yet validated on/)).toBeInTheDocument()
+    expect(document.querySelector('.notice.ltd')).toBeNull()
+  })
+
+  it('Top picks leave experimental fixtures out when the day has others', async () => {
+    await mount(`#/?date=${day}`)
+    const picks = document.querySelector('.picks')!
+    expect(picks.textContent).not.toMatch(/Bayern|Benfica|PSV|Red Star/)
+    expect(screen.queryByText(/Only experimental predictions/)).toBeNull()
+  })
+
+  it('Top picks show experimental fixtures, labelled, when the day has only those', async () => {
+    const onlyCl = { ...dataset, board: { ...board, fixtures: cl }, results: null }
+    window.location.hash = `#/?date=${day}`
+    render(<App today={day} now={Date.parse('2026-10-13T10:00:00Z')} load={() => Promise.resolve(onlyCl)} />)
+    expect(await screen.findByText(/Only experimental predictions/)).toBeInTheDocument()
+    expect(document.querySelectorAll('.picks li').length).toBeGreaterThan(0)
+  })
+
+  it('works when the additive fields are absent', async () => {
+    const stripped = {
+      ...dataset,
+      meta: { ...meta, leagues: meta.leagues.map((l) => ({ ...l, featured: undefined })) },
+      board: { ...board, fixtures: board.fixtures.map((f) => ({ ...f, experimental: undefined, data_quality: undefined })) },
+    }
+    window.location.hash = `#/?date=${day}`
+    render(<App today={day} now={Date.parse('2026-10-13T10:00:00Z')} load={() => Promise.resolve(stripped)} />)
+    expect(await screen.findByRole('heading', { name: /Upcoming football matches/ })).toBeInTheDocument()
+    expect(document.querySelectorAll('.tag.xp, .tag.ltd')).toHaveLength(0)
+  })
+
+  it('hero strip counts matches and the 70% chip count still works', async () => {
+    await mount(`#/?date=${day}`)
+    const want = board.fixtures.filter((f) => f.date === day && f.curve[24 - START] >= 0.7).length
+    expect(document.querySelector('.hero-stats')).toHaveTextContent(`Clear 70% at 24+${want}`)
+    await userEvent.click(screen.getByRole('button', { name: /^70%\+/ }))
+    expect(document.querySelectorAll('a.mlink')).toHaveLength(want)
+  })
+})

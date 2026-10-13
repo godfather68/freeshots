@@ -140,7 +140,7 @@ class Repository:
                 Prediction.median.label("expected_shots"), Prediction.lb_70, Prediction.lb_80, Prediction.lb_90,
                 Prediction.league_avg.label("league_avg_shots"), Prediction.above_league,
                 Prediction.odds_available.label("odds"), Prediction.mkt_p_over25, Prediction.cold_start,
-                Prediction.model]
+                Prediction.model, Prediction.experimental, Prediction.data_quality]
         if team:
             cols += [getattr(Prediction, k) for k in TEAM_KEYS]
         return cols
@@ -341,7 +341,7 @@ class Repository:
                 Prediction.median.label("expected_shots"), Prediction.lb_70, Prediction.lb_80, Prediction.lb_90,
                 Prediction.league_avg.label("league_avg_shots"), Prediction.above_league,
                 Prediction.odds_available.label("odds"), Prediction.cold_start, Prediction.model,
-                Prediction.total_curve]
+                Prediction.total_curve, Prediction.experimental, Prediction.data_quality]
         if team:
             cols += [Prediction.home_mean, Prediction.home_median, Prediction.home_lb_80, Prediction.home_curve,
                      Prediction.away_mean, Prediction.away_median, Prediction.away_lb_80, Prediction.away_curve]
@@ -380,6 +380,7 @@ class Repository:
                   JOIN matches m ON m.match_id = p.match_id
                   JOIN competitions c ON c.id = m.competition_id
                   WHERE r.kind = 'board' AND r.status = 'complete' AND o.pre_match = 1 AND o.status = 'settled'
+                    AND o.experimental = 0
                     AND m.date >= :since AND m.date <= :until)
             WHERE rn = 1
             ORDER BY date DESC, competition, home_team, match_id""")

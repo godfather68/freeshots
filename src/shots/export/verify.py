@@ -168,7 +168,14 @@ class Checker:
                     self.fail(f"board: {f['id']}.lb.{qn} = {f['lb'][qn]!r}, database has {r[f'lb_{qn}']!r}")
             if f["curve"] != r4(json.loads(r["total_curve"] or "[]")):
                 self.fail(f"board: {f['id']}.curve differs from the database")
-            has_team = team_run and r["home_curve"] is not None and r["away_curve"] is not None
+            # additive fields: present exactly for the database's experimental predictions
+            if bool(f.get("experimental", False)) != bool(r["experimental"]) or ("experimental" in f and f["experimental"] is not True):
+                self.fail(f"board: {f['id']}.experimental = {f.get('experimental')!r}, database has {bool(r['experimental'])}")
+            want_quality = r["data_quality"] if r["experimental"] and r["data_quality"] in ("full", "partial", "none") else None
+            if f.get("data_quality") != want_quality:
+                self.fail(f"board: {f['id']}.data_quality = {f.get('data_quality')!r}, database has {want_quality!r}")
+            # a prediction without team curves in a run that has them (JSON null, stored as the text 'null')
+            has_team = team_run and all(r[c] is not None and json.loads(r[c]) is not None for c in ("home_curve", "away_curve"))
             if (f["team"] is not None) != has_team:
                 self.fail(f"board: {f['id']}.team presence differs from the database")
             elif has_team:
@@ -194,6 +201,7 @@ class Checker:
             JOIN prediction_runs r ON r.id = p.run_id
             JOIN matches m ON m.match_id = p.match_id
             WHERE o.kind = 'board' AND r.status = 'complete' AND o.pre_match = 1 AND o.status = 'settled'
+              AND p.experimental = 0
               AND o.date >= ? AND o.date <= ?""", since, self.today.isoformat())
         best: dict[str, sqlite3.Row] = {}
         for r in rows:  # the last pre-match board run per match
@@ -289,11 +297,12 @@ class Checker:
             self.fail("meta: days differ from board.json")
         if any(f["date"] < self.today.isoformat() for f in fixtures):
             self.fail("meta: board.json lists a fixture before the export day")
-        known = {c["name"]: c for c in self.q("SELECT name, country, tier FROM competitions")}
+        known = {c["name"]: c for c in self.q("SELECT name, country, tier, code FROM competitions")}
         by_slug = {slug(n): c for n, c in known.items()}
         per = {}
         for f in fixtures:
             per[f["league"]] = per.get(f["league"], 0) + 1
+        exp_only = {lid for lid in per if all(f.get("experimental") for f in fixtures if f["league"] == lid)}
         listed = {x["id"]: x for x in meta["leagues"]}
         used = set(per) | {x["league"] for x in self.docs["results"]["results"]}
         rec = self.docs["track"]["records"]
@@ -310,6 +319,12 @@ class Checker:
                 self.fail(f"meta: league {lid} country / tier differ from the database")
             if x["fixtures"] != per.get(lid, 0):
                 self.fail(f"meta: league {lid} fixtures {x['fixtures']} != board.json {per.get(lid, 0)}")
+            # featured = a competition without a football-data division code whose board fixtures are all
+            # experimental (the cross-border competitions); the flag is `true` or absent, never false
+            if "featured" in x and (x["featured"] is not True or lid not in exp_only or (c is not None and c["code"])):
+                self.fail(f"meta: league {lid} is marked featured but is not an experimental-only competition")
+            if lid in exp_only and c is not None and not c["code"] and "featured" not in x:
+                self.fail(f"meta: league {lid} holds only experimental fixtures but is not marked featured")
         job = self.q("SELECT status, finished_at FROM job_runs WHERE job = 'update' AND finished_at IS NOT NULL "
                      "ORDER BY started_at DESC, id DESC LIMIT 1")
         # last_job is not compared exactly: meta.json is deliberately not rewritten when only the job's

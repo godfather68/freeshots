@@ -27,6 +27,7 @@ export function CurveChart({
   series, marker, guides = [], ticks, summary, title,
 }: { series: Series[]; marker: number; guides?: number[]; ticks?: { x: number; label: string }[]; summary: string; title: string }) {
   const uid = useId()
+  const gid = uid.replace(/[^a-zA-Z0-9]/g, '')
   const [ref, W] = useWidth()
   const H = 230
   const m = { l: 40, r: 38, t: 14, b: 32 }
@@ -44,6 +45,14 @@ export function CurveChart({
   return (
     <div className="chart" ref={ref}>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={`${uid}-t ${uid}-d`}>
+        <defs>
+          {series.map((sr) => (
+            <linearGradient key={sr.key} id={`${gid}-${sr.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" className={`areastop ${sr.cls}`} stopOpacity={series.length > 1 ? 0.22 : 0.34} />
+              <stop offset="1" className={`areastop ${sr.cls}`} stopOpacity="0.02" />
+            </linearGradient>
+          ))}
+        </defs>
         <title id={`${uid}-t`}>{title}</title>
         <desc id={`${uid}-d`}>{summary}</desc>
         {stripes.map((n) => (
@@ -75,6 +84,14 @@ export function CurveChart({
         {marker >= lo && marker <= hi && <line className="marker" x1={x(marker)} x2={x(marker)} y1={m.t} y2={H - m.b} />}
         {series.map((s) => (
           <path
+            key={`${s.key}-area`}
+            className="area"
+            fill={`url(#${gid}-${s.key})`}
+            d={`M${x(s.start).toFixed(1)},${y(0)} ${s.curve.map((p, i) => `L${x(s.start + i).toFixed(1)},${y(p).toFixed(1)}`).join('')} L${x(s.start + s.curve.length - 1).toFixed(1)},${y(0)} Z`}
+          />
+        ))}
+        {series.map((s) => (
+          <path
             key={s.key}
             className={`line ${s.cls}`}
             d={s.curve.map((p, i) => `${i ? 'L' : 'M'}${x(s.start + i).toFixed(1)},${y(p).toFixed(1)}`).join('')}
@@ -85,7 +102,8 @@ export function CurveChart({
           if (p === null) return null
           return (
             <g key={s.key}>
-              <circle className={`dot ${s.cls}`} cx={x(marker)} cy={y(p)} r={5} />
+              <circle className={`halo ${s.cls}`} cx={x(marker)} cy={y(p)} r={11} />
+              <circle className={`dot ${s.cls}`} cx={x(marker)} cy={y(p)} r={5.5} />
               <text className={`dotlabel ${s.cls}`} x={x(marker) + (marker > (lo + hi) / 2 ? -9 : 9)} y={y(p) - 9} textAnchor={marker > (lo + hi) / 2 ? 'end' : 'start'}>
                 {series.length > 1 ? `${s.label} ` : ''}{pct(p)}
               </text>

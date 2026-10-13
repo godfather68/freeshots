@@ -102,6 +102,10 @@ def dedupe(picks: pd.DataFrame) -> pd.DataFrame:
     not pre-match predictions and are dropped."""
     if picks.empty:
         return picks
+    if "experimental" in picks:  # cross-border fixtures: no results source, never part of the record
+        picks = picks[~picks["experimental"].astype("boolean").fillna(False).astype(bool)]
+        if picks.empty:
+            return picks.reset_index(drop=True)
     pre = picks[(picks["scan_ts"].dt.normalize() <= picks["date"]) & before_kickoff(picks)]
     pre = pre.sort_values(["scan_ts", "scan_file"])
     return pre.drop_duplicates(["match_id", "n"], keep="last").reset_index(drop=True)

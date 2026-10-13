@@ -63,8 +63,11 @@ def assemble(prep: sc.Prepared, info: pd.DataFrame, ns=NS) -> pd.DataFrame:
     curve = np.full((n_rows, len(ns)), np.nan)
     used = pd.Series(prep.model_label, index=up.index, dtype=object)
     routes = list(prep.routes())
-    # team columns only if every routed model carries team calibration (old pickles: skipped, board still valid)
-    team = bool(routes) and all(getattr(m, "has_team_calibration", False) for _, m, _, _ in routes)
+    exp = prep.is_experimental()
+    # team columns only if every routed production model carries team calibration (old pickles: skipped,
+    # board still valid). The experimental route never decides this for the domestic rows.
+    prod = [m for mask, m, _, _ in routes if not exp[mask].all()]
+    team = bool(routes) and all(getattr(m, "has_team_calibration", False) for m in (prod or [r[1] for r in routes]))
     tcols = {f"{side}_{c}": np.full(n_rows, np.nan) for side in SIDES.values() for c in TEAM_SCALARS} if team else {}
     tcurve = {k: np.full((n_rows, len(TEAM_NS)), np.nan) for k in SIDES} if team else {}
     for mask, mdl, rows, label in routes:
@@ -75,7 +78,7 @@ def assemble(prep: sc.Prepared, info: pd.DataFrame, ns=NS) -> pd.DataFrame:
             cols[key][mask.to_numpy()] = pr[key].to_numpy(float)
         for j, n in enumerate(ns):
             curve[mask.to_numpy(), j] = mdl.prob_at_least(sub, n)
-        if team:
+        if team and getattr(mdl, "has_team_calibration", False):
             m = mask.to_numpy()
             for k, side in SIDES.items():
                 tp = mdl.team_predict(sub, side)
@@ -83,6 +86,13 @@ def assemble(prep: sc.Prepared, info: pd.DataFrame, ns=NS) -> pd.DataFrame:
                     tcols[f"{side}_{c}"][m] = tp[c].to_numpy(float)
                 for j, n in enumerate(TEAM_NS):
                     tcurve[k][m, j] = mdl.team_prob_at_least(sub, side, n)
+    quality = None
+    if exp.any():
+        quality = up["data_quality"].where(exp, "full").fillna("full")
+        if team:  # per-team numbers only where both clubs have data: a neutral stand-in has no "own" shots
+            blank = (exp & (quality != "full")).to_numpy()
+            for vals in (*tcols.values(), *tcurve.values()):
+                vals[blank] = np.nan
 
     out = pd.DataFrame({
         "match_id": up["match_id"],
@@ -115,6 +125,9 @@ def assemble(prep: sc.Prepared, info: pd.DataFrame, ns=NS) -> pd.DataFrame:
         for k in SIDES:
             for j, n in enumerate(TEAM_NS):
                 out[f"p{k}_{n}"] = tcurve[k][:, j].round(4)
+    if quality is not None:  # only when the board has experimental fixtures: a domestic board keeps its columns
+        out["experimental"] = exp.to_numpy()
+        out["data_quality"] = quality.to_numpy()
     return out.sort_values(["date", "kickoff", "competition", "home_team"]).reset_index(drop=True)
 
 
@@ -157,6 +170,8 @@ def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFA
         "team_predictions": "ph_3" in board.columns,
         "team_thresholds": [TEAM_N_MIN, TEAM_N_MAX],
     }
+    if "experimental" in board.columns:  # cross-border fixtures (experimental model, never settled)
+        meta["n_experimental"] = int(board["experimental"].sum())
     meta_path(out_path).write_text(json.dumps(meta, indent=2), encoding="utf-8")
     log.info("board: %d fixtures (%d with odds) -> %s", len(board), meta["n_with_odds"], out_path)
     return board

@@ -1,10 +1,15 @@
 {
  "schema": 1,
- "built_at": "2026-10-12T15:34:41Z",
- "results_up_to": "2026-10-05",
- "last_job": null,
+ "built_at": "2026-10-13T11:36:53Z",
+ "results_up_to": "2026-10-12",
+ "last_job": {
+  "status": "ok",
+  "finished_at": "2026-10-13T11:36:53Z"
+ },
  "models": [
-  "negbin_pit_comp-noodds_2026-10-05"
+  "negbin_pit_comp-noodds_2026-10-05",
+  "negbin_pit_comp-noodds_2026-10-05-ucl-exp",
+  "negbin_pit_comp_2026-10-05"
  ],
  "thresholds": {
   "total": [
@@ -31,7 +36,7 @@
    "name": "Premier League",
    "country": "England",
    "tier": 1,
-   "fixtures": 41
+   "fixtures": 40
   },
   {
    "id": "england-championship",
@@ -45,7 +50,7 @@
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 0
+   "fixtures": 1
   },
   {
    "id": "england-league-two",
@@ -53,6 +58,14 @@
    "country": "England",
    "tier": 4,
    "fixtures": 0
+  },
+  {
+   "id": "uefa-champions-league",
+   "name": "UEFA Champions League",
+   "country": "Europe",
+   "tier": 1,
+   "fixtures": 52,
+   "featured": true
   },
   {
    "id": "france-ligue-1",
@@ -94,7 +107,7 @@
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 52
+   "fixtures": 50
   },
   {
    "id": "italy-serie-b",
@@ -125,31 +138,38 @@
    "fixtures": 30
   },
   {
+   "id": "scotland-championship",
+   "name": "Championship",
+   "country": "Scotland",
+   "tier": 2,
+   "fixtures": 1
+  },
+  {
    "id": "spain-la-liga",
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 42
+   "fixtures": 41
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 48
+   "fixtures": 44
   },
   {
    "id": "turkey-super-lig",
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 37
+   "fixtures": 36
   }
  ],
  "days": [
-  "2026-10-12",
   "2026-10-13",
   "2026-10-14",
+  "2026-10-15",
   "2026-10-16",
   "2026-10-17",
   "2026-10-18",
@@ -174,9 +194,9 @@
   "2026-11-08"
  ],
  "counts": {
-  "fixtures": 472,
-  "with_odds": 0,
-  "cold_start": 0
+  "fixtures": 517,
+  "with_odds": 14,
+  "cold_start": 16
  },
  "record": {
   "since": "2026-10-09T10:43:58Z"

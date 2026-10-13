@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { band, isHit, pct, probAt } from './curve'
-import { availableDays, buildItems, countLabel, filterItems, groupByLeague, resolveDate, shiftDay, sortItems, topPicks } from './items'
+import { availableDays, buildItems, countLabel, filterItems, groupByLeague, resolveDate, shiftDay, sortItems, topPicks, topPicksInfo } from './items'
 import type { Filters } from './items'
 import { badgeHue, freshness, initials, todayIso } from './format'
 import { buildHash, parseHash, parseState, stateToParams } from './url'
@@ -108,6 +108,18 @@ describe('items: build, filter, sort, group', () => {
     const ps = picks.map((i) => i.curve[24 - START])
     expect(ps).toEqual([...ps].sort((a, b) => b - a))
     expect(picks.every((i) => !i.finished && i.date === '2026-10-17')).toBe(true)
+  })
+  it('featured leagues sort before higher tiers', () => {
+    const g = groupByLeague(filterItems(items, { ...base, date: '2026-10-13' }), meta.leagues)
+    expect(g[0].league.featured).toBe(true)
+  })
+  it('top picks skip experimental fixtures unless a day has nothing else', () => {
+    const day = items.filter((i) => i.date === '2026-10-13')
+    expect(topPicksInfo(day, '2026-10-13', 24, START, 20).picks.some((i) => i.experimental)).toBe(false)
+    const only = day.filter((i) => i.experimental)
+    const r = topPicksInfo(only, '2026-10-13', 24, START, 20)
+    expect(r.onlyExperimental).toBe(true)
+    expect(r.picks).toHaveLength(only.length)
   })
   it('count label for the live region', () => {
     expect(countLabel(0, 0)).toMatch(/No matches/)

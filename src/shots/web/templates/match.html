@@ -11,6 +11,7 @@
   <p class="badges">
     {% if r.odds %}<span class="badge ok">odds published</span> {{ help('odds') }}{% else %}<span class="badge">no odds yet</span> {{ help('no_odds') }}{% endif %}
     {% if r.cold_start %}<span class="badge warn">cold start</span> {{ help('cold_start') }}{% endif %}
+    {% if r.experimental %}<span class="badge xp">experimental</span>{% if r.data_quality and r.data_quality != 'full' %} <span class="badge warn">{% if r.data_quality == 'none' %}no club data{% else %}partial data{% endif %}</span>{% endif %}{% endif %}
   </p>
 </header>
 
@@ -154,6 +155,7 @@
     <dd>{% if r.odds %}Published ({{ pct(r.mkt_p_over25) }} market chance of over 2.5 goals), so the odds model was used.
         {% else %}Not published yet, so the separate no-odds model was used. It never sees missing odds as a value.{% endif %}</dd>
     {% if r.cold_start %}<dt>Cold start</dt><dd>At least one team has fewer than 5 earlier matches in our data; treat this number with extra caution.</dd>{% endif %}
+    {% if r.experimental %}<dt>Experimental</dt><dd>We have no shot history for this competition. The numbers come from each club's domestic league form, have not been checked against results of this competition, and are not part of the track record.{% if r.data_quality == 'partial' %} One club has no shot data: a neutral league-average stand-in is used, so this number knows less.{% elif r.data_quality == 'none' %} Neither club has shot data: this is a generic estimate for a match at this level.{% endif %}</dd>{% endif %}
   </dl>
   <p><a href="/about">What do these numbers mean?</a></p>
 </section>

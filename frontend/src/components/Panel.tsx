@@ -8,7 +8,7 @@ import type { Item } from '../lib/types'
 import { PANEL_TABS } from '../lib/url'
 import type { PanelTab } from '../lib/url'
 import { CurveChart } from './CurveChart'
-import { Badge, Flag, Help, ProbPill, Stepper, Tabs, useStore, ScrollRegion } from './ui'
+import { Badge, Help, ItemTags, LeagueChip, ProbPill, Stepper, Tabs, isLimited, useStore, ScrollRegion } from './ui'
 
 const TAB_LABEL: Record<PanelTab, string> = { pred: 'Prediction', teams: 'Teams', about: 'About this match' }
 
@@ -19,6 +19,30 @@ function StarTeam({ team }: { team: string }) {
     <button type="button" className="star sm" aria-pressed={on} aria-label={`Follow ${team}`} onClick={() => favouritesStore.set({ ...favs, teams: toggleIn(favs.teams, team) })}>
       <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 1.8l2.4 5.2 5.6.6-4.2 3.8 1.2 5.6L10 14.2 4.9 17l1.2-5.6L2 7.6l5.6-.6z" /></svg>
     </button>
+  )
+}
+
+/** Plain-language notices for experimental and limited-data fixtures. */
+function Notices({ item }: { item: Item }) {
+  const { leagues } = useApp()
+  const lg = leagues.get(item.league)
+  const ltd = isLimited(item)
+  if (!item.experimental && !ltd) return null
+  return (
+    <div className="notices">
+      {item.experimental && (
+        <p className="notice xp" role="note">
+          <b>Experimental <Help term="fx_experimental" /></b>
+          Built from each club&rsquo;s domestic form. Not yet validated on {lg?.name ?? 'these'} matches.
+        </p>
+      )}
+      {ltd && (
+        <p className="notice ltd" role="note">
+          <b>Limited data <Help term="limited_data" /></b>
+          One or both clubs have no domestic data in our sources.{item.dataQuality === 'none' ? ' Treat this one as a rough guide.' : ''}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -53,6 +77,11 @@ function Prediction({ item }: { item: Item }) {
 
       <h3>How sure, for each floor <Help term="sure80" /></h3>
       <ul className="bounds">
+        <li className="exp">
+          <span className="bq">Expected</span>
+          <b>{item.expected}</b>
+          <span className="bn">shots in total</span>
+        </li>
         {(['90', '80', '70'] as const).map((q) => (
           <li key={q} className={q === '80' ? 'main' : ''}>
             <span className="bq">{q}% sure</span>
@@ -205,11 +234,11 @@ export const Panel = forwardRef<HTMLHeadingElement, PanelProps>(function Panel({
   const lg = leagues.get(item.league)
   const f = item.fixture
   return (
-    <article className="panelbody" aria-labelledby="panel-h">
+    <article className={`panelbody${lg?.featured ? ' featured' : ''}`} aria-labelledby="panel-h">
       <header className="phead">
         <div className="crumb">
-          <Flag country={lg?.country ?? ''} />
-          <span>{lg?.name ?? item.league}{f?.round ? <> <span aria-hidden="true">&rsaquo;</span><span className="sr"> round </span> {f.round.replace('Regular Season - ', 'Round ')}</> : null}</span>
+          {lg ? <LeagueChip league={lg} /> : <span>{item.league}</span>}
+          {f?.round ? <span className="round"><span className="sr"> round </span>{f.round.replace('Regular Season - ', 'Round ')}</span> : null}
           <span className="phactions">
             {!full && <a className="btn quiet" href={href({}, `/match/${item.id}`)}>Full page view</a>}
             {onClose && <button type="button" className="quiet close" onClick={onClose} aria-label="Close match panel"><span aria-hidden="true">&times;</span> Close</button>}
@@ -217,17 +246,20 @@ export const Panel = forwardRef<HTMLHeadingElement, PanelProps>(function Panel({
           </span>
         </div>
         <h2 id="panel-h" tabIndex={-1} ref={ref} className="matchtitle">
-          <span className="side"><Badge name={item.home} size={34} /><span>{item.home}</span><StarTeam team={item.home} /></span>
+          <span className="side home"><Badge name={item.home} size={52} /><span className="tline"><span className="tname">{item.home}</span><StarTeam team={item.home} /></span></span>
           <span className="vs" aria-hidden="true">v</span><span className="sr"> versus </span>
-          <span className="side"><Badge name={item.away} size={34} /><span>{item.away}</span><StarTeam team={item.away} /></span>
+          <span className="side away"><Badge name={item.away} size={52} /><span className="tline"><span className="tname">{item.away}</span><StarTeam team={item.away} /></span></span>
         </h2>
         <p className="ko">
-          {dayLong(item.date)}{item.time ? <>, <b>{item.time}</b> local</> : ' (finished)'}
-          {' '}
-          <span className={`badge${item.odds ? '' : ' mute'}`}>{item.odds ? 'odds' : 'no odds'}</span>
-          {item.coldStart && <> <span className="badge warn">cold start</span></>}
+          <span>{dayLong(item.date)}{item.time ? <>, <b>{item.time}</b> local</> : ' (finished)'}</span>
+          <span className="kotags">
+            <span className={`badge${item.odds ? '' : ' mute'}`}>{item.odds ? 'odds' : 'no odds'}</span>
+            {item.coldStart && <span className="badge warn">cold start</span>}
+            <ItemTags item={item} />
+          </span>
         </p>
       </header>
+      <Notices item={item} />
       <Outcome item={item} n={state.n} />
       <Tabs label="Match detail" tabs={PANEL_TABS.map((t) => ({ id: t, label: TAB_LABEL[t] }))} value={state.pt} onChange={(t) => set({ pt: t }, { replace: true })} className="ptabs">
         {state.pt === 'pred' && <Prediction item={item} />}

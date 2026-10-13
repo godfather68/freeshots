@@ -20,7 +20,7 @@ Code: `src/shots/db/` (`engine.py`, `models.py`, `migrate.py`, `load.py`, `repo.
 Every connection: `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=10000`, `synchronous=NORMAL`,
 `cache_size=64MB`. WAL lets the web app read while `shots update` writes.
 
-## Schema (revisions `0001_initial`, `0002_pre_match`, `0003_run_integrity`)
+## Schema (revisions `0001_initial`, `0002_pre_match`, `0003_run_integrity`, `0004_experimental`)
 
 Timestamps named `*_at` are **UTC** (naive). `matches.date` is the local match date and
 `kickoff_local` the local "HH:MM", exactly as in the canonical schema. Board `meta.built_at` (and picks
@@ -132,6 +132,40 @@ slower to write (82 rows per prediction) for no UI benefit; wide columns are fas
 to today's N ranges (82 columns, a migration per change). Cross-run analytics at one N (track-record
 style) are slower with JSON, which is why the track record uses the sparse `points` + views.
 On the real board (568 fixtures) every board page query runs in < 0.15 s end to end.
+
+## Cross-border competitions (UEFA Champions League; migration `0004_experimental`)
+
+Method, proxy validation and limits: `reports/2026-10-13_champions_league.md`. Platform side:
+
+- **Ingest** (`shots.ingest.cross_border`, `club_countries.csv`, `calendar_ics`): a calendar file whose prefix
+  is a cross-border competition (`uefa-champions-league_<season>.ics`) gives fixtures with competition
+  "UEFA Champions League", country label "Europe", tier 1, and **each club's domestic team id**
+  (`england:arsenal`), resolved through the reviewed `club_countries.csv` (`competition, club, country,
+  history`). Clubs whose league we do not cover keep their own id (`norway:viking`) and no history; a club
+  missing from the file gets `europe:<slug>`, is reported by `python -m shots.ingest.calendar_ics`
+  (status `unknown`) and is scored without history until it is added. `fixtures.parquet` now also carries
+  `kickoff_utc` (exact, from the calendar) and `home_country` / `away_country`; `read_fixtures` prefers that
+  `kickoff_utc` (it is the only kick-off source for a competition whose "country" has no zone). Local date /
+  kick-off are in the home club's zone. `teams.country` is always the club's own country.
+- **Features / model**: these fixtures never enter `team_form.build_features`
+  (`shots.features.cross_border` builds them from played matches), so domestic features, priors and board
+  rows are identical with and without them. They are scored by `shots.models.cross_border.CrossBorderModel`
+  on top of the no-odds model, saved under `models_store/cross_border/<no-odds label>-exp/`, board / picks
+  label `<no-odds label>-ucl-exp`. The board and the picks CSV gain the columns `experimental` and
+  `data_quality` only when such fixtures are present.
+- **Database**: `predictions.experimental` (NOT NULL, default 0) and `predictions.data_quality`
+  (`full | partial | none`, NULL = full), set at insert by the loaders (flagged by the row, or by its
+  competition as a safety net) and immutable like every prediction column. `v_prediction_outcomes` exposes
+  `experimental`; **`v_official_picks` and `v_replay_picks` exclude experimental predictions**, as do
+  `Repository.official_results` and the file record (`track.dedupe`), so the live record, its counts and its
+  metrics are unaffected. `v_experimental_picks` lists them apart (same columns): they stay `pending`
+  because no source of Champions League shot counts exists ("unsettleable" today). The migration adds the
+  columns with `ALTER TABLE ADD COLUMN` (no table copy: triggers and existing rows untouched).
+- **Lifecycle of an unsettleable fixture**: it stays `scheduled`, leaves the board the day after its date
+  (board rows are `date >= today`), and is never `played`. The worker's `results` reason fires once when it
+  ends, as for any match.
+- **Export**: fixture `experimental: true` + `data_quality`, league `featured: true` (additive, schema 1;
+  `docs/static-api.md`). `shots.export.verify` checks both against the database.
 
 ## Repository API (`shots.db.repo.Repository`)
 

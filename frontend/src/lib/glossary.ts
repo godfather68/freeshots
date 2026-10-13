@@ -9,6 +9,8 @@ export const TERMS: Record<string, [string, string]> = {
   odds: ['Odds published', 'Bookmaker odds exist for this match and the model that uses them scored it. They help the model judge how open the game is likely to be.'],
   cold_start: ['Cold start', 'At least one team has fewer than 5 earlier matches in our data (promoted sides, new competitions). The model has little to go on, so treat the numbers with extra caution.'],
   experimental: ['Experimental team numbers', 'Shots for one team on its own. They pass the overall calibration checks but not yet the per-competition check, so trust them less than the match total.'],
+  fx_experimental: ['Experimental fixture', "Built from each club's domestic form, because we have no history of this competition to check it against. The numbers are calibrated for league matches, not yet validated on this competition, so trust them less. Experimental matches are left out of Top picks unless a day has nothing else."],
+  limited_data: ['Limited data', 'One or both clubs have no domestic data in our sources (for example a side from a league we do not cover), so there is less to build the estimate on. Treat it as a rough guide.'],
   bar: ['The probability bar', 'The bar fills in proportion to the chance. The vertical tick marks 70%: when the green fill passes it, the match clears the bar we highlight.'],
   calibrated: ['Calibrated', "A model is calibrated when its '70%' calls come true about 70% of the time. The track record page checks this on matches the model had not seen."],
 }

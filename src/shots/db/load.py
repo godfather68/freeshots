@@ -186,10 +186,30 @@ def _competition_ids(session: Session, frame: pd.DataFrame) -> dict[str, int]:
     return dict(session.execute(select(Competition.name, Competition.id)).all())
 
 
+def _club_country(frame: pd.DataFrame, side: str) -> pd.Series:
+    """The country of each row's `side` club. Domestic competitions: the competition's country. Cross-border
+    competitions (country label "Europe"): the club's own country, from the frame's `<side>_country`
+    column (calendar fixtures) or the reviewed club mapping, so a club never becomes a "Europe" team."""
+    from shots.ingest import cross_border as xb
+
+    country = frame["country"].astype(object)
+    col = f"{side}_country"
+    if col in frame:
+        own = frame[col].astype(object)
+        country = own.where(own.notna(), country)
+    if "competition" in frame:
+        cross = frame["competition"].map(xb.is_cross_border).astype(bool) & country.isin(xb.COUNTRY_LABELS)
+        if cross.any():
+            country = country.copy()
+            country[cross] = [xb.club_country(c, t) or lab for c, t, lab in
+                              zip(frame.loc[cross, "competition"], frame.loc[cross, f"{side}_team"], country[cross])]
+    return country
+
+
 def _upsert_teams(session: Session, frame: pd.DataFrame) -> None:
     """frame: country, home_team, away_team, home_team_id, away_team_id; ordered so the latest name wins."""
-    parts = [frame[["home_team_id", "home_team", "country"]].set_axis(["team_id", "name", "country"], axis=1),
-             frame[["away_team_id", "away_team", "country"]].set_axis(["team_id", "name", "country"], axis=1)]
+    parts = [pd.DataFrame({"team_id": frame[f"{side}_team_id"], "name": frame[f"{side}_team"],
+                           "country": _club_country(frame, side)}) for side in ("home", "away")]
     teams = pd.concat(parts, ignore_index=True).drop_duplicates("team_id", keep="last")
     rows = [dict(team_id=r.team_id, name=r.name, country=r.country) for r in teams.itertuples(index=False)]
     if rows:
@@ -207,7 +227,8 @@ def _with_team_ids(frame: pd.DataFrame) -> pd.DataFrame:
         missing = ids.isna()
         if missing.any():
             ids = ids.astype(object)
-            ids[missing] = [make_team_id(c, t) for c, t in zip(frame.loc[missing, "country"], frame.loc[missing, f"{side}_team"])]
+            country = _club_country(frame, side)
+            ids[missing] = [make_team_id(c, t) for c, t in zip(country[missing], frame.loc[missing, f"{side}_team"])]
         frame[col] = ids
     return frame
 
@@ -322,6 +343,9 @@ def read_fixtures(today: date | None = None, calendar_path: Path | None = None,
     if calendar_path.exists():
         cal = pd.read_parquet(calendar_path)
         cal = cal[cal["date"] >= pd.Timestamp(today)].copy()
+        # The calendar's own UTC instant (exact; newer fixtures.parquet files carry it). It is the only
+        # kick-off source for cross-border competitions, whose "country" has no time zone.
+        source_utc = cal["kickoff_utc"].astype("datetime64[us]") if "kickoff_utc" in cal else None
         cal["kickoff_utc"] = pd.Series(pd.NaT, index=cal.index, dtype="datetime64[us]")
         for country, g in cal.groupby("country"):
             tz = TIMEZONES.get(country)
@@ -331,6 +355,8 @@ def read_fixtures(today: date | None = None, calendar_path: Path | None = None,
             local = pd.to_datetime(g.loc[ok, "date"].dt.strftime("%Y-%m-%d") + " " + g.loc[ok, "kickoff"])
             utc = local.dt.tz_localize(tz, ambiguous=True, nonexistent="shift_forward").dt.tz_convert("UTC")
             cal.loc[utc.index, "kickoff_utc"] = utc.dt.tz_localize(None).astype("datetime64[us]")
+        if source_utc is not None:
+            cal["kickoff_utc"] = source_utc.where(source_utc.notna(), cal["kickoff_utc"])
         frames.append(cal)
     files = sorted(Path(fd_dir).glob("fixtures_*.csv")) if Path(fd_dir).exists() else []
     if files:
@@ -387,8 +413,15 @@ def _ensure_matches(s: Session, frame: pd.DataFrame, source: str, refresh_meta: 
     if "country" not in frame or frame["country"].isna().any() or "tier" not in frame:
         known = dict(s.execute(select(Competition.name, Competition.country)).all())
         tiers = dict(s.execute(select(Competition.name, Competition.tier)).all())
-        country = frame["competition"].map(lambda c: known.get(c) or (DIVISION_BY_NAME.get(c) or (None, None, None))[1])
-        tier = frame["competition"].map(lambda c: tiers.get(c) or (DIVISION_BY_NAME.get(c) or (None, None, None))[2])
+        from shots.ingest import cross_border as xb
+
+        def static(c):  # (code, country, tier) of a competition the code knows, else Nones
+            if c in xb.BY_NAME:
+                return (None, xb.BY_NAME[c].country, xb.BY_NAME[c].tier)
+            return DIVISION_BY_NAME.get(c) or (None, None, None)
+
+        country = frame["competition"].map(lambda c: known.get(c) or static(c)[1])
+        tier = frame["competition"].map(lambda c: tiers.get(c) or static(c)[2])
         frame["country"] = frame["country"].fillna(country) if "country" in frame else country
         frame["tier"] = frame["tier"].fillna(tier) if "tier" in frame else tier
     unknown = frame["country"].isna()
@@ -435,6 +468,16 @@ def _hash(obj) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str, separators=(",", ":")).encode()).hexdigest()
 
 
+def _experimental(r: dict) -> dict:
+    """experimental / data_quality of a board or picks row. Flagged by the row itself or, as a safety
+    net, by its competition (a cross-border competition is always experimental: it cannot be settled)."""
+    from shots.ingest import cross_border as xb
+
+    exp = bool(_bool(r.get("experimental"))) or xb.is_cross_border(_str(r.get("competition")))
+    quality = _str(r.get("data_quality"))
+    return {"experimental": exp, "data_quality": quality if exp and quality in ("full", "partial", "none") else None}
+
+
 def board_prediction_rows(board: pd.DataFrame) -> tuple[list[dict], dict]:
     """Board frame -> prediction dicts (without run_id) + curve ranges."""
     pcols = sorted((c for c in board.columns if c.startswith("p_") and c[2:].isdigit()), key=lambda c: int(c[2:]))
@@ -453,7 +496,8 @@ def board_prediction_rows(board: pd.DataFrame) -> tuple[list[dict], dict]:
                  cold_start=_bool(r.get("cold_start")), median=_float(r.get("expected_shots")),
                  lb_70=_int(r.get("lb_70")), lb_80=_int(r.get("lb_80")), lb_90=_int(r.get("lb_90")),
                  league_avg=_float(r.get("league_avg_shots")), above_league=_float(r.get("above_league")),
-                 mkt_p_over25=_float(r.get("mkt_p_over25")), total_curve=_curve(r, pcols))
+                 mkt_p_over25=_float(r.get("mkt_p_over25")), total_curve=_curve(r, pcols),
+                 **_experimental(r))
         if team:
             for side in ("home", "away"):
                 d[f"{side}_mean"] = _float(r.get(f"{side}_mean"))
@@ -578,7 +622,7 @@ def import_picks_file(engine: Engine, path: Path) -> dict:
                          cold_start=_bool(r.get("cold_start")), median=_float(r.get("expected_shots")),
                          lb_80=_int(r.get("lb_80")), league_avg=_float(r.get("league_avg_shots")),
                          above_league=_float(r.get("above_league")), mkt_p_over25=_float(r.get("mkt_p_over25")),
-                         points={str(n): _float(r[pcol])}, selected=_bool(r.get("selected"))))
+                         points={str(n): _float(r[pcol])}, selected=_bool(r.get("selected")), **_experimental(r)))
     with session_scope(engine) as s:
         ensured = _ensure_matches(s, df, "picks", refresh_meta=False)
         run = PredictionRun(

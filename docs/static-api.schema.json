@@ -108,7 +108,9 @@
               "name": {"type": "string", "minLength": 1},
               "country": {"type": "string"},
               "tier": {"type": ["integer", "null"]},
-              "fixtures": {"type": "integer", "minimum": 0}
+              "fixtures": {"type": "integer", "minimum": 0},
+              "featured": {"description": "Additive (schema 1). Present (true) only for competitions the site pins first (the UEFA Champions League); absent otherwise.",
+                           "const": true}
             }
           }
         },
@@ -157,6 +159,10 @@
               "cold_start": {"type": "boolean"},
               "model": {"type": ["string", "null"]},
               "curve": {"$ref": "#/$defs/curve"},
+              "experimental": {"description": "Additive (schema 1). Present (true) only when the fixture was scored by an experimental model (cross-border competitions: built from each club's domestic form, calibration on the competition unknown, never settled). Absent = an ordinary prediction.",
+                               "const": true},
+              "data_quality": {"description": "Additive (schema 1). Only with experimental: how many of the two clubs had domestic shot data: full = both, partial = one (the other is a neutral stand-in, wider bounds), none = neither. Absent = full for ordinary fixtures.",
+                               "enum": ["full", "partial", "none"]},
               "team": {
                 "anyOf": [
                   {"type": "null"},
