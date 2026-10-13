@@ -1,0 +1,186 @@
+{
+ "schema": 1,
+ "built_at": "2026-10-13T08:48:48Z",
+ "results_up_to": "2026-10-12",
+ "last_job": {
+  "status": "ok",
+  "finished_at": "2026-10-13T08:48:37Z"
+ },
+ "models": [
+  "negbin_pit_comp-noodds_2026-10-12"
+ ],
+ "thresholds": {
+  "total": [
+   10,
+   45
+  ],
+  "team": [
+   3,
+   25
+  ],
+  "default_total": 24,
+  "default_team": 12
+ },
+ "leagues": [
+  {
+   "id": "belgium-pro-league",
+   "name": "Pro League",
+   "country": "Belgium",
+   "tier": 1,
+   "fixtures": 27
+  },
+  {
+   "id": "england-premier-league",
+   "name": "Premier League",
+   "country": "England",
+   "tier": 1,
+   "fixtures": 40
+  },
+  {
+   "id": "england-championship",
+   "name": "Championship",
+   "country": "England",
+   "tier": 2,
+   "fixtures": 73
+  },
+  {
+   "id": "england-league-one",
+   "name": "League One",
+   "country": "England",
+   "tier": 3,
+   "fixtures": 0
+  },
+  {
+   "id": "england-league-two",
+   "name": "League Two",
+   "country": "England",
+   "tier": 4,
+   "fixtures": 0
+  },
+  {
+   "id": "france-ligue-1",
+   "name": "Ligue 1",
+   "country": "France",
+   "tier": 1,
+   "fixtures": 0
+  },
+  {
+   "id": "france-ligue-2",
+   "name": "Ligue 2",
+   "country": "France",
+   "tier": 2,
+   "fixtures": 0
+  },
+  {
+   "id": "germany-bundesliga",
+   "name": "Bundesliga",
+   "country": "Germany",
+   "tier": 1,
+   "fixtures": 36
+  },
+  {
+   "id": "germany-2-bundesliga",
+   "name": "2. Bundesliga",
+   "country": "Germany",
+   "tier": 2,
+   "fixtures": 36
+  },
+  {
+   "id": "greece-super-league",
+   "name": "Super League",
+   "country": "Greece",
+   "tier": 1,
+   "fixtures": 0
+  },
+  {
+   "id": "italy-serie-a",
+   "name": "Serie A",
+   "country": "Italy",
+   "tier": 1,
+   "fixtures": 50
+  },
+  {
+   "id": "italy-serie-b",
+   "name": "Serie B",
+   "country": "Italy",
+   "tier": 2,
+   "fixtures": 50
+  },
+  {
+   "id": "netherlands-eredivisie",
+   "name": "Eredivisie",
+   "country": "Netherlands",
+   "tier": 1,
+   "fixtures": 0
+  },
+  {
+   "id": "portugal-primeira-liga",
+   "name": "Primeira Liga",
+   "country": "Portugal",
+   "tier": 1,
+   "fixtures": 0
+  },
+  {
+   "id": "scotland-premiership",
+   "name": "Premiership",
+   "country": "Scotland",
+   "tier": 1,
+   "fixtures": 30
+  },
+  {
+   "id": "spain-la-liga",
+   "name": "La Liga",
+   "country": "Spain",
+   "tier": 1,
+   "fixtures": 41
+  },
+  {
+   "id": "spain-segunda-division",
+   "name": "Segunda Division",
+   "country": "Spain",
+   "tier": 2,
+   "fixtures": 44
+  },
+  {
+   "id": "turkey-super-lig",
+   "name": "Super Lig",
+   "country": "Turkey",
+   "tier": 1,
+   "fixtures": 36
+  }
+ ],
+ "days": [
+  "2026-10-13",
+  "2026-10-14",
+  "2026-10-16",
+  "2026-10-17",
+  "2026-10-18",
+  "2026-10-19",
+  "2026-10-20",
+  "2026-10-21",
+  "2026-10-23",
+  "2026-10-24",
+  "2026-10-25",
+  "2026-10-26",
+  "2026-10-27",
+  "2026-10-28",
+  "2026-10-29",
+  "2026-10-30",
+  "2026-10-31",
+  "2026-11-01",
+  "2026-11-02",
+  "2026-11-03",
+  "2026-11-04",
+  "2026-11-06",
+  "2026-11-07",
+  "2026-11-08"
+ ],
+ "counts": {
+  "fixtures": 463,
+  "with_odds": 0,
+  "cold_start": 0
+ },
+ "record": {
+  "since": "2026-10-13T08:48:36Z"
+ }
+}

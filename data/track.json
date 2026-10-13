@@ -1,0 +1,617 @@
+{
+ "schema": 1,
+ "records": {
+  "backfill": {
+   "label": "2025/26 season (out of sample)",
+   "by_n": {
+    "22": {
+     "selected_min_prob": 0.7,
+     "n": 3598,
+     "hits": 2847,
+     "hit_rate": 0.7913,
+     "mean_stated": 0.7845,
+     "wilson95": [
+      0.7777,
+      0.8042
+     ],
+     "brier": 0.1918,
+     "brier_baseline": 0.2113,
+     "reliability": [
+      {
+       "band": [
+        0.0,
+        0.1
+       ],
+       "n": 2,
+       "stated": 0.0915,
+       "realised": 0.0
+      },
+      {
+       "band": [
+        0.1,
+        0.2
+       ],
+       "n": 97,
+       "stated": 0.1679,
+       "realised": 0.1753
+      },
+      {
+       "band": [
+        0.2,
+        0.3
+       ],
+       "n": 251,
+       "stated": 0.2499,
+       "realised": 0.3108
+      },
+      {
+       "band": [
+        0.3,
+        0.4
+       ],
+       "n": 156,
+       "stated": 0.3508,
+       "realised": 0.3782
+      },
+      {
+       "band": [
+        0.4,
+        0.5
+       ],
+       "n": 257,
+       "stated": 0.4593,
+       "realised": 0.4475
+      },
+      {
+       "band": [
+        0.5,
+        0.6
+       ],
+       "n": 848,
+       "stated": 0.5594,
+       "realised": 0.5837
+      },
+      {
+       "band": [
+        0.6,
+        0.7
+       ],
+       "n": 1885,
+       "stated": 0.6557,
+       "realised": 0.6806
+      },
+      {
+       "band": [
+        0.7,
+        0.8
+       ],
+       "n": 2289,
+       "stated": 0.7499,
+       "realised": 0.7488
+      },
+      {
+       "band": [
+        0.8,
+        0.9
+       ],
+       "n": 1212,
+       "stated": 0.839,
+       "realised": 0.8581
+      },
+      {
+       "band": [
+        0.9,
+        1.0
+       ],
+       "n": 97,
+       "stated": 0.9195,
+       "realised": 0.9588
+      }
+     ],
+     "by_league": [
+      {
+       "league": "england-championship",
+       "n": 335,
+       "hit_rate": 0.7284,
+       "stated": 0.755
+      },
+      {
+       "league": "netherlands-eredivisie",
+       "n": 303,
+       "hit_rate": 0.8944,
+       "stated": 0.847
+      },
+      {
+       "league": "germany-2-bundesliga",
+       "n": 292,
+       "hit_rate": 0.8082,
+       "stated": 0.8096
+      },
+      {
+       "league": "italy-serie-b",
+       "n": 285,
+       "hit_rate": 0.807,
+       "stated": 0.7799
+      },
+      {
+       "league": "spain-segunda-division",
+       "n": 275,
+       "hit_rate": 0.8073,
+       "stated": 0.7699
+      },
+      {
+       "league": "belgium-pro-league",
+       "n": 259,
+       "hit_rate": 0.8069,
+       "stated": 0.7966
+      },
+      {
+       "league": "germany-bundesliga",
+       "n": 259,
+       "hit_rate": 0.8417,
+       "stated": 0.833
+      },
+      {
+       "league": "england-premier-league",
+       "n": 230,
+       "hit_rate": 0.7609,
+       "stated": 0.7585
+      },
+      {
+       "league": "turkey-super-lig",
+       "n": 223,
+       "hit_rate": 0.7848,
+       "stated": 0.7931
+      },
+      {
+       "league": "spain-la-liga",
+       "n": 212,
+       "hit_rate": 0.7736,
+       "stated": 0.7801
+      },
+      {
+       "league": "france-ligue-1",
+       "n": 168,
+       "hit_rate": 0.8036,
+       "stated": 0.7771
+      },
+      {
+       "league": "england-league-two",
+       "n": 164,
+       "hit_rate": 0.75,
+       "stated": 0.7422
+      },
+      {
+       "league": "scotland-premiership",
+       "n": 156,
+       "hit_rate": 0.7308,
+       "stated": 0.7791
+      },
+      {
+       "league": "italy-serie-a",
+       "n": 155,
+       "hit_rate": 0.7548,
+       "stated": 0.7577
+      },
+      {
+       "league": "portugal-primeira-liga",
+       "n": 88,
+       "hit_rate": 0.7841,
+       "stated": 0.7672
+      },
+      {
+       "league": "england-league-one",
+       "n": 77,
+       "hit_rate": 0.8182,
+       "stated": 0.7551
+      },
+      {
+       "league": "france-ligue-2",
+       "n": 63,
+       "hit_rate": 0.6984,
+       "stated": 0.739
+      },
+      {
+       "league": "greece-super-league",
+       "n": 54,
+       "hit_rate": 0.7037,
+       "stated": 0.7494
+      }
+     ]
+    },
+    "24": {
+     "selected_min_prob": 0.7,
+     "n": 1085,
+     "hits": 846,
+     "hit_rate": 0.7797,
+     "mean_stated": 0.7533,
+     "wilson95": [
+      0.7541,
+      0.8034
+     ],
+     "brier": 0.2205,
+     "brier_baseline": 0.2419,
+     "reliability": [
+      {
+       "band": [
+        0.0,
+        0.1
+       ],
+       "n": 70,
+       "stated": 0.0762,
+       "realised": 0.1143
+      },
+      {
+       "band": [
+        0.1,
+        0.2
+       ],
+       "n": 314,
+       "stated": 0.1527,
+       "realised": 0.1688
+      },
+      {
+       "band": [
+        0.2,
+        0.3
+       ],
+       "n": 190,
+       "stated": 0.2535,
+       "realised": 0.2526
+      },
+      {
+       "band": [
+        0.3,
+        0.4
+       ],
+       "n": 474,
+       "stated": 0.3592,
+       "realised": 0.3608
+      },
+      {
+       "band": [
+        0.4,
+        0.5
+       ],
+       "n": 1326,
+       "stated": 0.4559,
+       "realised": 0.4789
+      },
+      {
+       "band": [
+        0.5,
+        0.6
+       ],
+       "n": 1931,
+       "stated": 0.5487,
+       "realised": 0.5733
+      },
+      {
+       "band": [
+        0.6,
+        0.7
+       ],
+       "n": 1704,
+       "stated": 0.6482,
+       "realised": 0.6655
+      },
+      {
+       "band": [
+        0.7,
+        0.8
+       ],
+       "n": 925,
+       "stated": 0.7393,
+       "realised": 0.7632
+      },
+      {
+       "band": [
+        0.8,
+        0.9
+       ],
+       "n": 156,
+       "stated": 0.8318,
+       "realised": 0.8718
+      },
+      {
+       "band": [
+        0.9,
+        1.0
+       ],
+       "n": 4,
+       "stated": 0.9159,
+       "realised": 1.0
+      }
+     ],
+     "by_league": [
+      {
+       "league": "netherlands-eredivisie",
+       "n": 239,
+       "hit_rate": 0.7699,
+       "stated": 0.774
+      },
+      {
+       "league": "germany-2-bundesliga",
+       "n": 164,
+       "hit_rate": 0.7622,
+       "stated": 0.7413
+      },
+      {
+       "league": "germany-bundesliga",
+       "n": 121,
+       "hit_rate": 0.8182,
+       "stated": 0.7687
+      },
+      {
+       "league": "belgium-pro-league",
+       "n": 90,
+       "hit_rate": 0.8222,
+       "stated": 0.7529
+      },
+      {
+       "league": "italy-serie-b",
+       "n": 83,
+       "hit_rate": 0.759,
+       "stated": 0.746
+      },
+      {
+       "league": "turkey-super-lig",
+       "n": 72,
+       "hit_rate": 0.8333,
+       "stated": 0.7468
+      },
+      {
+       "league": "spain-la-liga",
+       "n": 62,
+       "hit_rate": 0.7581,
+       "stated": 0.7596
+      },
+      {
+       "league": "spain-segunda-division",
+       "n": 59,
+       "hit_rate": 0.678,
+       "stated": 0.7407
+      },
+      {
+       "league": "england-championship",
+       "n": 46,
+       "hit_rate": 0.8696,
+       "stated": 0.7243
+      },
+      {
+       "league": "scotland-premiership",
+       "n": 37,
+       "hit_rate": 0.7568,
+       "stated": 0.7497
+      },
+      {
+       "league": "england-premier-league",
+       "n": 34,
+       "hit_rate": 0.7353,
+       "stated": 0.7269
+      },
+      {
+       "league": "france-ligue-1",
+       "n": 34,
+       "hit_rate": 0.7941,
+       "stated": 0.7432
+      },
+      {
+       "league": "italy-serie-a",
+       "n": 13,
+       "hit_rate": 0.6154,
+       "stated": 0.7288
+      },
+      {
+       "league": "portugal-primeira-liga",
+       "n": 13,
+       "hit_rate": 0.7692,
+       "stated": 0.7554
+      },
+      {
+       "league": "england-league-one",
+       "n": 8,
+       "hit_rate": 0.875,
+       "stated": 0.7338
+      },
+      {
+       "league": "england-league-two",
+       "n": 5,
+       "hit_rate": 0.8,
+       "stated": 0.7279
+      },
+      {
+       "league": "greece-super-league",
+       "n": 3,
+       "hit_rate": 1.0,
+       "stated": 0.7371
+      },
+      {
+       "league": "france-ligue-2",
+       "n": 2,
+       "hit_rate": 1.0,
+       "stated": 0.7261
+      }
+     ]
+    },
+    "26": {
+     "selected_min_prob": 0.7,
+     "n": 130,
+     "hits": 99,
+     "hit_rate": 0.7615,
+     "mean_stated": 0.7418,
+     "wilson95": [
+      0.6814,
+      0.8266
+     ],
+     "brier": 0.221,
+     "brier_baseline": 0.2413,
+     "reliability": [
+      {
+       "band": [
+        0.0,
+        0.1
+       ],
+       "n": 334,
+       "stated": 0.0616,
+       "realised": 0.0689
+      },
+      {
+       "band": [
+        0.1,
+        0.2
+       ],
+       "n": 293,
+       "stated": 0.1523,
+       "realised": 0.1638
+      },
+      {
+       "band": [
+        0.2,
+        0.3
+       ],
+       "n": 758,
+       "stated": 0.2602,
+       "realised": 0.2639
+      },
+      {
+       "band": [
+        0.3,
+        0.4
+       ],
+       "n": 1799,
+       "stated": 0.3546,
+       "realised": 0.3735
+      },
+      {
+       "band": [
+        0.4,
+        0.5
+       ],
+       "n": 1854,
+       "stated": 0.4484,
+       "realised": 0.4644
+      },
+      {
+       "band": [
+        0.5,
+        0.6
+       ],
+       "n": 1357,
+       "stated": 0.5449,
+       "realised": 0.5777
+      },
+      {
+       "band": [
+        0.6,
+        0.7
+       ],
+       "n": 569,
+       "stated": 0.6408,
+       "realised": 0.6626
+      },
+      {
+       "band": [
+        0.7,
+        0.8
+       ],
+       "n": 118,
+       "stated": 0.7331,
+       "realised": 0.7458
+      },
+      {
+       "band": [
+        0.8,
+        0.9
+       ],
+       "n": 12,
+       "stated": 0.8274,
+       "realised": 0.9167
+      }
+     ],
+     "by_league": [
+      {
+       "league": "netherlands-eredivisie",
+       "n": 63,
+       "hit_rate": 0.7778,
+       "stated": 0.7471
+      },
+      {
+       "league": "germany-bundesliga",
+       "n": 13,
+       "hit_rate": 0.7692,
+       "stated": 0.7568
+      },
+      {
+       "league": "spain-la-liga",
+       "n": 12,
+       "hit_rate": 0.8333,
+       "stated": 0.7455
+      },
+      {
+       "league": "belgium-pro-league",
+       "n": 9,
+       "hit_rate": 0.7778,
+       "stated": 0.7213
+      },
+      {
+       "league": "italy-serie-b",
+       "n": 9,
+       "hit_rate": 0.8889,
+       "stated": 0.7377
+      },
+      {
+       "league": "germany-2-bundesliga",
+       "n": 8,
+       "hit_rate": 0.625,
+       "stated": 0.7233
+      },
+      {
+       "league": "turkey-super-lig",
+       "n": 7,
+       "hit_rate": 0.8571,
+       "stated": 0.7316
+      },
+      {
+       "league": "france-ligue-1",
+       "n": 3,
+       "hit_rate": 0.6667,
+       "stated": 0.7287
+      },
+      {
+       "league": "spain-segunda-division",
+       "n": 3,
+       "hit_rate": 0.3333,
+       "stated": 0.7291
+      },
+      {
+       "league": "england-championship",
+       "n": 1,
+       "hit_rate": 1.0,
+       "stated": 0.7223
+      },
+      {
+       "league": "portugal-primeira-liga",
+       "n": 1,
+       "hit_rate": 0.0,
+       "stated": 0.706
+      },
+      {
+       "league": "scotland-premiership",
+       "n": 1,
+       "hit_rate": 0.0,
+       "stated": 0.7447
+      }
+     ]
+    }
+   }
+  },
+  "live": {
+   "label": "Live picks (saved before kick-off)",
+   "settled": 0,
+   "pending": 109,
+   "void": 0,
+   "by_n": {}
+  }
+ }
+}
