@@ -8,6 +8,9 @@ difference. Checks:
   schema     each file validates against docs/static-api.schema.json (needs the jsonschema package)
   privacy    no key outside the contract's vocabulary anywhere (odds, market, source, goals, ...)
   curves     aligned with meta.thresholds, within [0, 1], non-increasing (total and team curves)
+  explain    each explanation adds up exactly (baseline + effects + residual = expected_mean, in tenths), is
+             ordered by absolute effect ("other" last), states no number in a market factor, and its
+             odds_used flag equals the fixture's; it equals the explanation stored with the prediction
   board      the fixtures are exactly the latest board run's upcoming rows, value for value, in order
   results    exactly the settled matches of the last 30 days with their last pre-match board prediction
   track      live counts and per-N selected picks / hits equal v_official_picks and the backfill run
@@ -33,6 +36,7 @@ FORBIDDEN_KEY = re.compile(r"odds_|mkt|market|source|goal|sot$|_sot|b365|bookmak
                            re.IGNORECASE)
 RESULT_DAYS = 30
 MIN_PROB = 0.70
+EXPLAIN_MAX_RESIDUAL_TENTHS = 5  # rounding of up to ten one-decimal parts; anything larger is a bug
 
 
 def slug(name: str) -> str:
@@ -97,7 +101,8 @@ class Checker:
     def privacy(self) -> None:
         for name in NAMES:
             for path, key in walk_keys(self.docs[name]):
-                if key != "odds" and FORBIDDEN_KEY.search(key):
+                # the two boolean flags of the contract: a fixture's `odds` and explain.signals.odds_used
+                if key != "odds" and not path.endswith(".explain.signals.odds_used") and FORBIDDEN_KEY.search(key):
                     self.fail(f"privacy: {name}.json has key {path}")
         for f in self.docs["board"]["fixtures"] + self.docs["results"]["results"]:
             if not isinstance(f.get("odds"), bool):
@@ -122,6 +127,51 @@ class Checker:
             if f["team"] is not None:
                 for side in ("home", "away"):
                     self.curve(f["team"][side]["curve"], th["team"], f"board {f['id']} {side}")
+
+    def explain(self) -> None:
+        n = 0
+        for f in self.docs["board"]["fixtures"]:
+            e = f.get("explain")
+            if e is None:
+                if "explain" in f:
+                    self.fail(f"explain: {f['id']}: `explain` must be an object or absent, never null")
+                continue
+            n += 1
+            what = f"explain: {f['id']}"
+            t = lambda x: int(round(float(x) * 10))  # noqa: E731 - published values are tenths of a shot
+            effects = [fx["effect"] for fx in e["factors"]]
+            values = [e["expected_mean"], e["baseline"]["value"], e["residual"], *effects]
+            if any(abs(float(v) * 10 - t(v)) > 1e-6 for v in values):
+                self.fail(f"{what}: a value has more than 1 decimal")
+            if t(e["baseline"]["value"]) + sum(t(x) for x in effects) + t(e["residual"]) != t(e["expected_mean"]):
+                self.fail(f"{what}: baseline + effects + residual != expected_mean")
+            if abs(t(e["residual"])) > EXPLAIN_MAX_RESIDUAL_TENTHS:
+                self.fail(f"{what}: residual {e['residual']} is not small")
+            if any(t(x) == 0 for x in effects):
+                self.fail(f"{what}: a listed factor has no effect")
+            ids = [fx["id"] for fx in e["factors"]]
+            main = [fx for fx in e["factors"] if fx["id"] != "other"]
+            if len(set(ids)) != len(ids):
+                self.fail(f"{what}: duplicate factor id")
+            if "other" in ids[:-1]:
+                self.fail(f"{what}: `other` must be the last factor")
+            if any(abs(t(b["effect"])) > abs(t(a["effect"])) for a, b in zip(main, main[1:])):
+                self.fail(f"{what}: factors are not sorted by absolute effect")
+            for fx in e["factors"]:
+                if fx["id"].startswith("market"):
+                    # team names may contain digits ("Schalke 04"); nothing else in a market text may
+                    words = (fx["label"] + " " + fx["detail"]).replace(f["home"], "").replace(f["away"], "")
+                    if any(ch.isdigit() for ch in words):
+                        self.fail(f"{what}: market factor {fx['id']} states a number")
+                    if not f["odds"]:
+                        self.fail(f"{what}: market factor on a fixture scored without odds")
+            sig = e["signals"]
+            if sig["odds_used"] is not f["odds"]:
+                self.fail(f"{what}: signals.odds_used {sig['odds_used']!r} != fixture odds {f['odds']!r}")
+            if sig["model_gap"] is not None and not f["odds"]:
+                self.fail(f"{what}: model_gap on a fixture scored without odds")
+        if n:
+            self.checked["explanations"] = n
 
     # ------------------------------------------------------------------ database checks
 
@@ -174,6 +224,10 @@ class Checker:
             want_quality = r["data_quality"] if r["experimental"] and r["data_quality"] in ("full", "partial", "none") else None
             if f.get("data_quality") != want_quality:
                 self.fail(f"board: {f['id']}.data_quality = {f.get('data_quality')!r}, database has {want_quality!r}")
+            # the explanation is the one stored with the prediction (SQL NULL or JSON null = none), or absent
+            stored = json.loads(r["explain"]) if "explain" in r.keys() and r["explain"] is not None else None
+            if f.get("explain") != stored:
+                self.fail(f"board: {f['id']}.explain differs from the database")
             # a prediction without team curves in a run that has them (JSON null, stored as the text 'null')
             has_team = team_run and all(r[c] is not None and json.loads(r[c]) is not None for c in ("home_curve", "away_curve"))
             if (f["team"] is not None) != has_team:
@@ -359,6 +413,7 @@ def verify(export_dir: str | Path, db: str | Path | None = None, today: date | N
             ck.schema(Path(schema or SCHEMA_PATH))
         ck.privacy()
         ck.curves()
+        ck.explain()
         run = ck.board()
         ck.results()
         ck.track()

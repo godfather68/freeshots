@@ -12,6 +12,10 @@ The curve is stored as wide columns p_10..p_45 (one row per fixture, 36 columns)
 table: the UI always filters/sorts fixtures first and then reads one or all n for a fixture, so one
 row per fixture keeps the web side to a single DataFrame, and a single threshold lookup is a column
 pick. Values are the models' calibrated `prob_at_least`, stored as-is.
+
+`explain` (last column, JSON text; absent when no routed model supports it): why the expected total is
+what it is, an additive decomposition computed by shots.models.explain from the same model and the same
+feature rows that produced the prediction of that row. It never changes any other column.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ import numpy as np
 import pandas as pd
 
 from shots.ingest import football_data as fd
+from shots.models import explain as ex
 from shots.predict import scan as sc
 
 log = logging.getLogger(__name__)
@@ -52,6 +57,31 @@ def board_path() -> Path:
 
 def meta_path(path: Path | None = None) -> Path:
     return (path or board_path()).with_name(META_NAME)
+
+
+def _explanations(prep: sc.Prepared, info: pd.DataFrame, routes: list) -> list:
+    """JSON text of the explanation per upcoming row (None where there is none). A failure here never
+    costs the board its predictions: it is logged and the fixtures of that route go without `explain`."""
+    up = prep.upcoming
+    out = np.full(len(up), None, dtype=object)
+    exp = prep.is_experimental()
+    country = up["match_id"].map(info["country"])
+    league = pd.Series([ex.league_label(str(c), k if isinstance(k, str) else None)
+                        for c, k in zip(up["competition"], country)], index=up.index)
+    for mask, mdl, rows, label in routes:
+        if not ex.supports(mdl):
+            continue
+        sub = rows[mask]
+        odds_used = bool(prep.has_odds[mask].all()) and not bool(exp[mask].any())
+        gap = prep.nomodel if odds_used and prep.nomodel is not None and ex.supports(prep.nomodel) else None
+        try:
+            got = ex.explain_rows(mdl, sub, odds_used=odds_used, league=league[mask], gap_model=gap,
+                                  gap_rows=sc.no_odds_rows(sub) if gap is not None else None)
+        except Exception:  # noqa: BLE001 - explanations are an add-on; predictions must still be published
+            log.exception("explanations failed for %s (%d fixtures); they are left out", label, len(sub))
+            continue
+        out[mask.to_numpy()] = [ex.dumps(e) for e in got]
+    return list(out)
 
 
 def assemble(prep: sc.Prepared, info: pd.DataFrame, ns=NS) -> pd.DataFrame:
@@ -128,6 +158,9 @@ def assemble(prep: sc.Prepared, info: pd.DataFrame, ns=NS) -> pd.DataFrame:
     if quality is not None:  # only when the board has experimental fixtures: a domestic board keeps its columns
         out["experimental"] = exp.to_numpy()
         out["data_quality"] = quality.to_numpy()
+    explain = _explanations(prep, info, routes)
+    if any(e is not None for e in explain):  # only then: a board of models without explanations keeps its columns
+        out["explain"] = pd.array(explain, dtype=object)
     return out.sort_values(["date", "kickoff", "competition", "home_team"]).reset_index(drop=True)
 
 
@@ -170,6 +203,8 @@ def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFA
         "team_predictions": "ph_3" in board.columns,
         "team_thresholds": [TEAM_N_MIN, TEAM_N_MAX],
     }
+    if "explain" in board.columns:
+        meta["n_explained"] = int(board["explain"].notna().sum())
     if "experimental" in board.columns:  # cross-border fixtures (experimental model, never settled)
         meta["n_experimental"] = int(board["experimental"].sum())
     meta_path(out_path).write_text(json.dumps(meta, indent=2), encoding="utf-8")

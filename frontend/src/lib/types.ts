@@ -19,8 +19,8 @@ export interface Fixture {
   league: string
   round: string | null
   date: string
-  kickoff_local: string
-  kickoff_utc: string
+  kickoff_local: string | null
+  kickoff_utc: string | null
   home: string
   away: string
   expected: number
@@ -36,6 +36,26 @@ export interface Fixture {
   experimental?: boolean
   /** Additive (optional): how much domestic data both clubs had. */
   data_quality?: DataQuality
+  /** Additive (optional): the 'why this number' breakdown. */
+  explain?: Explain | null
+}
+export type Volatility = 'low' | 'average' | 'high'
+export interface ExplainFactor { id: string; side?: 'home' | 'away' | 'match' | null; label: string; detail?: string | null; effect: number }
+export interface ExplainSignals {
+  home_matches?: number | null
+  away_matches?: number | null
+  odds_used?: boolean | null
+  home_volatility?: Volatility | null
+  away_volatility?: Volatility | null
+  model_gap?: number | null
+}
+/** Optional, additive: why the expected total is what it is (baseline plus signed factors). */
+export interface Explain {
+  expected_mean?: number | null
+  baseline?: { value: number; label: string } | null
+  factors?: ExplainFactor[] | null
+  residual?: number | null
+  signals?: ExplainSignals | null
 }
 export interface Board { schema: number; fixtures: Fixture[] }
 export interface Result {
@@ -77,8 +97,15 @@ export interface Track { schema: number; records: { backfill: TrackRecord; live:
 export interface Item {
   id: string
   league: string
+  /** Day to group by: the visitor's date when a UTC instant exists (and 'My time' is on), else the venue date. */
   date: string
-  time: string | null // league-local kick-off; null for finished matches (not published)
+  time: string | null // HH:mm in the active view; null for finished matches (not published)
+  /** `time` is the venue's local time (venue mode, or no UTC instant to convert from). */
+  venueTime: boolean
+  /** Kick-off instant in ms (UTC); null when unknown (always for finished matches). */
+  utc: number | null
+  venueDate: string
+  venueClock: string | null
   home: string
   away: string
   expected: number

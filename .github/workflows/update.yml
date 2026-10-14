@@ -1,20 +1,51 @@
 # Stage 1 backend: run the models on a schedule, publish JSON, deploy the static site.
-# Design, state handling and recovery: docs/platform.md, "Stage 1 (GitHub Pages + Actions)".
+# Design, triggers, state handling and recovery: docs/platform.md, "Stage 1 (GitHub Pages + Actions)".
 #
-#   update  (contents: write, actions: write)  restore state -> python -m shots.worker run-once --force ->
-#           save state -> export JSON -> verify against the DB -> commit data/*.json to the `data` branch
+#   update  (contents: write, actions: write, deployments: read)
+#           restore state -> plan (python -m shots.worker.ci plan: is anything due? is the site behind?) ->
+#           python -m shots.worker run-once -> save state -> export JSON -> verify against the DB ->
+#           commit data/*.json to the `data` branch
 #   build   (contents: read)                   npm ci && npm run build with the exported JSON (no write token here)
 #   deploy  (pages: write, id-token: write)    actions/deploy-pages
+#
+# What a run does depends on its trigger (shots.worker.ci.plan, tested in tests/test_worker_ci.py):
+#   schedule             hourly, best effort. The worker decides (never forced): most runs find nothing due
+#                        and end after the plan step, without saving a cache, building or deploying.
+#   push to main         only for the paths below. Forced when pipeline files changed; always builds and
+#                        deploys the site.
+#   workflow_dispatch    by hand: forced, always deploys. With force=false (the watchdog, an external
+#                        cron) it behaves like a scheduled run.
 #
 # Never published: data/raw (source downloads), data/shots.db (holds source results), models. They live
 # only in the repository's Actions cache.
 name: Update and publish
 
 on:
+  # GitHub's scheduler is best effort: slots are delayed or dropped under load, worst at the start of the
+  # hour. So: many cheap slots at two odd minutes (a missed one costs an hour, not three), the worker's
+  # own rules decide whether a slot does anything, and watchdog.yml replaces a missed slot.
   schedule:
-    - cron: "23 */3 * * *"  # every 3 hours, off the hour (GitHub delays or drops jobs queued at :00)
+    - cron: "13 */2 * * *"     # even hours, :13 UTC
+    - cron: "17 1-23/2 * * *"  # odd hours, :17 UTC
+  # Merged changes deploy themselves. Keep this list equal to shots.worker.ci.push_paths() (tested).
+  # Commits to the `data` branch never start a run: other branch, and pushed with GITHUB_TOKEN.
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "migrations/**"
+      - "calendars/**"
+      - "requirements.lock"
+      - "pyproject.toml"
+      - ".github/workflows/update.yml"
+      - "frontend/**"
+      - ".github/data-branch-README.md"
   workflow_dispatch:
     inputs:
+      force:
+        description: "Run the update even if nothing is due, and deploy the site (off = behave like a scheduled run)"
+        type: boolean
+        default: true
       allow_fresh_state:
         description: "Start from an empty database if the cached one cannot be restored (the live record restarts)"
         type: boolean
@@ -22,7 +53,9 @@ on:
 
 permissions: {}
 
-concurrency:  # one run at a time: a new run waits for the running one, nothing is cancelled half-way
+# One run at a time: a new run waits for the running one, nothing is cancelled half-way. Only one run can
+# wait: a newer one replaces it. A replaced push run is caught up by the next run (plan: "catch-up").
+concurrency:
   group: shots-update
   cancel-in-progress: false
 
@@ -31,6 +64,10 @@ env:
   TZ: UTC
   PYTHONUTF8: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  # Worker rules on the runner (shots.worker.due). All times are UTC here.
+  SHOTS_WORKER_MIN_INTERVAL_HOURS: "2.5"  # a full update at least this often: every third hourly slot
+  SHOTS_WORKER_MIN_GAP_MINUTES: "90"      # and never two attempts closer than this, whatever is due
+  SHOTS_ODDS_TZ: UTC                      # "odds are published Tue / Fri by 09:00" is read as 09:00 UTC
   STATE_PREFIX: shots-state-v1-
   PAST_PREFIX: shots-fd-past-v1-
   CURRENT_PREFIX: shots-fd-current-v1-
@@ -43,8 +80,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     permissions:
-      contents: write  # push the regenerated JSON to the data branch (and nothing else)
-      actions: write   # list / delete superseded caches
+      contents: write    # push the regenerated JSON to the data branch (and nothing else)
+      actions: write     # list / delete superseded caches
+      deployments: read  # which commit is live on Pages (plan: catch-up, heartbeat)
     outputs:
       exported: ${{ steps.site.outputs.exported }}
     steps:
@@ -71,24 +109,6 @@ jobs:
         id: keys
         run: python -m shots.worker.ci keys >> "$GITHUB_OUTPUT"
 
-      # Finished seasons never change upstream: one cache per season, read on every run (so never evicted).
-      - name: Restore raw downloads of past seasons
-        id: past
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.keys.outputs.past_paths }}
-          key: ${{ env.PAST_PREFIX }}${{ steps.keys.outputs.season }}
-          restore-keys: ${{ env.PAST_PREFIX }}
-
-      # The running season is re-fetched with conditional requests (ETags), so keep its files between runs.
-      - name: Restore raw downloads of the current season
-        id: current
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.keys.outputs.current_paths }}
-          key: ${{ env.CURRENT_PREFIX }}${{ steps.keys.outputs.season }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: ${{ env.CURRENT_PREFIX }}${{ steps.keys.outputs.season }}-
-
       # The live record. Caches are immutable, so every run saves under a new key and restores the newest.
       # The path list is constant on purpose: a cache is only restored by the exact path list that saved it.
       - name: Restore state (database, derived files)
@@ -98,14 +118,6 @@ jobs:
           path: ${{ steps.keys.outputs.state_paths }}
           key: ${{ env.STATE_PREFIX }}${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ${{ env.STATE_PREFIX }}
-
-      - name: Restore trained models
-        id: models
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: models_store
-          key: ${{ env.MODELS_PREFIX }}${{ steps.keys.outputs.lock }}-${{ github.run_id }}
-          restore-keys: ${{ env.MODELS_PREFIX }}${{ steps.keys.outputs.lock }}-
 
       # A failed restore must not silently restart the record: if a cached database exists but did not
       # arrive, stop here (the next run retries) unless the run was started with allow_fresh_state.
@@ -135,28 +147,109 @@ jobs:
           echo "::warning::No cached database: starting from an empty one. The live record restarts now (meta.json record.since); see docs/platform.md, Stage 1, Recovery."
           echo "fresh=true" >> "$GITHUB_OUTPUT"
 
+      # Read-only: decides what this run does. A scheduled run with nothing due stops here: every later
+      # step is skipped, so no cache is saved or deleted and nothing is built, committed or deployed.
+      - name: Plan this run
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          FORCE_INPUT: ${{ inputs.force }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          changed="$RUNNER_TEMP/changed-files.txt"
+          dep="$RUNNER_TEMP/deployment.json"
+          status="$RUNNER_TEMP/deployment-status.json"
+          rm -f "$changed" "$dep" "$status"
+          # Which files did the push change? Unknown (first push, rewritten history) = a pipeline change.
+          if [ "$EVENT" = "push" ] && printf '%s' "$BEFORE" | grep -Eq '^[0-9a-f]{40}$' \
+              && ! printf '%s' "$BEFORE" | grep -Eq '^0+$'; then
+            if git fetch --quiet --no-tags --depth=1 origin "$BEFORE" \
+                && git diff --name-only "$BEFORE" "$GITHUB_SHA" > "$changed.tmp"; then
+              mv "$changed.tmp" "$changed"
+            else
+              echo "::notice::could not list the files changed by this push: treating it as a pipeline change"
+            fi
+          fi
+          # Newest Pages deployment: which commit is live, did it succeed, when? Unknown = no catch-up.
+          if gh api "repos/$GH_REPO/deployments?environment=github-pages&per_page=1" > "$dep"; then
+            id=$(python -m shots.worker.ci deployment-id "$dep")
+            if [ -n "$id" ]; then
+              gh api "repos/$GH_REPO/deployments/$id/statuses?per_page=1" > "$status" || rm -f "$status"
+            fi
+          else
+            rm -f "$dep"
+            echo "::notice::could not read the deployments: no catch-up check in this run"
+          fi
+          python -m shots.worker.ci plan --event "$EVENT" --force-input "$FORCE_INPUT" \
+            --changed-files "$changed" --deployment "$dep" --deployment-status "$status" \
+            --head "$GITHUB_SHA" > "$RUNNER_TEMP/plan.txt"
+          cat "$RUNNER_TEMP/plan.txt"
+          cat "$RUNNER_TEMP/plan.txt" >> "$GITHUB_OUTPUT"
+
+      # Finished seasons never change upstream: one cache per season, read by every full update (so never evicted).
+      - name: Restore raw downloads of past seasons
+        id: past
+        if: ${{ steps.plan.outputs.update == 'true' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.keys.outputs.past_paths }}
+          key: ${{ env.PAST_PREFIX }}${{ steps.keys.outputs.season }}
+          restore-keys: ${{ env.PAST_PREFIX }}
+
+      # The running season is re-fetched with conditional requests (ETags), so keep its files between runs.
+      - name: Restore raw downloads of the current season
+        id: current
+        if: ${{ steps.plan.outputs.update == 'true' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.keys.outputs.current_paths }}
+          key: ${{ env.CURRENT_PREFIX }}${{ steps.keys.outputs.season }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ env.CURRENT_PREFIX }}${{ steps.keys.outputs.season }}-
+
+      - name: Restore trained models
+        id: models
+        if: ${{ steps.plan.outputs.update == 'true' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: models_store
+          key: ${{ env.MODELS_PREFIX }}${{ steps.keys.outputs.lock }}-${{ github.run_id }}
+          restore-keys: ${{ env.MODELS_PREFIX }}${{ steps.keys.outputs.lock }}-
+
       - name: Run the update cycle
         id: update
+        if: ${{ steps.plan.outputs.update == 'true' }}
         continue-on-error: true  # a partial update (e.g. the source site is down) still exports and saves state
         timeout-minutes: 50
-        run: python -m shots.worker run-once --force
+        env:
+          FORCE: ${{ steps.plan.outputs.force }}
+        run: |
+          # Forced only for a manual run and for a push that changed the pipeline (see the plan).
+          # A scheduled run lets the worker decide once more under its lock.
+          if [ "$FORCE" = "true" ]; then
+            python -m shots.worker run-once --force
+          else
+            python -m shots.worker run-once
+          fi
 
       - name: Check the database
         id: dbcheck
-        if: ${{ !cancelled() && steps.guard.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.guard.outcome == 'success' && steps.plan.outputs.export == 'true' }}
         run: |
           python -m shots.worker.ci db-check --baseline "$RUNNER_TEMP/db-before.json"
           python -m shots.worker.ci prune-fixtures --keep 3
 
+      # Only when the update cycle ran: a run that changed nothing must not add a cache generation.
       - name: Save state
-        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' && steps.plan.outputs.update == 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.keys.outputs.state_paths }}
           key: ${{ env.STATE_PREFIX }}${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Save raw downloads of the current season
-        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' && hashFiles('data/raw/football-data/*/*.csv') != '' }}
+        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' && steps.plan.outputs.update == 'true' && hashFiles('data/raw/football-data/*/*.csv') != '' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.keys.outputs.current_paths }}
@@ -171,7 +264,7 @@ jobs:
 
       - name: Fingerprint the models
         id: mh
-        if: ${{ !cancelled() && steps.guard.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.guard.outcome == 'success' && steps.plan.outputs.update == 'true' }}
         env:
           LOCK: ${{ steps.keys.outputs.lock }}
         run: |
@@ -190,7 +283,7 @@ jobs:
           key: ${{ steps.mh.outputs.key }}
 
       - name: Delete superseded caches (keep the 5 newest databases)
-        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.dbcheck.outcome == 'success' && steps.plan.outputs.update == 'true' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -225,6 +318,9 @@ jobs:
             echo "::error::cannot read the remote branches (git ls-remote exit code $rc)"
             exit 1
           fi
+          # What is published now (its built_at = the last time the data changed): for the deploy decision.
+          rm -f "$RUNNER_TEMP/published-meta.json"
+          if [ -f site-data/data/meta.json ]; then cp site-data/data/meta.json "$RUNNER_TEMP/published-meta.json"; fi
 
       - name: Export JSON
         id: export
@@ -235,6 +331,7 @@ jobs:
           cp .github/data-branch-README.md site-data/README.md
 
       - name: Commit the data branch (only when something changed)
+        id: commit
         if: ${{ !cancelled() && steps.export.outcome == 'success' }}
         working-directory: site-data
         env:
@@ -246,6 +343,7 @@ jobs:
           git add -- README.md data/meta.json data/board.json data/results.json data/track.json
           if git diff --cached --quiet; then
             echo "No change in the published data: nothing to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           msg=$(python -m shots.worker.ci describe data/meta.json)
@@ -256,10 +354,26 @@ jobs:
           auth="AUTHORIZATION: basic $basic"
           # A plain push: never forced. History is the proof of what was predicted before kick-off.
           git -c "http.https://github.com/.extraheader=$auth" push origin "HEAD:refs/heads/$DATA_BRANCH"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # A push, a manual run or a catch-up always deploys. A scheduled run deploys when the data changed,
+      # or as a heartbeat when the last deployment is 5 h old (built_at on the site stays meaningful).
+      - name: Decide whether to build and deploy the site
+        id: publish
+        if: ${{ !cancelled() && steps.export.outcome == 'success' }}
+        env:
+          SITE: ${{ steps.plan.outputs.site }}
+          CHANGED: ${{ steps.commit.outputs.changed }}
+          DEPLOYED_AT: ${{ steps.plan.outputs.deployed_at }}
+        run: |
+          python -m shots.worker.ci publish --site "$SITE" --changed "$CHANGED" --deployed-at "$DEPLOYED_AT" \
+            --published-meta "$RUNNER_TEMP/published-meta.json" > "$RUNNER_TEMP/publish.txt"
+          cat "$RUNNER_TEMP/publish.txt"
+          cat "$RUNNER_TEMP/publish.txt" >> "$GITHUB_OUTPUT"
 
       - name: Export JSON for the site (fresh timestamp)
         id: site
-        if: ${{ !cancelled() && steps.export.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.publish.outputs.deploy == 'true' }}
         run: |
           python -m shots.export --out site-export --meta always
           python -m shots.export.verify --dir site-export
@@ -279,10 +393,16 @@ jobs:
         env:
           UPDATE: ${{ steps.update.outcome }}
           FRESH: ${{ steps.guard.outputs.fresh }}
+          EVENT: ${{ github.event_name }}
+          PLAN: ${{ steps.plan.outputs.reasons }}
+          DEPLOY: ${{ steps.publish.outputs.deploy }}
+          DEPLOY_WHY: ${{ steps.publish.outputs.reason }}
         run: |
           {
             echo "### Shots update"
-            echo "- update cycle: \`$UPDATE\`; database started empty: \`${FRESH:-unknown}\`"
+            echo "- trigger: \`$EVENT\`; plan: ${PLAN:-none, the run stopped before the plan}"
+            echo "- update cycle: \`${UPDATE:-skipped}\`; database started empty: \`${FRESH:-unknown}\`"
+            echo "- site build and deploy: \`${DEPLOY:-false}\` (${DEPLOY_WHY:-nothing to publish in this run})"
             if [ -f site-export/meta.json ]; then
               python -m shots.worker.ci describe site-export/meta.json --markdown
             fi

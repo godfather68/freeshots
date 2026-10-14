@@ -1,6 +1,8 @@
 // Shareable state lives in the hash: #/<route>?date=...&n=...  (hash routing works on any static host).
 import { clamp } from './curve'
 import type { Meta } from './types'
+import { MARKETS, SIDES } from './edge'
+import type { Market, Side } from './edge'
 
 export const SORTS = ['time', 'prob', 'above'] as const
 export type Sort = (typeof SORTS)[number]
@@ -8,7 +10,7 @@ export const CHIPS = ['all', 'p70', 'odds', 'done'] as const
 export type Chip = (typeof CHIPS)[number]
 export const TABS = ['all', 'fav', 'leagues'] as const
 export type ListTab = (typeof TABS)[number]
-export const PANEL_TABS = ['pred', 'teams', 'about'] as const
+export const PANEL_TABS = ['pred', 'teams', 'edge', 'about'] as const
 export type PanelTab = (typeof PANEL_TABS)[number]
 export const RECORDS = ['backfill', 'live'] as const
 export type RecordKind = (typeof RECORDS)[number]
@@ -25,6 +27,10 @@ export interface ViewState {
   m: string | null
   pt: PanelTab
   rec: RecordKind
+  mk: Market
+  sd: Side
+  ln: number | null // odds-check line (n + 0.5); null = default for the market
+  od: string // odds as typed, shareable
 }
 
 export interface Route { path: string; params: URLSearchParams }
@@ -72,6 +78,10 @@ export function parseState(params: URLSearchParams, meta: Pick<Meta, 'thresholds
     m: m && /^[\w-]{1,64}$/.test(m) ? m : null,
     pt: oneOf(PANEL_TABS, params.get('pt'), 'pred'),
     rec: oneOf(RECORDS, params.get('rec'), 'backfill'),
+    mk: oneOf(MARKETS, params.get('mk'), 'total'),
+    sd: oneOf(SIDES, params.get('sd'), 'over'),
+    ln: /^\d{1,2}\.5$/.test(params.get('ln') ?? '') ? Number(params.get('ln')) : null,
+    od: /^[\d.+\-/]{1,10}$/.test(params.get('od') ?? '') ? (params.get('od') as string) : '',
   }
 }
 
@@ -89,5 +99,9 @@ export function stateToParams(s: ViewState, meta: Pick<Meta, 'thresholds'>): Rec
   if (s.m) out.m = s.m
   if (s.pt !== 'pred') out.pt = s.pt
   if (s.rec !== 'backfill') out.rec = s.rec
+  if (s.mk !== 'total') out.mk = s.mk
+  if (s.sd !== 'over') out.sd = s.sd
+  if (s.ln !== null) out.ln = s.ln.toFixed(1)
+  if (s.od) out.od = s.od
   return out
 }

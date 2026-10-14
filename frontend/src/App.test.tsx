@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import App from './App'
 import { board, dataset, meta, results } from './test-fixtures'
+import { UNDER_CAVEAT } from './lib/config'
 
 const START = meta.thresholds.total[0]
 const todays = board.fixtures.filter((f) => f.date === '2026-10-12')
@@ -10,7 +11,7 @@ const first = todays[0]
 
 async function mount(hash = '#/', load = () => Promise.resolve(dataset)) {
   window.location.hash = hash
-  render(<App today="2026-10-12" now={Date.parse('2026-10-12T10:00:00Z')} load={load} />)
+  render(<App zone="Africa/Brazzaville" today="2026-10-12" now={Date.parse('2026-10-12T10:00:00Z')} load={load} />)
   await screen.findByRole('heading', { name: /Upcoming football matches/ }, { timeout: 3000 }).catch(() => undefined)
 }
 const rowFor = (home: string) => screen.getAllByRole('link').find((a) => a.getAttribute('aria-label')?.startsWith(`${home} v `))!
@@ -165,7 +166,7 @@ describe('pages and states', () => {
     let calls = 0
     const load = () => (++calls === 1 ? Promise.reject(new Error('data/board.json is not published yet (HTTP 404).')) : Promise.resolve(dataset))
     window.location.hash = '#/'
-    render(<App today="2026-10-12" load={load} />)
+    render(<App zone="Africa/Brazzaville" today="2026-10-12" load={load} />)
     expect(await screen.findByRole('alert')).toHaveTextContent('not published yet')
     await act(async () => { await userEvent.click(screen.getByRole('button', { name: 'Try again' })) })
     expect(await screen.findByRole('heading', { name: /Upcoming football matches/ })).toBeInTheDocument()
@@ -174,7 +175,7 @@ describe('pages and states', () => {
   it('warns when the data is stale or the last job failed', async () => {
     window.location.hash = '#/'
     const failed = { ...dataset, meta: { ...meta, last_job: { status: 'failed', finished_at: null } } }
-    render(<App today="2026-10-12" now={Date.parse(meta.built_at) + 3600_000} load={() => Promise.resolve(failed)} />)
+    render(<App zone="Africa/Brazzaville" today="2026-10-12" now={Date.parse(meta.built_at) + 3600_000} load={() => Promise.resolve(failed)} />)
     expect(await screen.findByText(/last update did not finish/i)).toBeInTheDocument()
   })
 
@@ -225,7 +226,7 @@ describe('Champions League and experimental fixtures', () => {
   it('Top picks show experimental fixtures, labelled, when the day has only those', async () => {
     const onlyCl = { ...dataset, board: { ...board, fixtures: cl }, results: null }
     window.location.hash = `#/?date=${day}`
-    render(<App today={day} now={Date.parse('2026-10-13T10:00:00Z')} load={() => Promise.resolve(onlyCl)} />)
+    render(<App zone="Africa/Brazzaville" today={day} now={Date.parse('2026-10-13T10:00:00Z')} load={() => Promise.resolve(onlyCl)} />)
     expect(await screen.findByText(/Only experimental predictions/)).toBeInTheDocument()
     expect(document.querySelectorAll('.picks li').length).toBeGreaterThan(0)
   })
@@ -237,7 +238,7 @@ describe('Champions League and experimental fixtures', () => {
       board: { ...board, fixtures: board.fixtures.map((f) => ({ ...f, experimental: undefined, data_quality: undefined })) },
     }
     window.location.hash = `#/?date=${day}`
-    render(<App today={day} now={Date.parse('2026-10-13T10:00:00Z')} load={() => Promise.resolve(stripped)} />)
+    render(<App zone="Africa/Brazzaville" today={day} now={Date.parse('2026-10-13T10:00:00Z')} load={() => Promise.resolve(stripped)} />)
     expect(await screen.findByRole('heading', { name: /Upcoming football matches/ })).toBeInTheDocument()
     expect(document.querySelectorAll('.tag.xp, .tag.ltd')).toHaveLength(0)
   })
@@ -248,5 +249,182 @@ describe('Champions League and experimental fixtures', () => {
     expect(document.querySelector('.hero-stats')).toHaveTextContent(`Clear 70% at 24+${want}`)
     await userEvent.click(screen.getByRole('button', { name: /^70%\+/ }))
     expect(document.querySelectorAll('a.mlink')).toHaveLength(want)
+  })
+})
+
+describe('time zones', () => {
+  const f0 = todays[0]
+  const late = { ...f0, date: '2026-10-13', kickoff_local: '23:30', kickoff_utc: '2026-10-13T22:30:00Z' }
+  const crossing = { ...dataset, board: { ...dataset.board, fixtures: [late, ...dataset.board.fixtures.filter((f) => f.id !== f0.id)] } }
+  const mountIn = async (zone: string, h: string) => {
+    window.location.hash = h
+    render(<App zone={zone} today="2026-10-13" now={Date.parse('2026-10-13T10:00:00Z')} load={() => Promise.resolve(crossing)} />)
+    await screen.findByRole('group', { name: /Show kick-off times in/ })
+  }
+
+  it('names the active zone with its UTC offset and defaults to My time', async () => {
+    await mountIn('Africa/Brazzaville', '#/?date=2026-10-13')
+    expect(screen.getByText(/Times in/).textContent).toBe('Times in Africa/Brazzaville (UTC+1)')
+    expect(screen.getByRole('button', { name: 'My time' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Venue time' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('a late match moves to the next day in a zone ahead of the venue', async () => {
+    await mountIn('Asia/Baku', '#/?date=2026-10-14')
+    const row = rowFor(f0.home)
+    expect(row.getAttribute('aria-label')).toContain('kick-off 02:30')
+    expect(document.querySelector('.strip a[aria-current="date"]')).toHaveTextContent('14')
+  })
+
+  it('stays on the same day in a zone behind the venue', async () => {
+    await mountIn('America/New_York', '#/?date=2026-10-13')
+    expect(rowFor(f0.home).getAttribute('aria-label')).toContain('kick-off 18:30')
+  })
+
+  it('the toggle switches to venue times, persists, and shows both clocks in the panel', async () => {
+    await mountIn('Asia/Baku', '#/?date=2026-10-14')
+    await userEvent.click(screen.getByRole('button', { name: 'Venue time' }))
+    expect(JSON.parse(localStorage.getItem('shots.timemode')!)).toBe('venue')
+    expect(screen.getByText(/Times at each venue/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'My time' }))
+    expect(JSON.parse(localStorage.getItem('shots.timemode')!)).toBe('mine')
+    await userEvent.click(rowFor(f0.home))
+    await waitFor(() => expect(document.querySelector('.ko')).toHaveTextContent(/Wed 14 Oct, 02:30 your time · Tue 13 Oct 23:30 at the venue/))
+  })
+
+  it('shows the build time in the visitor zone', async () => {
+    await mountIn('Asia/Baku', '#/')
+    expect(document.querySelector('.fresh')).toHaveTextContent(/Predictions built \d+ \w{3} \d\d:\d\d UTC\+4/)
+  })
+})
+
+describe('odds check', () => {
+  const withTeams = board.fixtures.find((f) => f.id === 'fx001')!
+  const noTeams = board.fixtures.find((f) => f.team === null)!
+  const open = (f: { id: string; date: string }, extra = '') => mount(`#/?date=${f.date}&m=${f.id}&pt=edge${extra}`)
+  const res = () => document.querySelector('.edgeres')!
+  const over = (curve: number[], start: number, n: number) => curve[n - start]
+
+  it('is a tab, shows the disclaimer, and asks for odds first', async () => {
+    await open(withTeams)
+    expect(screen.getByRole('tab', { name: 'Odds check' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText(/Estimates only, not advice/)).toBeInTheDocument()
+    expect(res()).toHaveTextContent('Enter the bookmaker')
+  })
+
+  it('computes from the published curve: Over 24.5 at 2.00', async () => {
+    await open(withTeams, '&ln=24.5&od=2')
+    const p = over(withTeams.curve, 10, 25)
+    expect(res()).toHaveTextContent(`${(p * 100).toFixed(1)}%`)
+    expect(res()).toHaveTextContent(`Fair odds${(1 / p).toFixed(2)}`)
+    const ev = p - (1 - p)
+    expect(res()).toHaveTextContent(`${ev >= 0 ? '+' : '\u2212'}${Math.abs(ev).toFixed(2)}`)
+  })
+
+  it('under is the complement and shows the config caveat', async () => {
+    await open(withTeams, '&ln=24.5&sd=under&od=1.9')
+    const p = 1 - over(withTeams.curve, 10, 25)
+    expect(res()).toHaveTextContent(`${(p * 100).toFixed(1)}%`)
+    expect(screen.getByText(UNDER_CAVEAT as string)).toBeInTheDocument()
+  })
+
+  it('accepts fractional and American odds and explains bad input without crashing', async () => {
+    await open(withTeams, '&od=5/6')
+    expect(res()).toHaveTextContent('Price implies54.5%')
+    const input = screen.getByLabelText(/Bookmaker odds for/)
+    await userEvent.clear(input)
+    await userEvent.type(input, '-120')
+    expect(hash()).toContain('od=-120')
+    await userEvent.clear(input)
+    await userEvent.type(input, '0.5')
+    expect(await screen.findByRole('alert')).toHaveTextContent('above 1.00')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('says so for a line outside the published range', async () => {
+    await open(withTeams, '&ln=60.5&od=2')
+    expect(res()).toHaveTextContent('outside it, and we do not extrapolate')
+  })
+
+  it('offers team markets only with team curves, labelled experimental', async () => {
+    await open(withTeams)
+    expect(screen.getAllByRole('button', { name: /shots \(experimental\)/ })[0]).toBeEnabled()
+    expect(document.querySelector('.edge .notice.xp')).toBeNull()
+    await userEvent.click(screen.getAllByRole('button', { name: /\(experimental\)/ })[0])
+    expect(hash()).toContain('mk=home')
+    expect(document.querySelector('.edge .notice.xp')).toHaveTextContent('Team shots are experimental')
+  })
+
+  it('disables team markets without team curves and flags no-odds fixtures', async () => {
+    await open(noTeams)
+    expect(screen.getAllByRole('button', { name: /\(experimental\)/ })[0]).toBeDisabled()
+    if (!noTeams.odds) expect(screen.getByText(/did not see bookmaker odds/)).toBeInTheDocument()
+  })
+
+  it('saves a check, remembers the odds format, and lists it with CSV', async () => {
+    await open(withTeams, '&ln=24.5&od=-120')
+    await userEvent.click(screen.getByRole('button', { name: 'American' }))
+    expect(JSON.parse(localStorage.getItem('shots.oddsformat')!)).toBe('american')
+    await userEvent.click(screen.getByRole('button', { name: 'Save to My checks' }))
+    expect(JSON.parse(localStorage.getItem('shots.checks')!)).toHaveLength(1)
+    expect(await within(res() as HTMLElement).findByRole('status')).toHaveTextContent('Kept only in this browser')
+    act(() => { window.location.hash = '#/checks' })
+    expect(await screen.findByRole('heading', { name: 'My checks' })).toBeInTheDocument()
+    expect(screen.getByText('Waiting for the result')).toBeInTheDocument()
+    expect((screen.getByLabelText(/Spreadsheet text/) as HTMLTextAreaElement).value).toContain('over')
+  }, 20000)
+
+  it('settles a saved check once the match is in the results', async () => {
+    const r = results.results[0]
+    localStorage.setItem('shots.checks', JSON.stringify([{
+      id: 'z', savedAt: '2026-10-10T08:00:00Z', fixtureId: r.id, home: r.home, away: r.away, league: 'X', date: r.date,
+      market: 'total', side: 'over', line: r.actual.total - 0.5, oddsText: '2', decimal: 2, model: 0.6,
+    }]))
+    const { checksStore } = await import('./lib/storage')
+    checksStore.reload()
+    await mount('#/checks')
+    expect(await screen.findByText('✓ Hit')).toBeInTheDocument()
+  })
+
+  it('shows an empty state on My checks', async () => {
+    await mount('#/checks')
+    expect(await screen.findByText(/No saved checks yet/)).toBeInTheDocument()
+  })
+})
+
+describe('why this number', () => {
+  const full = board.fixtures.find((f) => f.id === 'fx003')!
+  const partial = board.fixtures.find((f) => f.id === 'fx004')!
+  const plain = board.fixtures.find((f) => f.id === 'fx002')!
+
+  it('renders baseline, signed factors, closing line and signals', async () => {
+    await mount(`#/?date=${full.date}&m=${full.id}`)
+    const why = document.querySelector('.why')!
+    expect(why).toHaveTextContent('Start: 27.8 shots')
+    expect(why).toHaveTextContent('Premier League average this season')
+    expect(why).toHaveTextContent('+2.9')
+    expect(why).toHaveTextContent('\u22121.2')
+    expect(why.querySelectorAll('.wf-row.down')).toHaveLength(1)
+    expect(why).toHaveTextContent('= about 33 shots expected')
+    expect(why).toHaveTextContent('How solid is this?')
+    expect(why).toHaveTextContent(/form built on 4 matches, very few/)
+    expect(why).toHaveTextContent('No bookmaker odds were used')
+    expect(why).toHaveTextContent('swing a lot')
+    expect(within(why as HTMLElement).getByRole('table', { hidden: true })).toBeInTheDocument()
+  })
+
+  it('copes with a partial block (no baseline, no signals)', async () => {
+    await mount(`#/?date=${partial.date}&m=${partial.id}`)
+    const why = document.querySelector('.why')!
+    expect(why).toHaveTextContent('Match tempo')
+    expect(why).toHaveTextContent('\u22120.8')
+    expect(why).not.toHaveTextContent('Start:')
+    expect(why).not.toHaveTextContent('How solid')
+  })
+
+  it('is hidden when the fixture has no explain', async () => {
+    await mount(`#/?date=${plain.date}&m=${plain.id}`)
+    expect(document.querySelector('.why')).toBeNull()
+    expect(screen.getByTestId('headline')).toBeInTheDocument()
   })
 })

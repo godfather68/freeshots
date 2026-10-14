@@ -28,7 +28,7 @@ export function utcStamp(iso: string | null | undefined): string {
 }
 
 export interface Freshness { level: 'ok' | 'stale' | 'failed'; reasons: string[]; ageHours: number | null }
-export const STALE_HOURS = 48
+export const STALE_HOURS = 12
 
 export function freshness(
   meta: { built_at: string; last_job: { status: string } | null },

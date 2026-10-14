@@ -79,6 +79,32 @@ def test_second_cycle_is_skipped_when_fresh_unless_forced(db, lock):
     assert len(upd.calls) == 2
 
 
+def test_cycle_records_the_calendar_fingerprint_and_honours_the_minimum_gap(db, lock, monkeypatch, capsys):
+    from shots.worker import due
+
+    with_board(db)
+    upd = FakeUpdate()
+    cycle.run_once(lock=lock, update=upd)
+    [w] = runs(db, "worker")
+    assert w["counts"]["calendars"] == due.calendars_fingerprint() == due.recorded_calendars(db)
+    # an old update is normally re-run (interval); within the minimum gap it is not, unless forced
+    with session_scope(db) as s:
+        s.execute(update(JobRun).where(JobRun.job == "update").values(started_at=jobs.utcnow() - timedelta(hours=3)))
+    assert cycle.run_once(lock=lock, update=upd, min_gap=timedelta(hours=4)) == 0 and len(upd.calls) == 1
+    assert runs(db, "worker")[-1]["counts"]["reasons"][0].startswith("recent")
+    monkeypatch.setenv("SHOTS_WORKER_LOCK", str(lock.path))
+    monkeypatch.setenv("SHOTS_WORKER_MIN_GAP_MINUTES", "240")  # the setting update.yml uses (there: 90)
+    monkeypatch.setattr("shots.__main__.update", upd)
+    with pytest.raises(SystemExit):
+        cli.main(["run-once"])
+    assert len(upd.calls) == 1
+    cli.main(["status"])
+    assert json.loads(capsys.readouterr().out)["now"].startswith("skip: recent")
+    with pytest.raises(SystemExit):
+        cli.main(["run-once", "--min-gap", "0"])
+    assert len(upd.calls) == 2
+
+
 def test_stale_last_run_triggers_the_update(db, lock):
     with_board(db)
     upd = FakeUpdate()

@@ -4,7 +4,9 @@ import type { ReactNode } from 'react'
 import { buildItems, availableDays, resolveDate } from './items'
 import { buildHash, parseHash, parseState, stateToParams } from './url'
 import type { Route, ViewState } from './url'
-import { todayIso } from './format'
+import { browserZone, dateIn } from './time'
+import type { TimeMode } from './time'
+import { timeModeStore } from './storage'
 import type { Dataset, Item, League } from './types'
 
 const NAV_EVENT = 'shots:nav'
@@ -38,6 +40,10 @@ export interface Ctx {
   leagues: Map<string, League>
   days: string[]
   today: string
+  /** The visitor's IANA zone (injected in tests) and whether times are shown in it or at the venue. */
+  zone: string
+  timeMode: TimeMode
+  setTimeMode(m: TimeMode): void
   route: Route
   state: ViewState
   date: string // resolved day being shown
@@ -55,19 +61,22 @@ export function useApp(): Ctx {
   return c
 }
 
-export function AppProvider({ ds, today, children }: { ds: Dataset; today?: string; children: ReactNode }) {
+export function AppProvider({ ds, today, zone: zoneProp, children }: { ds: Dataset; today?: string; zone?: string; children: ReactNode }) {
   const route = useRoute()
-  const [todayStr, setToday] = useState(today ?? todayIso())
+  const zone = useMemo(() => zoneProp ?? browserZone(), [zoneProp])
+  const timeMode = useSyncExternalStore(timeModeStore.subscribe, timeModeStore.get, () => 'mine' as TimeMode)
+  const setTimeMode = useCallback((m: TimeMode) => timeModeStore.set(m), [])
+  const [todayStr, setToday] = useState(today ?? dateIn(Date.now(), zone))
   useEffect(() => {
     if (today) return
-    const t = setInterval(() => setToday(todayIso()), 60_000 * 30)
+    const t = setInterval(() => setToday(dateIn(Date.now(), zone)), 60_000 * 30)
     return () => clearInterval(t)
-  }, [today])
+  }, [today, zone])
 
-  const items = useMemo(() => buildItems(ds), [ds])
+  const items = useMemo(() => buildItems(ds, { zone, mode: timeMode }), [ds, zone, timeMode])
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
   const leagues = useMemo(() => new Map(ds.meta.leagues.map((l) => [l.id, l])), [ds])
-  const days = useMemo(() => availableDays(ds.meta, items), [ds, items])
+  const days = useMemo(() => availableDays(ds.meta, items, timeMode === 'venue'), [ds, items, timeMode])
   const state = useMemo(() => parseState(route.params, ds.meta), [route.params, ds.meta])
   const date = resolveDate(state.date, days, todayStr)
 
@@ -82,10 +91,10 @@ export function AppProvider({ ds, today, children }: { ds: Dataset; today?: stri
 
   const value = useMemo<Ctx>(
     () => ({
-      ds, items, itemById, leagues, days, today: todayStr, route, state, date,
+      ds, items, itemById, leagues, days, today: todayStr, zone, timeMode, setTimeMode, route, state, date,
       totalStart: ds.meta.thresholds.total[0], teamStart: ds.meta.thresholds.team[0], set, href: hrefFor,
     }),
-    [ds, items, itemById, leagues, days, todayStr, route, state, date, set, hrefFor],
+    [ds, items, itemById, leagues, days, todayStr, zone, timeMode, setTimeMode, route, state, date, set, hrefFor],
   )
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
 }

@@ -90,6 +90,40 @@ def _curve(values, n_min: int | None, n_max: int | None, what: str) -> list[floa
     return out
 
 
+EXPLAIN_SIDES = ("home", "away", "match")
+VOLATILITY = ("low", "average", "high")
+
+
+def _explain(src: dict, what: str) -> dict:
+    """The stored explanation, re-emitted key by key in the contract's order (nothing else can pass
+    through) and checked: the published one-decimal numbers must add up exactly, in tenths."""
+    try:
+        tenths = lambda x: int(round(float(x) * 10))  # noqa: E731
+        factors = [{"id": str(f["id"]), "side": str(f["side"]), "label": str(f["label"]), "detail": str(f["detail"]),
+                    "effect": tenths(f["effect"]) / 10} for f in src["factors"]]
+        sig = src["signals"]
+        out = {
+            "expected_mean": tenths(src["expected_mean"]) / 10,
+            "baseline": {"value": tenths(src["baseline"]["value"]) / 10, "label": str(src["baseline"]["label"])},
+            "factors": factors,
+            "residual": tenths(src["residual"]) / 10,
+            "signals": {"home_matches": int(sig["home_matches"]), "away_matches": int(sig["away_matches"]),
+                        "odds_used": bool(sig["odds_used"]),
+                        "home_volatility": sig.get("home_volatility"), "away_volatility": sig.get("away_volatility"),
+                        "model_gap": _num(sig.get("model_gap"), 1)},
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ExportError(f"{what}: malformed explanation ({type(exc).__name__}: {exc})") from exc
+    total = tenths(out["baseline"]["value"]) + sum(tenths(f["effect"]) for f in factors) + tenths(out["residual"])
+    if total != tenths(out["expected_mean"]):
+        raise ExportError(f"{what}: explanation does not add up (baseline + effects + residual != expected_mean)")
+    if any(f["side"] not in EXPLAIN_SIDES for f in factors):
+        raise ExportError(f"{what}: explanation factor with an unknown side")
+    if any(v is not None and v not in VOLATILITY for v in (out["signals"]["home_volatility"], out["signals"]["away_volatility"])):
+        raise ExportError(f"{what}: unknown volatility label")
+    return out
+
+
 # ----------------------------------------------------------------------------- board / results
 
 def build_board(repo: Repository, today: date) -> tuple[dict, dict]:
@@ -126,6 +160,8 @@ def build_board(repo: Repository, today: date) -> tuple[dict, dict]:
             "curve": _curve(r["total_curve"], src["curve_n_min"], src["curve_n_max"], what),
             "team": team,
         })
+        if isinstance(r.get("explain"), dict):  # additive; absent when the prediction has no stored explanation
+            fixtures[-1]["explain"] = _explain(r["explain"], what)
         if r.get("experimental"):  # additive; absent for ordinary (domestic) fixtures
             fixtures[-1]["experimental"] = True
             if r.get("data_quality") in DATA_QUALITY:  # unknown quality is left out, never reported as "full"

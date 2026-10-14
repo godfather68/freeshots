@@ -25,6 +25,53 @@
         "curve": {"$ref": "#/$defs/curve"}
       }
     },
+    "explain": {
+      "description": "Additive (schema 1). Why the expected total is what it is: an exact additive decomposition of the fitted model for this fixture (shots.models.explain). baseline.value + sum(factors[].effect) + residual = expected_mean, exactly, in tenths of a shot. Stored with the prediction; never contains an odds value.",
+      "type": "object", "additionalProperties": false,
+      "required": ["expected_mean", "baseline", "factors", "residual", "signals"],
+      "properties": {
+        "expected_mean": {"description": "Mean of the published total-shots distribution, one decimal (the fixture's `expected` is its integer median).",
+                          "type": "number", "minimum": 0},
+        "baseline": {
+          "type": "object", "additionalProperties": false, "required": ["value", "label"],
+          "properties": {"value": {"type": "number", "minimum": 0}, "label": {"type": "string", "minLength": 1, "maxLength": 80}}
+        },
+        "factors": {
+          "description": "At most six named factors of at least 0.2 shots, sorted by absolute effect, then at most one entry `other` (all smaller factors combined).",
+          "type": "array", "maxItems": 7,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["id", "side", "label", "detail", "effect"],
+            "properties": {
+              "id": {"enum": ["home_attack", "away_attack", "home_defence", "away_defence", "home_venue", "away_venue",
+                              "market_strength", "market_goals", "home_rest", "away_rest", "home_early", "away_early",
+                              "home_standin", "away_standin", "league_level", "calibration", "other"]},
+              "side": {"enum": ["home", "away", "match"]},
+              "label": {"type": "string", "minLength": 1, "maxLength": 80},
+              "detail": {"type": "string", "minLength": 1, "maxLength": 160},
+              "effect": {"description": "Shots added (+) or removed (-) by this factor, one decimal, never 0.", "type": "number"}
+            }
+          }
+        },
+        "residual": {"description": "Rounding remainder so that the published numbers add up exactly; at most a few tenths.",
+                     "type": "number", "minimum": -0.5, "maximum": 0.5},
+        "signals": {
+          "type": "object", "additionalProperties": false,
+          "required": ["home_matches", "away_matches", "odds_used", "home_volatility", "away_volatility", "model_gap"],
+          "properties": {
+            "home_matches": {"description": "Prior matches behind the home side's form (domestic matches for cross-border fixtures).",
+                             "type": "integer", "minimum": 0},
+            "away_matches": {"type": "integer", "minimum": 0},
+            "odds_used": {"description": "Whether the odds-aware model scored the fixture (equals the fixture's `odds`). A flag, never an odds value.",
+                          "type": "boolean"},
+            "home_volatility": {"description": "Reserved. Always null today: a team's recent volatility was found not to predict its future spread, so no label is published.",
+                                "enum": ["low", "average", "high", null]},
+            "away_volatility": {"enum": ["low", "average", "high", null]},
+            "model_gap": {"description": "Expected mean of the odds model minus that of the no-odds model for this fixture (shots, one decimal); null when the fixture was scored without odds.",
+                          "type": ["number", "null"]}
+          }
+        }
+      }
+    },
     "by_n_entry": {
       "type": "object", "additionalProperties": false,
       "required": ["selected_min_prob", "n", "hits", "hit_rate", "mean_stated", "wilson95", "brier", "brier_baseline",
@@ -163,6 +210,7 @@
                                "const": true},
               "data_quality": {"description": "Additive (schema 1). Only with experimental: how many of the two clubs had domestic shot data: full = both, partial = one (the other is a neutral stand-in, wider bounds), none = neither. Absent = full for ordinary fixtures.",
                                "enum": ["full", "partial", "none"]},
+              "explain": {"$ref": "#/$defs/explain"},
               "team": {
                 "anyOf": [
                   {"type": "null"},

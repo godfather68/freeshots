@@ -329,7 +329,8 @@ class Repository:
         kick-off, competition, home). -> {run_id, curve_n_min/max, team_n_min/max (None without team
         access), rows}; rows carry match_id, date, kickoff ("" if unknown), kickoff_utc, competition,
         country, tier, round, teams, expected_shots, lb_70/80/90, league_avg_shots, above_league, odds
-        (bool), cold_start, model, total_curve and, with team access, home_/away_ mean, median, lb_80,
+        (bool), cold_start, model, total_curve, explain (dict or None: the stored decomposition of the
+        expected total, shots.models.explain) and, with team access, home_/away_ mean, median, lb_80,
         curve. No odds values and no source columns are selected. None when there is no board run."""
         run = self._latest_run("board")
         if run is None:
@@ -341,7 +342,7 @@ class Repository:
                 Prediction.median.label("expected_shots"), Prediction.lb_70, Prediction.lb_80, Prediction.lb_90,
                 Prediction.league_avg.label("league_avg_shots"), Prediction.above_league,
                 Prediction.odds_available.label("odds"), Prediction.cold_start, Prediction.model,
-                Prediction.total_curve, Prediction.experimental, Prediction.data_quality]
+                Prediction.total_curve, Prediction.experimental, Prediction.data_quality, Prediction.explain]
         if team:
             cols += [Prediction.home_mean, Prediction.home_median, Prediction.home_lb_80, Prediction.home_curve,
                      Prediction.away_mean, Prediction.away_median, Prediction.away_lb_80, Prediction.away_curve]

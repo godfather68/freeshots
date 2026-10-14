@@ -11,6 +11,8 @@ import pytest
 
 yaml = pytest.importorskip("yaml")
 
+from shots.worker import ci as worker_ci  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 PRIVATE = re.compile(r"shots\.db|data/raw|models_store|\.parquet|data/processed|calendars")
@@ -38,23 +40,88 @@ def ci():
     return load("ci.yml")
 
 
-def test_update_runs_every_three_hours_and_never_overlaps(update):
-    assert [s["cron"] for s in update["on"]["schedule"]] == ["23 */3 * * *"]
-    assert "workflow_dispatch" in update["on"]
+@pytest.fixture(scope="module")
+def watchdog():
+    return load("watchdog.yml")
+
+
+def cron_slots(crons):
+    """(hour, minute) slots of a day for the simple `M H-spec * * *` crons used here."""
+    out = set()
+    for cron in crons:
+        minute, hours, *rest = cron.split()
+        assert rest == ["*", "*", "*"] and minute.isdigit(), cron
+        if hours == "*":
+            hs = range(24)
+        else:
+            span, _, step = hours.partition("/")
+            lo, _, hi = span.partition("-")
+            hs = range(0 if lo == "*" else int(lo), (int(hi) if hi else 23) + 1, int(step or 1))
+        out |= {(h, int(minute)) for h in hs}
+    return out
+
+
+def test_update_triggers_schedule_push_and_manual(update):
+    on = update["on"]
+    assert set(on) == {"schedule", "push", "workflow_dispatch"}
+    crons = [s["cron"] for s in on["schedule"]]
+    slots = cron_slots(crons)
+    # best-effort scheduler: a slot every hour, at two different minutes, never near the top of the hour
+    assert len(crons) == 2 and {h for h, _ in slots} == set(range(24)) and len(slots) == 24
+    minutes = {m for _, m in slots}
+    assert len(minutes) == 2 and all(5 <= m <= 55 and m % 5 for m in minutes)
+    # merged changes deploy themselves; documentation, tests and reports do not start the pipeline
+    push = on["push"]
+    assert push["branches"] == ["main"] and "paths-ignore" not in push and "tags" not in push
+    assert sorted(push["paths"]) == sorted(worker_ci.push_paths())
+    assert not any(p.startswith(("docs", "tests", "reports", "README", "CLAUDE", "**", "*")) for p in push["paths"])
+    assert "data" not in push["branches"] and update["env"]["DATA_BRANCH"] == "data"  # bot commits never retrigger
+    inputs = on["workflow_dispatch"]["inputs"]
+    assert inputs["force"] == {"description": inputs["force"]["description"], "type": "boolean", "default": True}
+    assert inputs["allow_fresh_state"]["default"] is False
+    # no overlap, and a running update is never cancelled
     assert update["concurrency"] == {"group": "shots-update", "cancel-in-progress": False}
+    assert all("concurrency" not in job for job in update["jobs"].values())
 
 
-def test_permissions_are_minimal_per_job(update, ci):
+def test_worker_rules_on_the_runner_are_stated(update):
+    env = update["env"]
+    assert env["TZ"] == "UTC" and env["SHOTS_ODDS_TZ"] == "UTC"  # every due rule is evaluated in a stated zone
+    interval, gap = float(env["SHOTS_WORKER_MIN_INTERVAL_HOURS"]), float(env["SHOTS_WORKER_MIN_GAP_MINUTES"])
+    assert 2 <= interval <= 3  # with hourly slots: a full update every third slot, about 3 h
+    assert 60 < gap <= interval * 60  # due work waits for the second slot at most; never two runs in a row
+    assert interval < worker_ci.HEARTBEAT.total_seconds() / 3600 <= 2 * interval  # every second full update at the latest
+
+
+def test_permissions_are_minimal_per_job(update, ci, watchdog):
     assert update["permissions"] == {}  # nothing by default; each job states what it needs
     jobs = update["jobs"]
-    assert jobs["update"]["permissions"] == {"contents": "write", "actions": "write"}
+    assert jobs["update"]["permissions"] == {"contents": "write", "actions": "write", "deployments": "read"}
     assert jobs["build"]["permissions"] == {"contents": "read"}  # npm install / build never sees a write token
     assert jobs["deploy"]["permissions"] == {"pages": "write", "id-token": "write"}
     assert jobs["deploy"]["environment"]["name"] == "github-pages"
     assert ci["permissions"] == {"contents": "read"} and all("permissions" not in j for j in ci["jobs"].values())
+    assert watchdog["permissions"] == {} and list(watchdog["jobs"]) == ["check"]
+    assert watchdog["jobs"]["check"]["permissions"] == {"contents": "read", "actions": "write"}
 
 
-@pytest.mark.parametrize("name", ["update.yml", "ci.yml"])
+@pytest.mark.parametrize("name", ["update.yml", "watchdog.yml"])
+def test_no_expression_is_interpolated_into_a_shell_script_and_no_secret_is_used(name):
+    doc = load(name)
+    for _, s in steps(doc):
+        assert "${{" not in s.get("run", ""), s["name"]  # values reach the shell through env only
+    text = (WORKFLOWS / name).read_text(encoding="utf-8")
+    assert "secrets." not in text and "pull_request_target" not in text
+    tokens = [s["name"] for _, s in steps(doc) if "github.token" in str(s.get("env", ""))]
+    assert tokens == {"update.yml": ["Guard the live record", "Plan this run",
+                                     "Delete superseded caches (keep the 5 newest databases)",
+                                     "Check out the data branch",
+                                     "Commit the data branch (only when something changed)"],
+                      "watchdog.yml": ["Look at the recent update runs and the site",
+                                       "Start the update workflow"]}[name]
+
+
+@pytest.mark.parametrize("name", ["update.yml", "ci.yml", "watchdog.yml"])
 def test_actions_are_pinned_and_official(name):
     doc = load(name)
     used = [s["uses"] for _, s in steps(doc) if "uses" in s]
@@ -80,18 +147,128 @@ def test_python_is_pinned_and_installed_from_the_lock(update, ci):
 
 def test_pipeline_order_state_is_saved_before_anything_is_published(update):
     names = [s["name"] for s in update["jobs"]["update"]["steps"]]
-    order = ["Restore state (database, derived files)", "Guard the live record", "Run the update cycle",
-             "Check the database", "Save state", "Export JSON", "Commit the data branch (only when something changed)",
+    order = ["Restore state (database, derived files)", "Guard the live record", "Plan this run",
+             "Run the update cycle", "Check the database", "Save state", "Export JSON",
+             "Commit the data branch (only when something changed)", "Decide whether to build and deploy the site",
              "Export JSON for the site (fresh timestamp)", "Hand the JSON to the site build",
              "Fail the run if the update cycle failed"]
     assert [n for n in names if n in order] == order
     by = {s["name"]: s for s in update["jobs"]["update"]["steps"]}
-    assert by["Run the update cycle"]["run"] == "python -m shots.worker run-once --force"
     assert by["Run the update cycle"]["continue-on-error"] is True
     assert "steps.dbcheck.outcome == 'success'" in by["Save state"]["if"]
     assert "shots.export.verify" in by["Export JSON"]["run"]  # the independent check runs on every export
     assert "allow_fresh_state" in str(update["on"]["workflow_dispatch"]["inputs"])
     assert "exit 1" in by["Guard the live record"]["run"] and "gh cache list" in by["Guard the live record"]["run"]
+
+
+def test_update_cycle_is_forced_only_when_the_plan_says_so(update):
+    by = {s["name"]: s for s in update["jobs"]["update"]["steps"]}
+    plan, run = by["Plan this run"], by["Run the update cycle"]
+    # the trigger reaches the plan as data; the plan (tests/test_worker_ci.py) never forces a scheduled run
+    assert plan["env"]["EVENT"] == "${{ github.event_name }}" and plan["env"]["FORCE_INPUT"] == "${{ inputs.force }}"
+    assert 'python -m shots.worker.ci plan --event "$EVENT" --force-input "$FORCE_INPUT"' in plan["run"]
+    assert '--head "$GITHUB_SHA"' in plan["run"] and '>> "$GITHUB_OUTPUT"' in plan["run"]
+    assert "if" not in plan  # always evaluated; nothing before it depends on the trigger
+    assert run["if"] == "${{ steps.plan.outputs.update == 'true' }}"
+    assert run["env"] == {"FORCE": "${{ steps.plan.outputs.force }}"}
+    lines = [line.strip() for line in run["run"].splitlines() if line.strip() and not line.strip().startswith("#")]
+    assert lines == ['if [ "$FORCE" = "true" ]; then', "python -m shots.worker run-once --force", "else",
+                     "python -m shots.worker run-once", "fi"]
+    # nowhere else is the worker started, and the event name is never compared in the workflow itself
+    text = (WORKFLOWS / "update.yml").read_text(encoding="utf-8")
+    assert text.count("shots.worker run-once --force\n") == 1 and text.count("shots.worker run-once\n") == 1
+    assert "github.event_name ==" not in text and "github.event_name !=" not in text
+
+
+def test_a_run_with_nothing_to_do_saves_no_cache_and_publishes_nothing(update):
+    """Everything after the plan depends on it: with update=false and export=false (a scheduled run that
+    finds nothing due) no step that writes a cache, a commit, an artifact or a deployment can run."""
+    job = update["jobs"]["update"]["steps"]
+    names = [s["name"] for s in job]
+    after = job[names.index("Plan this run") + 1:]
+    by = {s["name"]: s for s in job}
+    updated, exported = "steps.plan.outputs.update == 'true'", "steps.plan.outputs.export == 'true'"
+    assert exported in by["Check the database"]["if"]
+    chain = {"Check the database": exported}  # step -> the plan output it (transitively) requires
+    requires = {"steps.dbcheck.outcome == 'success'": "Check the database", "steps.export.outcome == 'success'": "Export JSON",
+                "steps.publish.outputs.deploy == 'true'": "Decide whether to build and deploy the site",
+                "steps.site.outcome == 'success'": "Export JSON for the site (fresh timestamp)",
+                "steps.update.outcome == 'success'": "Run the update cycle",
+                "steps.update.outcome == 'failure'": "Run the update cycle",
+                "steps.mh.outputs.key != ''": "Fingerprint the models"}
+    for s in after:
+        cond = s.get("if", "")
+        if s["name"] == "Summary":
+            assert cond == "${{ always() }}" and "GITHUB_STEP_SUMMARY" in s["run"]
+            continue
+        gate = updated if updated in cond else exported if exported in cond else None
+        if gate is None:
+            parents = [parent for text, parent in requires.items() if text in cond]
+            assert parents, f"{s['name']} is not gated by the plan: {cond!r}"
+            gate = chain[parents[0]]
+        chain[s["name"]] = gate
+    # cache writers and deleters need a real update cycle, not merely an export
+    for s in after:
+        if s.get("uses", "").startswith("actions/cache/save@") or "gh cache delete" in s.get("run", ""):
+            assert chain[s["name"]] == updated or "steps.update.outcome == 'success'" in s["if"], s["name"]
+    assert updated in by["Save state"]["if"] and updated in by["Delete superseded caches (keep the 5 newest databases)"]["if"]
+    # only the explicit restore / save actions are used: plain actions/cache would save in a post step
+    cache = [s["uses"].split("@")[0] for s in job if s.get("uses", "").startswith("actions/cache")]
+    assert set(cache) == {"actions/cache/restore", "actions/cache/save"}
+    # before the plan only the state is restored (read-only) and guarded
+    before = names[:names.index("Plan this run")]
+    assert before == ["Check out", "Set up Python", "Install (pinned)", "Cache keys",
+                      "Restore state (database, derived files)", "Guard the live record"]
+    for name in ("Restore raw downloads of past seasons", "Restore raw downloads of the current season",
+                 "Restore trained models"):
+        assert by[name]["if"] == "${{ " + updated + " }}"
+
+
+def test_site_is_built_and_deployed_only_when_the_publish_decision_says_so(update):
+    by = {s["name"]: s for s in update["jobs"]["update"]["steps"]}
+    commit, decide, site = (by["Commit the data branch (only when something changed)"],
+                            by["Decide whether to build and deploy the site"],
+                            by["Export JSON for the site (fresh timestamp)"])
+    assert commit["id"] == "commit"
+    assert commit["run"].count('echo "changed=false" >> "$GITHUB_OUTPUT"') == 1
+    assert commit["run"].rstrip().endswith('echo "changed=true" >> "$GITHUB_OUTPUT"')  # only after the push succeeded
+    assert decide["env"] == {"SITE": "${{ steps.plan.outputs.site }}", "CHANGED": "${{ steps.commit.outputs.changed }}",
+                             "DEPLOYED_AT": "${{ steps.plan.outputs.deployed_at }}"}
+    assert 'python -m shots.worker.ci publish --site "$SITE" --changed "$CHANGED" --deployed-at "$DEPLOYED_AT"' in decide["run"]
+    assert "published-meta.json" in decide["run"] and "published-meta.json" in by["Check out the data branch"]["run"]
+    assert site["if"] == "${{ !cancelled() && steps.publish.outputs.deploy == 'true' }}"
+    assert 'echo "exported=true" >> "$GITHUB_OUTPUT"' in site["run"]
+    jobs = update["jobs"]
+    assert jobs["update"]["outputs"] == {"exported": "${{ steps.site.outputs.exported }}"}
+    assert jobs["build"]["needs"] == "update" and jobs["deploy"]["needs"] == "build"
+    assert jobs["build"]["if"] == "${{ !cancelled() && needs.update.outputs.exported == 'true' }}"
+    assert "needs.build.result == 'success'" in jobs["deploy"]["if"]
+
+
+def test_watchdog_is_an_independent_schedule_that_dispatches_the_update(update, watchdog):
+    assert set(watchdog["on"]) == {"schedule", "workflow_dispatch"}
+    own, main = cron_slots(s["cron"] for s in watchdog["on"]["schedule"]), cron_slots(s["cron"] for s in update["on"]["schedule"])
+    assert {h for h, _ in own} == set(range(24))
+    # other minutes than update.yml, at least 20 minutes after each of its slots and before the next
+    assert all(20 <= (wm - m) % 60 <= 40 for _, wm in own for _, m in main)
+    assert watchdog["concurrency"]["group"] != update["concurrency"]["group"]
+    job = watchdog["jobs"]["check"]
+    assert job["timeout-minutes"] <= 5 and job["runs-on"] == "ubuntu-24.04"
+    runs = "\n".join(s.get("run", "") for s in job["steps"])
+    assert "gh run list --workflow update.yml" in runs and "status,conclusion,createdAt,event" in runs
+    assert "python3 src/shots/worker/watchdog.py" in runs and "pip install" not in runs
+    start = next(s for s in job["steps"] if s["name"] == "Start the update workflow")
+    assert start["if"] == "${{ steps.look.outputs.dispatch == 'true' }}"
+    assert 'gh workflow run update.yml -f "force=$FORCE"' in start["run"]
+    assert start["env"]["FORCE"] == "${{ steps.look.outputs.force }}"
+    checkout = job["steps"][0]["with"]
+    assert checkout["sparse-checkout"] == "src/shots/worker/watchdog.py" and checkout["persist-credentials"] is False
+    # the script it runs must work without the package: standard library imports only
+    import ast
+    tree = ast.parse((ROOT / "src" / "shots" / "worker" / "watchdog.py").read_text(encoding="utf-8"))
+    mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names} | {
+        (n.module or "").split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
+    assert mods <= {"__future__", "argparse", "json", "sys", "datetime", "pathlib"}
 
 
 def test_state_cache_paths_are_constant_and_keys_unique_per_run(update):

@@ -176,6 +176,9 @@ class Prediction(Base):
     # none = how many of the two clubs had domestic shot data (NULL = full).
     experimental: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     data_quality: Mapped[str | None] = mapped_column(String(8))
+    # migration 0005: board rows only. The additive decomposition of the expected total (shots.models.explain),
+    # computed with the prediction from the same model and feature row; never contains odds values.
+    explain: Mapped[dict | None] = mapped_column(JSON)
 
     run: Mapped[PredictionRun] = relationship()
     match: Mapped[Match] = relationship()

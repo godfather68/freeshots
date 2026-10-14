@@ -1,6 +1,6 @@
 // Realistic, deterministic fixtures that follow docs/static-api.md. Used by unit/component tests and by the
 // Playwright audits (served in place of data/*.json). Never shipped: not imported by the app.
-import type { Board, Dataset, Fixture, Meta, Result, Results, Track, TrackNEntry } from '../lib/types'
+import type { Board, Dataset, Explain, Fixture, Meta, Result, Results, Track, TrackNEntry } from '../lib/types'
 
 const TOTAL: [number, number] = [10, 45]
 const TEAM: [number, number] = [3, 25]
@@ -128,6 +128,7 @@ function buildFixtures(): Fixture[] {
           cold_start: idn === 4,
           model: withOdds ? 'negbin_pit_comp_odds_2026-10-05' : 'negbin_pit_comp-noodds_2026-10-05',
           curve,
+          ...(idn === 3 ? { explain: EXPLAIN_FULL } : idn === 4 ? { explain: EXPLAIN_PARTIAL } : {}),
           team: idn % 7 === 0 ? null : {
             home: { mean: hm, median: Math.round(hm), lb80: bound(hc, TEAM[0], 0.8), curve: hc },
             away: { mean: am, median: Math.round(am), lb80: bound(ac, TEAM[0], 0.8), curve: ac },
@@ -137,7 +138,24 @@ function buildFixtures(): Fixture[] {
     })
   })
   out.push(...buildEuropean())
-  return out.sort((x, y) => x.kickoff_utc.localeCompare(y.kickoff_utc) || x.league.localeCompare(y.league) || x.home.localeCompare(y.home))
+  return out.sort((x, y) => (x.kickoff_utc ?? '').localeCompare(y.kickoff_utc ?? '') || x.league.localeCompare(y.league) || x.home.localeCompare(y.home))
+}
+
+/** Full explain block, with a negative factor and every signal. */
+export const EXPLAIN_FULL: Explain = {
+  expected_mean: 32.6,
+  baseline: { value: 27.8, label: 'Premier League average this season' },
+  factors: [
+    { id: 'home_attack', side: 'home', label: 'Home attack', detail: '18.2 shots per match, last 10 (league 13.9)', effect: 2.9 },
+    { id: 'away_defence', side: 'away', label: 'Away defence', detail: 'Concede 9.1 shots per match (league 12.4)', effect: -1.2 },
+    { id: 'away_attack', side: 'away', label: 'Away attack', detail: '12.0 shots per match, last 10 (league 11.2)', effect: 1.0 },
+  ],
+  residual: 2.1,
+  signals: { home_matches: 38, away_matches: 4, odds_used: false, home_volatility: 'average', away_volatility: 'high', model_gap: 1.4 },
+}
+/** Partial block: no baseline, no signals. */
+export const EXPLAIN_PARTIAL: Explain = {
+  factors: [{ id: 'match_tempo', side: 'match', label: 'Match tempo', effect: -0.8 }],
 }
 
 function buildResults(): Result[] {

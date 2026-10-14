@@ -587,7 +587,7 @@ def test_migration_0004_upgrades_a_0003_database_in_place_and_roundtrips(tmp_pat
         triggers = {r[0] for r in c.execute(text("SELECT name FROM sqlite_master WHERE type = 'trigger'"))}
     engine.dispose()
     assert len(load_fx) == 1
-    assert migrate.upgrade(path) == migrate.head() == "0004_experimental"
+    assert migrate.upgrade(path, "0004_experimental") == "0004_experimental"  # 0005 has its own test (test_explain.py)
     engine = make_engine(path)
     with engine.connect() as c:
         assert c.execute(text("SELECT id, run_id, match_id, points, created_at, pre_match FROM predictions")).all() == before
@@ -604,7 +604,7 @@ def test_migration_0004_upgrades_a_0003_database_in_place_and_roundtrips(tmp_pat
         assert c.execute(text("SELECT match_id FROM v_official_picks")).all() == [(M_DOM,)]
         assert c.execute(text("SELECT id, run_id, match_id, points, created_at, pre_match FROM predictions")).all() == before
     engine.dispose()
-    assert migrate.upgrade(path) == "0004_experimental"
+    assert migrate.upgrade(path, "0004_experimental") == "0004_experimental"
 
 
 # ----------------------------------------------------------------------------- export

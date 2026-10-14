@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppProvider, go, useApp, useRoute } from './lib/app'
 import { DataError, loadDataset } from './lib/data'
-import { freshness, utcStamp } from './lib/format'
+import { freshness } from './lib/format'
+import { stampIn } from './lib/time'
 import type { Dataset } from './lib/types'
 import { guideStore } from './lib/storage'
 import { BoardPage } from './pages/BoardPage'
 import { HowPage } from './pages/HowPage'
 import { MatchPage } from './pages/MatchPage'
 import { TrackPage } from './pages/TrackPage'
+import { ChecksPage } from './pages/ChecksPage'
 
 function PitchMark() {
   return (
@@ -19,13 +21,13 @@ function PitchMark() {
 }
 
 function Freshness({ now }: { now?: number }) {
-  const { ds } = useApp()
+  const { ds, zone } = useApp()
   const f = freshness(ds.meta, now)
   return (
     <div className={`statusbar ${f.level}`}>
       <p className="fresh wrap">
         <span className="dot" aria-hidden="true" />
-        <span>Predictions built {utcStamp(ds.meta.built_at)}</span>
+        <span>Predictions built {stampIn(ds.meta.built_at, zone)}</span>
         <span>Results up to {ds.meta.results_up_to ?? 'n/a'}</span>
         {f.level !== 'ok' && (
           <span className="why"><span className="sr">Warning: </span>{f.reasons.join(' ')}</span>
@@ -40,10 +42,10 @@ function Shell({ now }: { now?: number }) {
   const main = useRef<HTMLElement>(null)
   const prevPath = useRef<string | null>(null)
   const path = route.path
-  const here = path === '/' ? 'board' : path.startsWith('/track') ? 'track' : path.startsWith('/how') ? 'how' : path.startsWith('/match') ? 'board' : ''
+  const here = path === '/' ? 'board' : path.startsWith('/track') ? 'track' : path.startsWith('/how') ? 'how' : path.startsWith('/checks') ? 'checks' : path.startsWith('/match') ? 'board' : ''
 
   useEffect(() => {
-    const pageTitle = { board: 'Matches', track: 'Track record', how: 'How it works', '': 'Page not found' }[here]
+    const pageTitle = { board: 'Matches', track: 'Track record', how: 'How it works', checks: 'My checks', '': 'Page not found' }[here]
     document.title = `${pageTitle} · Shots board`
     const was = prevPath.current
     prevPath.current = path
@@ -71,6 +73,7 @@ function Shell({ now }: { now?: number }) {
             <ul>
               <li><a href="#/" aria-current={here === 'board' ? 'page' : undefined}>Matches</a></li>
               <li><a href={q('/track')} aria-current={here === 'track' ? 'page' : undefined}>Track record</a></li>
+              <li><a href="#/checks" aria-current={here === 'checks' ? 'page' : undefined}>My checks</a></li>
               <li><a href="#/how" aria-current={here === 'how' ? 'page' : undefined}>How it works</a></li>
             </ul>
           </nav>
@@ -84,7 +87,8 @@ function Shell({ now }: { now?: number }) {
           {m && <MatchPage id={m[1]} />}
           {path === '/track' && <TrackPage />}
           {path === '/how' && <HowPage />}
-          {!(path === '/' || m || path === '/track' || path === '/how') && (
+          {path === '/checks' && <ChecksPage />}
+          {!(path === '/' || m || path === '/track' || path === '/how' || path === '/checks') && (
             <div className="page narrow"><div className="card empty"><h1>Page not found</h1><p><a href="#/">Back to the matches</a></p></div></div>
           )}
         </div>
@@ -115,7 +119,7 @@ function LoadError({ error, retry }: { error: Error; retry: () => void }) {
   )
 }
 
-export default function App({ now, today, load = loadDataset }: { now?: number; today?: string; load?: () => Promise<Dataset> }) {
+export default function App({ now, today, zone, load = loadDataset }: { now?: number; today?: string; zone?: string; load?: () => Promise<Dataset> }) {
   const [state, setState] = useState<{ ds: Dataset | null; error: Error | null }>({ ds: null, error: null })
   const [attempt, setAttempt] = useState(0)
   useRoute() // keep the shell subscribed so the title updates even before data arrives
@@ -138,7 +142,7 @@ export default function App({ now, today, load = loadDataset }: { now?: number; 
     )
   }
   return (
-    <AppProvider ds={state.ds} today={today}>
+    <AppProvider ds={state.ds} today={today} zone={zone}>
       <Shell now={now} />
     </AppProvider>
   )

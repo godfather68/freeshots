@@ -22,8 +22,9 @@ function MatchRowImpl({ item, n, totalStart, href, selected, starred, homeFav, a
   const label = `${item.home} v ${item.away}`
   const hit = item.actual ? isHit(item.actual.total, n) : null
   const time = item.finished ? 'FT' : (item.time ?? '')
+  const venueMark = !item.finished && item.venueTime && item.utc === null && item.time !== null
   const aria =
-    `${label}, ${item.finished ? 'finished' : `kick-off ${item.time}`}, ${pct(p)} chance of ${n}+ shots` +
+    `${label}, ${item.finished ? 'finished' : `kick-off ${item.time ?? 'time to be confirmed'}${item.venueTime && item.utc === null ? ' venue time' : ''}`}, ${pct(p)} chance of ${n}+ shots` +
     (item.experimental ? ', experimental' : '') +
     (isLimited(item) ? ', limited data' : '') +
     (item.actual ? `, actual ${item.actual.total} shots, ${hit ? 'hit' : 'miss'}` : '')
@@ -32,7 +33,7 @@ function MatchRowImpl({ item, n, totalStart, href, selected, starred, homeFav, a
       <a className="mlink" href={href} data-id={item.id} aria-current={selected ? 'true' : undefined} aria-label={aria}>
         <span className="mtime">
           {showDate && <span className="mdate">{dayShort(item.date)} {dayNum(item.date)} {monthShort(item.date)}</span>}
-          <span>{time}</span>
+          <span>{time}{venueMark && <small className="vt" title="Venue time: no UTC kick-off published"> venue</small>}</span>
         </span>
         <span className="mteams">
           <span className="mteam"><Badge name={item.home} />{homeFav && <span className="fv" aria-hidden="true">&#9733;</span>}<span className="tn">{item.home}</span></span>

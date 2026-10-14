@@ -3,8 +3,8 @@
 The update itself is `shots.__main__.update` (results -> calendars -> picks -> board -> track ->
 database); this module only adds the overlap lock, the skip-if-fresh decision and the bookkeeping.
 Each cycle writes one `worker` job_run (status ok / partial / failed / skipped, counts.action =
-update | skipped | locked | busy, counts.reasons, counts.purge = auth housekeeping); the update writes
-its own `update` job_run.
+update | skipped | locked | busy, counts.reasons, counts.purge = auth housekeeping, counts.calendars =
+fingerprint of calendars/*.ics the update started from); the update writes its own `update` job_run.
 """
 
 from __future__ import annotations
@@ -77,7 +77,7 @@ def purge_auth(engine) -> dict:
 
 
 def run_once(force: bool = False, min_interval: timedelta = due.DEFAULT_MIN_INTERVAL, days: int = 30,
-             lock: WorkerLock | None = None, update=None) -> int:
+             lock: WorkerLock | None = None, update=None, min_gap: timedelta = due.DEFAULT_MIN_GAP) -> int:
     """One cycle. Returns the exit code: 0 when skipped or the update succeeded, 1 if it failed."""
     if update is None:
         from shots.__main__ import update
@@ -114,7 +114,7 @@ def run_once(force: bool = False, min_interval: timedelta = due.DEFAULT_MIN_INTE
                 jobs.finish(engine, job_id, "skipped", {"action": "busy", "running_job": r["id"], "purge": purged})
                 engine.dispose()
                 return 0
-            decision = due.decide(engine, min_interval=min_interval, force=force)
+            decision = due.decide(engine, min_interval=min_interval, force=force, min_gap=min_gap)
         else:
             decision = due.Decision(run=True, reasons=[due.Reason("db", "database unavailable")])
         reasons = [str(r) for r in decision.reasons]
@@ -126,6 +126,10 @@ def run_once(force: bool = False, min_interval: timedelta = due.DEFAULT_MIN_INTE
             return 0
         if engine is not None:
             engine.dispose()  # the update opens its own connections
+        try:  # what the update starts from; the next cycle compares (due: `calendars`)
+            calendars = due.calendars_fingerprint()
+        except OSError:
+            calendars = None
         rc = 1
         error = None
         try:
@@ -146,7 +150,7 @@ def run_once(force: bool = False, min_interval: timedelta = due.DEFAULT_MIN_INTE
                         st = "ok" if rc == 0 else "partial"
                     jobs.finish(engine, job_id, st, {"action": "update", "reasons": reasons, "exit_code": rc,
                                                      "update_job": upd["id"] if upd else None,
-                                                     "purge": purged}, error)
+                                                     "purge": purged, "calendars": calendars}, error)
                 finally:
                     engine.dispose()
         log.info("cycle finished (update exit code %s)", rc)
@@ -155,7 +159,8 @@ def run_once(force: bool = False, min_interval: timedelta = due.DEFAULT_MIN_INTE
         lock.release()
 
 
-def status(min_interval: timedelta = due.DEFAULT_MIN_INTERVAL, limit: int = 8, lock: WorkerLock | None = None) -> dict:
+def status(min_interval: timedelta = due.DEFAULT_MIN_INTERVAL, limit: int = 8, lock: WorkerLock | None = None,
+           min_gap: timedelta = due.DEFAULT_MIN_GAP) -> dict:
     """Lock state, recent cycles and updates, what a cycle would do now, and the next due moments."""
     lock = lock or WorkerLock(lock_path())
     out: dict = {"lock": lock.inspect().describe(), "db": str(db_path())}
@@ -173,7 +178,7 @@ def status(min_interval: timedelta = due.DEFAULT_MIN_INTERVAL, limit: int = 8, l
                 "action": (r["counts"] or {}).get("action"), "error": (r["error"] or "")[:200] or None}
             for r in jobs.recent(engine, limit, ("worker", "update"))]
         try:
-            d = due.decide(engine, min_interval=min_interval)
+            d = due.decide(engine, min_interval=min_interval, min_gap=min_gap)
             out["now"] = d.summary()
             now = d.now
             nxt = {"next_match_end_utc": due.next_match_end(engine, now),

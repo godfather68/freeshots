@@ -1,3 +1,5 @@
+import type { TimeMode } from './time'
+import type { Check, OddsFormat } from './edge'
 // Tiny persisted stores (localStorage in try/catch, in-memory fallback) usable with useSyncExternalStore.
 export interface Store<T> {
   get(): T
@@ -47,6 +49,9 @@ export function persisted<T>(key: string, initial: T): Store<T> {
 export interface Favourites { teams: string[]; matches: string[] }
 export const favouritesStore = persisted<Favourites>('shots.fav', { teams: [], matches: [] })
 export const collapsedStore = persisted<string[]>('shots.collapsed', [])
+export const timeModeStore = persisted<TimeMode>('shots.timemode', 'mine')
+export const oddsFormatStore = persisted<OddsFormat>('shots.oddsformat', 'decimal')
+export const checksStore = persisted<Check[]>('shots.checks', [])
 export const guideStore = persisted<{ dismissed: boolean }>('shots.guide', { dismissed: false })
 
 export function toggleIn(list: string[], v: string): string[] {
@@ -54,5 +59,5 @@ export function toggleIn(list: string[], v: string): string[] {
 }
 
 export function resetStores(): void {
-  for (const s of [favouritesStore, collapsedStore, guideStore]) s.reload()
+  for (const s of [favouritesStore, collapsedStore, guideStore, timeModeStore, oddsFormatStore, checksStore]) s.reload()
 }

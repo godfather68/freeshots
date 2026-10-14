@@ -183,7 +183,7 @@ describe('URL state', () => {
 })
 
 describe('format and track helpers', () => {
-  it('freshness warns when stale (> 48h) or when the last job failed', () => {
+  it('freshness warns when stale (> STALE_HOURS) or when the last job failed', () => {
     const built = Date.parse(meta.built_at)
     expect(freshness(meta, built + 3600_000).level).toBe('ok')
     expect(freshness(meta, built + 49 * 3600_000).level).toBe('stale')

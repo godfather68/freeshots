@@ -478,8 +478,18 @@ def _experimental(r: dict) -> dict:
     return {"experimental": exp, "data_quality": quality if exp and quality in ("full", "partial", "none") else None}
 
 
+def _explain(value) -> dict | None:
+    """The board's `explain` cell (JSON text written by shots.predict.board) -> dict, None when absent."""
+    text_ = _str(value)
+    if text_ is None:
+        return None
+    obj = json.loads(text_)
+    return obj if isinstance(obj, dict) else None
+
+
 def board_prediction_rows(board: pd.DataFrame) -> tuple[list[dict], dict]:
-    """Board frame -> prediction dicts (without run_id) + curve ranges."""
+    """Board frame -> prediction dicts (without run_id) + curve ranges. The key `explain` is present
+    only when the board carries that column (an older board keeps its rows, and its content hash)."""
     pcols = sorted((c for c in board.columns if c.startswith("p_") and c[2:].isdigit()), key=lambda c: int(c[2:]))
     hcols = sorted((c for c in board.columns if c.startswith("ph_") and c[3:].isdigit()), key=lambda c: int(c[3:]))
     acols = sorted((c for c in board.columns if c.startswith("pa_") and c[3:].isdigit()), key=lambda c: int(c[3:]))
@@ -490,6 +500,7 @@ def board_prediction_rows(board: pd.DataFrame) -> tuple[list[dict], dict]:
     if tns and (tns != list(range(tns[0], tns[-1] + 1)) or [int(c[3:]) for c in acols] != tns):
         raise ValueError("board team curve columns ph_N / pa_N must be contiguous and aligned")
     team = bool(tns) and {"home_mean", "away_mean"} <= set(board.columns)
+    explained = "explain" in board.columns
     rows = []
     for r in board.drop_duplicates("match_id", keep="first").to_dict("records"):
         d = dict(match_id=r["match_id"], model=_str(r.get("model")), odds_available=_bool(r.get("odds")),
@@ -504,6 +515,8 @@ def board_prediction_rows(board: pd.DataFrame) -> tuple[list[dict], dict]:
                 for c in TEAM_SCALARS[1:]:
                     d[f"{side}_{c}"] = _int(r.get(f"{side}_{c}"))
             d["home_curve"], d["away_curve"] = _curve(r, hcols), _curve(r, acols)
+        if explained:
+            d["explain"] = _explain(r.get("explain"))
         rows.append(d)
     ranges = dict(curve_n_min=ns[0] if ns else None, curve_n_max=ns[-1] if ns else None,
                   team_n_min=tns[0] if team else None, team_n_max=tns[-1] if team else None)

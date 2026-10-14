@@ -2,15 +2,42 @@ import { forwardRef } from 'react'
 import type { ReactNode } from 'react'
 import { useApp } from '../lib/app'
 import { isHit, pct, probAt } from '../lib/curve'
-import { dayLong, utcStamp } from '../lib/format'
+import { dayLong, dayShort, dayNum, monthShort } from '../lib/format'
+import { stampIn, wallClock } from '../lib/time'
 import { favouritesStore, toggleIn } from '../lib/storage'
 import type { Item } from '../lib/types'
 import { PANEL_TABS } from '../lib/url'
 import type { PanelTab } from '../lib/url'
 import { CurveChart } from './CurveChart'
+import { EdgeCheck } from './EdgeCheck'
+import { Explain } from './Explain'
 import { Badge, Help, ItemTags, LeagueChip, ProbPill, Stepper, Tabs, isLimited, useStore, ScrollRegion } from './ui'
 
-const TAB_LABEL: Record<PanelTab, string> = { pred: 'Prediction', teams: 'Teams', about: 'About this match' }
+const TAB_LABEL: Record<PanelTab, string> = { pred: 'Prediction', teams: 'Teams', edge: 'Odds check', about: 'About this match' }
+
+/** "Tue 13 Oct, 20:00 your time · 21:00 at the venue": both clocks when they differ. */
+export function KickoffText({ item, zone, mode }: { item: Item; zone: string; mode: 'mine' | 'venue' }) {
+  if (!item.time) return <>{dayLong(item.date)}{item.finished ? ' (finished)' : ', kick-off time to be confirmed'}</>
+  const day = (iso: string) => `${dayShort(iso)} ${dayNum(iso)} ${monthShort(iso)} `
+  if (item.utc === null) return <>{dayLong(item.venueDate)}, <b>{item.time}</b> venue time</>
+  if (mode === 'mine') {
+    const differs = item.venueClock !== null && (item.venueClock !== item.time || item.venueDate !== item.date)
+    return (
+      <>
+        {dayLong(item.date)}, <b>{item.time}</b> your time
+        {differs && <> &middot; {item.venueDate !== item.date ? day(item.venueDate) : ''}{item.venueClock} at the venue</>}
+      </>
+    )
+  }
+  const mine = wallClock(item.utc, zone)
+  const differs = mine.time !== item.time || mine.date !== item.date
+  return (
+    <>
+      {dayLong(item.date)}, <b>{item.time}</b> at the venue
+      {differs && <> &middot; {mine.date !== item.date ? day(mine.date) : ''}{mine.time} your time</>}
+    </>
+  )
+}
 
 function StarTeam({ team }: { team: string }) {
   const favs = useStore(favouritesStore)
@@ -90,6 +117,8 @@ function Prediction({ item }: { item: Item }) {
           </li>
         ))}
       </ul>
+
+      <Explain item={item} />
 
       <h3>Chance by number of shots</h3>
       <CurveChart
@@ -196,7 +225,7 @@ function Teams({ item }: { item: Item }) {
 }
 
 function About({ item }: { item: Item }) {
-  const { ds } = useApp()
+  const { ds, zone, timeMode } = useApp()
   const f = item.fixture
   const r = item.result
   return (
@@ -213,9 +242,9 @@ function About({ item }: { item: Item }) {
         </div>
         <div>
           <dt>Prediction made</dt>
-          <dd>{r ? utcStamp(r.predicted_at) + ', before kick-off' : `In the board built ${utcStamp(ds.meta.built_at)}`}</dd>
+          <dd>{r ? stampIn(r.predicted_at, zone) + ', before kick-off' : `In the board built ${stampIn(ds.meta.built_at, zone)}`}</dd>
         </div>
-        {f && <div><dt>Kick-off</dt><dd>{dayLong(f.date)}, {f.kickoff_local} local ({utcStamp(f.kickoff_utc)})</dd></div>}
+        {f && <div><dt>Kick-off</dt><dd><KickoffText item={item} zone={zone} mode={timeMode} /></dd></div>}
         <div><dt>Calibrated <Help term="calibrated" /></dt><dd>Probabilities are the model&rsquo;s own calibrated values, shown exactly as published. See the <a href="#/track">track record</a>.</dd></div>
       </dl>
     </div>
@@ -230,7 +259,7 @@ export interface PanelProps {
 }
 
 export const Panel = forwardRef<HTMLHeadingElement, PanelProps>(function Panel({ item, full, onClose, back }, ref) {
-  const { state, set, leagues, href } = useApp()
+  const { state, set, leagues, href, zone, timeMode } = useApp()
   const lg = leagues.get(item.league)
   const f = item.fixture
   return (
@@ -251,7 +280,7 @@ export const Panel = forwardRef<HTMLHeadingElement, PanelProps>(function Panel({
           <span className="side away"><Badge name={item.away} size={52} /><span className="tline"><span className="tname">{item.away}</span><StarTeam team={item.away} /></span></span>
         </h2>
         <p className="ko">
-          <span>{dayLong(item.date)}{item.time ? <>, <b>{item.time}</b> local</> : ' (finished)'}</span>
+          <span><KickoffText item={item} zone={zone} mode={timeMode} /></span>
           <span className="kotags">
             <span className={`badge${item.odds ? '' : ' mute'}`}>{item.odds ? 'odds' : 'no odds'}</span>
             {item.coldStart && <span className="badge warn">cold start</span>}
@@ -264,6 +293,7 @@ export const Panel = forwardRef<HTMLHeadingElement, PanelProps>(function Panel({
       <Tabs label="Match detail" tabs={PANEL_TABS.map((t) => ({ id: t, label: TAB_LABEL[t] }))} value={state.pt} onChange={(t) => set({ pt: t }, { replace: true })} className="ptabs">
         {state.pt === 'pred' && <Prediction item={item} />}
         {state.pt === 'teams' && <Teams item={item} />}
+        {state.pt === 'edge' && <EdgeCheck item={item} />}
         {state.pt === 'about' && <About item={item} />}
       </Tabs>
     </article>

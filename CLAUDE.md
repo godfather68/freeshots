@@ -67,8 +67,11 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
   results, fixtures, board and picks into it and records each run in `job_runs`. Predictions are append-only
   (SQLite triggers); outcomes are derived views, never stored. Schema, repo API and invariants: `docs/platform.md`.
 - **Stage 1 public site (GitHub Pages + Actions, repo `godfather68/freeshots`, branch `main`):**
-  `.github/workflows/update.yml` runs every 3 h: restore state from the Actions cache →
-  `python -m shots.worker run-once --force` → `python -m shots.export --out <dir>` (JSON per
+  `.github/workflows/update.yml` runs on an hourly best-effort schedule (two crons), on push to `main`
+  (pipeline/frontend paths) and on manual dispatch; `.github/workflows/watchdog.yml` re-dispatches it when
+  slots are missed or the site is > 12 h old. Each run: restore state from the Actions cache → plan
+  (`python -m shots.worker.ci plan`: scheduled runs only update when work is due, never `--force`) →
+  `python -m shots.worker run-once [--force]` → `python -m shots.export --out <dir>` (JSON per
   `docs/static-api.md`, checked by `python -m shots.export.verify`) → build `frontend/` (Vite + React,
   `npm run lint | test | build`) → deploy to Pages and commit the JSON to the `data` branch (public audit
   trail). No accounts in Stage 1. **Never publish raw source data, odds, the DB or scratch files**; the

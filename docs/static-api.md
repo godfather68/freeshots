@@ -80,6 +80,75 @@ Rules
   "tier": 1, "fixtures": 52, "featured": true}`. The site pins featured competitions first.
 - Ordinary fixtures and leagues carry none of these keys: their lines are byte-identical to before.
 
+### `explain`: why the expected total is what it is (additive, schema 1)
+```json
+{"id": "…", "home": "Burnley", "away": "Charlton", "expected": 27, "odds": true, "…": "…",
+ "explain": {
+   "expected_mean": 27.4,
+   "baseline": {"value": 26.8, "label": "Championship average this season"},
+   "factors": [
+     {"id": "away_defence", "side": "away", "label": "Charlton defence",
+      "detail": "concedes 16.8 shots per match, last 10 (league 13.4)", "effect": 1.4},
+     {"id": "away_attack", "side": "away", "label": "Charlton attack",
+      "detail": "10.1 shots per match, last 10 (league 13.4)", "effect": -0.8},
+     {"id": "market_strength", "side": "match", "label": "Match odds",
+      "detail": "bookmaker odds make Burnley favourite", "effect": 0.2},
+     {"id": "other", "side": "match", "label": "Smaller factors", "detail": "8 smaller factors combined", "effect": -0.1}
+   ],
+   "residual": -0.1,
+   "signals": {"home_matches": 673, "away_matches": 745, "odds_used": true,
+               "home_volatility": null, "away_volatility": null, "model_gap": 0.0}
+ }}
+```
+- `explain` is an **object or absent** (never `null`). It is computed when the prediction is made, from the
+  same fitted model and the same feature row, and stored with the prediction; the exporter only copies it.
+  Method, error sizes and limits: `reports/2026-10-13_under_side_and_explanations.md`, `src/shots/models/explain.py`.
+- **It adds up exactly:** `baseline.value + sum(factors[].effect) + residual == expected_mean`, in tenths of a
+  shot. `residual` is rounding only (at most a few tenths). The UI may show the sum without recomputing.
+- `expected_mean` is the **mean** of the published distribution, one decimal. The fixture's `expected` is its
+  integer **median**; the mean is usually 0 to 0.7 shots above it (the distribution is right-skewed). Show
+  the breakdown as leading to `expected_mean`, not to `expected`.
+- `baseline.value` equals the fixture's `league_avg` (shots per match in that league this season; the league's
+  long-run average in the first rounds; for experimental fixtures the blend of the two clubs' domestic
+  leagues). `baseline.label` says which.
+- `factors`: at most six named factors of at least 0.2 shots, sorted by absolute effect (largest first), then
+  at most one entry `other` = every smaller factor combined (always last). `effect` is in shots, one
+  decimal, never 0. `side` is `home`, `away` (a property of that team) or `match`. `label` and `detail` are
+  display text with the real team names and the real numbers behind the factor. Factor ids:
+
+  | id | meaning (what the model reads) |
+  |---|---|
+  | `home_attack`, `away_attack` | that team's shots for: last 10 (shrunk to the league), recency-weighted, season to date, on target |
+  | `home_defence`, `away_defence` | that team's shots conceded (same windows); a leaky defence adds shots for the opponent |
+  | `home_venue`, `away_venue` | home team's latest home matches / away team's latest away matches (shots for and against) |
+  | `market_strength` | bookmaker match-result odds (who is favourite); only when `odds` is true |
+  | `market_goals` | bookmaker over/under 2.5 goals odds; only when `odds` is true |
+  | `home_rest`, `away_rest` | days since that team's previous match |
+  | `home_early`, `away_early` | early-season / cold-start adjustments (few season matches, no history, division change) |
+  | `home_standin`, `away_standin` | experimental fixtures only: the club has no shot data and is averaged over typical teams |
+  | `league_level` | the model's own rating of an average matchup at this league level, minus the raw league average |
+  | `calibration` | shift of the mean from the recalibration of the distribution on past forecast errors |
+  | `other` | all factors not listed one by one |
+- **No odds values, ever.** Market factors are worded as categories ("strong favourite", "favourite", "slight
+  favourite", "about level"; "high-scoring", "average", "low-scoring"); their `label` / `detail` contain no
+  digit (checked by the verifier). `signals.odds_used` is a boolean equal to the fixture's `odds`.
+- `signals`: `home_matches` / `away_matches` = prior matches behind each side's form (domestic matches for
+  experimental fixtures; 0 = cold start). `model_gap` = expected mean of the odds model minus that of the
+  no-odds model for the same fixture, in shots (`null` when the fixture was scored without odds): a large
+  absolute value means the market disagrees with shot form. `home_volatility` / `away_volatility` are
+  reserved (`"low" | "average" | "high" | null`) and **always `null` today**: a team's recent spread of
+  match totals was tested and does not predict its future spread, so no label is published.
+- These are attributions of the model (how its coefficients split the credit), not causes: form and odds
+  overlap, so do not read a small `market_*` effect as "the odds do not matter".
+- Experimental fixtures carry `explain` too (from the experimental model; the same caveats apply).
+
+### Under probabilities (client-side, no new field)
+`P(under N.5) = P(total <= N) = 1 - curve[N + 1 - thresholds.total[0]]`, valid for N = 9..44 with the
+published range 10..45. Validation of this side, its limits and the recommended caveats:
+`reports/2026-10-13_under_side_and_explanations.md`. The under-side track record needs no extra field
+either: in `track.json` a reliability band `[lo, hi]` of P(total >= N) with `stated` s and `realised` r is
+the under-(N-1).5 band `[1 - hi, 1 - lo]` with stated `1 - s` and realised `1 - r`.
+
 ## `data/results.json` (matches finished in the last 30 days that had an official pre-match prediction)
 ```json
 {
@@ -127,7 +196,8 @@ The shapes above are unchanged. Details an implementer of the site needs (JSON S
 - **Additive fields:** `meta.record.since` (start of the live record of the database behind this export; it
   moves forward if the database had to be rebuilt), `track.records.live.void`, and, for cross-border
   competitions only, fixture `experimental` / `data_quality` and league `featured` (see "Experimental
-  fixtures"). `meta.counts.cold_start` includes experimental fixtures with a club without data.
+  fixtures"), and fixture `explain` (see "`explain`"). `meta.counts.cold_start` includes experimental
+  fixtures with a club without data.
 - `meta.leagues` lists every league id used in any file; `fixtures` is 0 when a league only appears in
   `results.json` or `track.json`. League `name` has no country prefix ("Premier League").
 - `expected`, `lb.*`, `median`, `lb80` are integers; `mean` has 2 decimals; `league_avg` / `above_league` 1.

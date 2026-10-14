@@ -20,7 +20,7 @@ Code: `src/shots/db/` (`engine.py`, `models.py`, `migrate.py`, `load.py`, `repo.
 Every connection: `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=10000`, `synchronous=NORMAL`,
 `cache_size=64MB`. WAL lets the web app read while `shots update` writes.
 
-## Schema (revisions `0001_initial`, `0002_pre_match`, `0003_run_integrity`, `0004_experimental`)
+## Schema (revisions `0001_initial`, `0002_pre_match`, `0003_run_integrity`, `0004_experimental`, `0005_explain`)
 
 Timestamps named `*_at` are **UTC** (naive). `matches.date` is the local match date and
 `kickoff_local` the local "HH:MM", exactly as in the canonical schema. Board `meta.built_at` (and picks
@@ -49,6 +49,14 @@ a fixture source never overwrites a played match; a missing kick-off/round/odds 
 |---|---|
 | `prediction_runs` | one batch: `kind` (`board` / `picks` / `backfill`), `source_key` (unique, makes imports idempotent: `board:<built_at>`, `picks:<file name>`, `backfill:<content hash>`), `built_at`, `confirmed_at`, `results_up_to`, `window_from`, `window_days`, `models` (JSON list of model labels), `params` (JSON: picks `n`, `min_prob`, `source` live/replay, `scan_ts`, `file`), `meta` (board.meta.json verbatim), curve ranges `curve_n_min/max`, `team_n_min/max`, `n_predictions`, `content_hash`, `status` |
 | `predictions` | one match in one run (unique `run_id, match_id`): `model`, `odds_available`, `cold_start`, `median` (= board `expected_shots`), `lb_70/80/90`, `league_avg`, `above_league`, `mkt_p_over25`, `total_curve`, `points`, `selected` (picks), `home_/away_` `mean, median, lb_70, lb_80, lb_90`, `home_curve`, `away_curve` |
+
+`predictions.explain` (migration `0005_explain`, JSON, NULL): board rows only. The additive decomposition
+of the expected total ("why"), computed by `shots.models.explain` when the board is built, from the same
+fitted model and feature row as the prediction, and stored with it (append-only like every other column).
+It is persisted rather than recomputed at export because the exporter has neither models nor features, and
+a later recomputation would use newer results or a refitted model, i.e. explain a different prediction. It
+is part of the board's content hash only when the board has the column, holds no odds values, and no view
+reads it. Contract: `docs/static-api.md`, "`explain`".
 
 Curves: `total_curve[i] = P(total >= curve_n_min + i)` (board: n = 10..45),
 `home_curve[i] / away_curve[i] = P(team >= team_n_min + i)` (n = 3..25). Sparse probabilities (picks:
@@ -445,15 +453,29 @@ duplicated) wrapped in:
    `python -m shots update` does not take the lock, but its `running` job row (live pid, same host,
    < 6 h old) makes the cycle skip (`busy`); `running` rows of dead processes are closed as `failed`
    ("abandoned").
-2. **Skip-if-fresh** (`shots.worker.due`): the update runs when there is no `ok` update yet, when the last
-   `ok` update started >= `--min-interval` ago (default 2 h, `SHOTS_WORKER_MIN_INTERVAL_HOURS`), with
-   `--force`, or when something became due since that update started:
-   `no-board` (no board run in the DB), `results` (a scheduled match's expected end - kickoff_utc + 2 h, or
-   the end of its date when the time is unknown - passed), `odds` (a football-data publication moment,
-   Tue/Fri 09:00 local, passed and fixtures in the next 7 days lack odds), `new-day` (local date changed:
-   the board window rolls forward), `calendars` (a `calendars/*.ics` file changed). Only `ok` updates
-   count: after a `partial`/`failed` update every cycle retries. With the 3-hourly schedule (> 2 h) every
-   scheduled cycle runs; the rule mainly stops the boot/logon run from repeating a run made minutes ago.
+2. **Skip-if-fresh** (`shots.worker.due`): the update runs with `--force`, when there is no `ok` update
+   yet, when the DB has no board (`no-board`), when the last `ok` update started >= `--min-interval` ago
+   (default 2 h, `SHOTS_WORKER_MIN_INTERVAL_HOURS`), or when something became due since that update started:
+   `results` (a scheduled match's expected end - kickoff_utc + 2 h, or the end of its date when the time is
+   unknown - passed), `odds` (a football-data publication moment, Tue/Fri 09:00, passed and fixtures in the
+   next 7 days lack odds), `new-day` (the date changed: the board window rolls forward), `calendars` (the
+   content of `calendars/*.ics` changed). Only `ok` updates count: after a `partial`/`failed` update every
+   cycle retries.
+   - **Zones.** `new-day` uses the machine's zone; on the GitHub runner that is UTC (`TZ=UTC`), which is
+     also the day boundary of the static export. The odds hour is read in `SHOTS_ODDS_TZ` (an IANA name;
+     unset = the machine's zone). `update.yml` sets it to `UTC`: there the rule is "Tue / Fri 09:00 UTC".
+     The hour is only a hint for when to look early; odds published later are picked up by the next
+     interval run.
+   - **Calendars.** Each worker cycle stores a fingerprint of the calendar files it started from
+     (`job_runs.counts.calendars`, names + contents, line endings normalised); the next cycle compares
+     contents. File modification times are only used while no fingerprint is recorded: on a fresh git
+     checkout (every GitHub run) all files are "new", which would make every cycle due.
+   - **Minimum gap** (`--min-gap MINUTES`, `SHOTS_WORKER_MIN_GAP_MINUTES`, default 0 = off): no update
+     starts less than this after the previous attempt of any outcome (`recent`), whatever is due, except
+     `forced`, `never` and `no-board`. Meant for a worker that is triggered often (`update.yml`: 90 min):
+     it bounds the number of board rebuilds on a match day and spaces the retries after a failure.
+   - Locally (Task Scheduler) the defaults are unchanged: the rule mainly stops the boot/logon run from
+     repeating a run made minutes ago.
 3. **Bookkeeping**: one `job_runs` row with `job = 'worker'` per cycle (`ok` / `partial` / `failed` /
    `skipped`; `counts.action` = `update` | `skipped` | `locked` | `busy`, `counts.reasons`,
    `counts.update_job` = the update's own `job_runs` id, `counts.purge` = `{sessions, attempts}` deleted
@@ -637,12 +659,13 @@ twelve kinds of tampering are each detected.
 
 ### Workflows (`.github/workflows/`)
 
-`update.yml` (cron `23 */3 * * *` + manual; concurrency group `shots-update`: runs queue, never overlap,
-never cancel each other), three jobs with separate permissions:
+`update.yml` (hourly schedule + push to `main` + manual; concurrency group `shots-update`: runs queue, never
+overlap, never cancel a running one; triggers and what each does: "Triggers" below), three jobs with
+separate permissions:
 
 | job | token permissions | what it does |
 |---|---|---|
-| `update` | `contents: write`, `actions: write` | restore state -> `python -m shots.worker run-once --force` -> check + save state -> export -> `shots.export.verify` -> commit `data/*.json` to the `data` branch |
+| `update` | `contents: write`, `actions: write`, `deployments: read` | restore state -> plan -> `python -m shots.worker run-once [--force]` -> check + save state -> export -> `shots.export.verify` -> commit `data/*.json` to the `data` branch -> decide whether to deploy |
 | `build` | `contents: read` | `npm ci && npm run build` in `frontend/` with the exported JSON in `frontend/public/data/`; refuses to publish `*.db, *.csv, *.parquet, *.joblib, *.ics, *.key` |
 | `deploy` | `pages: write`, `id-token: write` | `actions/upload-pages-artifact` + `actions/deploy-pages` (environment `github-pages`) |
 
@@ -654,19 +677,128 @@ never cancel each other), three jobs with separate permissions:
 - Actions are the official `actions/*` ones, pinned to commit SHAs. Checkouts use
   `persist-credentials: false`; the token is given only to the single step that pushes, and the job that
   runs npm has a read-only token. No `${{ }}` expression is interpolated into a shell script.
-- The update cycle is the worker (`run-once --force`): same lock, bookkeeping (`job_runs`) and auth purge as
-  on the local machine. If it reports failures (for example the source site is down) the state is still
+- The update cycle is the worker (`run-once`, with `--force` only when the plan says so): same lock,
+  bookkeeping (`job_runs`) and auth purge as on the local machine. If it reports failures (for example the source site is down) the state is still
   saved and whatever the database holds is still exported (`meta.last_job.status` says `partial`); the run
   is then marked failed at the very end so GitHub notifies the owner.
 - **Audit branch `data`:** holds only `README.md` and `data/{meta,board,results,track}.json`. One commit per
   run **only when a file changed** (`--meta changed`), author `github-actions[bot]`, plain `git push`
   (never forced; the step refuses any other file). Git history with GitHub's push times is the public proof
   of what was predicted before kick-off. The deployed site gets the same files with a fresh `built_at`.
+- `watchdog.yml` (hourly at :43; `contents: read`, `actions: write`): the second, independent schedule;
+  see "Triggers".
 - `ci.yml` (push to `main` / `master`, pull requests; read-only token): `pytest -m "not a11y"` (includes the
   export contract, schema, privacy and verifier tests), an optional non-blocking Playwright a11y job, and
   frontend lint / unit tests / build when `frontend/package.json` exists.
 - The frontend is built with Vite's relative base (`./`, hash routing), so the same build works under
   `https://<user>.github.io/<repo>/` and on a custom domain; nothing in the workflow depends on the URL.
+
+### Triggers: publishing without anyone clicking (2026-10-13)
+
+Observed on the first day: the 3-hourly `schedule` (`23 */3`) did not fire for eight hours, and a code push
+did not reach the site until the workflow was started by hand. Over the first 24 h (GitHub API, 2026-10-14)
+only 3 of 8 slots ran, each about 90 min late (created 16:59, 22:51, 05:01 UTC for the 15:23, 21:23 and
+03:23 slots). GitHub documents the scheduler as best effort
+("can be delayed during periods of high loads ... some queued jobs may be dropped", worst at the start of
+the hour). The design now assumes that any single trigger can be missing:
+
+1. **Many cheap schedule slots.** `update.yml` has a slot every hour at two odd minutes (`13 */2`,
+   `17 1-23/2`, UTC). A dropped slot costs an hour instead of three. A scheduled run is never forced: the
+   worker's own rules (above; on the runner: interval 2.5 h, minimum gap 90 min, all in UTC) decide.
+   Result with every slot firing: a full update every third slot (~3 h) when nothing is due, at the second
+   slot (~2 h) when something is (results, odds, new day, calendars); at most 12 a day.
+2. **Push to `main`** for the paths in `shots.worker.ci.push_paths()` (`src/`, `migrations/`, `calendars/`,
+   `requirements.lock`, `pyproject.toml`, `update.yml`, `frontend/`, the data-branch README). Documentation,
+   tests and reports do not start it. Commits to the `data` branch cannot: other branch, and events caused
+   by `GITHUB_TOKEN` do not start workflows.
+3. **Watchdog** (`watchdog.yml`, hourly at :43, rules in `shots/worker/watchdog.py`, standard library only):
+   if no run of `update.yml` was created in the last 50 min (and none is active) it starts one with
+   `gh workflow run update.yml -f force=false`; if runs happen but the site's `data/meta.json` `built_at`
+   is older than 12 h it starts a forced one, at most once per 6 h. `workflow_dispatch` is one of the two
+   events that do start a run when sent with `GITHUB_TOKEN` (GitHub docs, "Triggering a workflow from a
+   workflow": "`workflow_dispatch` and `repository_dispatch` events always create workflow runs"). The
+   site URL is `https://<owner>.github.io/<repo>`; set the repository variable `SITE_URL` for a custom domain.
+   It is a second schedule of the same scheduler: it protects against dropped slots, not against an
+   outage of GitHub Actions scheduling as a whole (for that: the external fallback below).
+4. **Manual** `workflow_dispatch`: forced by default; the input `force=false` makes it behave like a
+   scheduled run (used by the watchdog and by an external cron).
+
+`python -m shots.worker.ci plan` (step "Plan this run", read-only, after the state is restored and
+guarded) turns the trigger into four outputs; `ci publish` decides the deployment after the export:
+
+| trigger | update cycle | site build + deploy |
+|---|---|---|
+| `schedule`, nothing due | no: the run ends after the plan (about a minute); no cache saved or deleted, no export, no commit | no |
+| `schedule`, something due or interval reached | `run-once` (not forced) | only if the export changed (= a `data` commit), or the last deployment is >= 5 h old (heartbeat) |
+| `push`, pipeline files changed (or the changed files cannot be listed) | `run-once --force` | always |
+| `push`, only `frontend/` or the data-branch README | only if due | always (same data, fresh `built_at`) |
+| `workflow_dispatch` (default `force=true`) | `run-once --force` | always |
+| `workflow_dispatch` with `force=false` (watchdog, external cron) | as `schedule` | as `schedule` |
+| any unforced run, when the newest Pages deployment failed or was built from another commit than `main` ("catch-up") | as `schedule` | always |
+
+- **Catch-up.** The concurrency group lets one run wait behind the running one; a newer waiting run
+  replaces it (GitHub cancels the older pending run). A push that arrives during an update can therefore
+  lose its run to the next scheduled slot. The plan reads the newest `github-pages` deployment (REST
+  `deployments` + its latest status; token permission `deployments: read`) and deploys whenever it is not
+  a success for the current commit. A documentation-only commit also moves `main`, so the next slot
+  rebuilds the site once (a build, not an update). If the API cannot be read the check is skipped.
+- **Heartbeat.** Skipping the deployment when nothing changed would let `built_at` on the site grow old
+  in a quiet week and trip the staleness warning although the pipeline is fine. So an update with an
+  unchanged export still deploys when the last deployment is >= 5 h old (`ci.HEARTBEAT`): while the
+  pipeline is healthy `built_at` is at most about 6 h old (plus dropped slots).
+- **Nothing else changed:** concurrency group, state guard, `db-check`, state saved before anything is
+  published, append-only `data` branch, token only in the steps that need it.
+
+**Freshness on the site.** `meta.json` already carries what a warning needs: `built_at` (time of the
+deployed export) and `last_job` (`status`, `finished_at`). The frontend warns after 48 h
+(`STALE_HOURS`). With the heartbeat a healthy site is never older than about 6 h, so 12 h is a safe,
+much tighter threshold (two missed full cycles); the watchdog uses the same 12 h for its forced run.
+
+**Usage (public repository: standard runners are free; still kept modest).** Measured before the change:
+cold run 14 min, warm run 2.5 min for the three jobs. Not yet measured: the no-op run (checkout, cached
+`pip install`, state restore, plan), expected around one minute. Per day: 24 slots of which 8-12 are full
+updates (2-3 min billed) and 12-16 no-ops (1 min), 4-8 site builds + deployments (2 jobs, 1 min each
+billed), 24 watchdog runs (seconds, billed 1 min). Roughly 70-90 billed minutes a day, 2,000-2,700 a month
+(before: 8 x ~5 = 40 a day, 1,200 a month). If the repository ever became private that would exceed the
+2,000 free minutes: halve the watchdog (`43 */2 * * *`) and the slots first. Database growth follows the
+number of full updates (8-12 board runs a day instead of 8).
+
+**Cache churn.** Only a run whose update cycle ran saves a state cache (new key) and prunes old ones;
+a no-op run only reads the newest state cache, which also keeps it from expiring. The past-seasons,
+current-season and model caches are now restored only by full updates (several a day, far inside the
+7-day eviction window). `setup-python`'s pip cache is written only when `requirements.lock` changes.
+
+**Not verifiable locally, to check on the first runs after the merge:** that the new slots fire at all;
+the duration of a no-op run; `deployments: read` and the shape of the two API answers under
+`GITHUB_TOKEN` (the same public endpoints were read without a token on 2026-10-13 and match the tests);
+that `gh workflow run` from the watchdog starts a run (documented, see above); `git fetch` of
+`github.event.before` in the plan step (falls back to "pipeline changed"). The step summary of every run
+prints the plan and the deploy decision.
+
+#### Optional external fallback (5 minutes, free, set up by the owner)
+
+If GitHub's scheduler stays unreliable, an external cron service can start the workflow through the REST
+API. Nothing in the repository depends on it.
+
+1. GitHub -> Settings -> Developer settings -> Personal access tokens -> **Fine-grained tokens** ->
+   Generate new token. Resource owner: your account. Repository access: **Only select repositories** ->
+   `freeshots`. Permissions -> Repository permissions -> **Actions: Read and write** (Metadata: read-only
+   is added automatically); nothing else. Set an expiry (a year at most) and a reminder to renew it.
+2. In a free cron service that can send a POST with custom headers and a body (for example cron-job.org),
+   create a job, every hour at minute 50 (or every 30 minutes):
+   - URL: `https://api.github.com/repos/godfather68/freeshots/actions/workflows/update.yml/dispatches`
+   - Method: `POST`; body: `{"ref":"main","inputs":{"force":"false"}}`
+   - Headers: `Authorization: Bearer <the token>`, `Accept: application/vnd.github+json`,
+     `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
+   - Expected answer: HTTP 204 (no body). Turn on the service's failure notification.
+3. Test once from a terminal (the run appears under Actions as "manually triggered"; with `force=false`
+   it does nothing unless something is due):
+   `curl -i -X POST -H "Authorization: Bearer <the token>" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/godfather68/freeshots/actions/workflows/update.yml/dispatches -d '{"ref":"main","inputs":{"force":"false"}}'`
+
+The token is stored at the cron service. It cannot read or push code or read secrets, but "Actions: write"
+also allows cancelling runs and deleting Actions caches, which hold the live record: use a service you
+trust, and revoke the token (same settings page) if in doubt. Extra calls are harmless: one run at a
+time, and an unforced run that finds nothing due ends after the plan.
 
 ### Linux readiness (checked on Ubuntu 24.04, Python 3.12.3, 2026-10-12)
 
@@ -699,16 +831,16 @@ UI; readable by workflows of this repository). `python -m shots.worker.ci keys` 
 | cache | key | contents | written |
 |---|---|---|---|
 | past seasons | `shots-fd-past-v1-<season>` | `data/raw/football-data/<1011..previous season>/` (immutable upstream) | once per season, after a successful update |
-| current season | `shots-fd-current-v1-<season>-<run>` | `data/raw/football-data/<season>/` with ETags (conditional requests: an unchanged file costs a 304) | every run; 2 kept |
-| **state** | `shots-state-v1-<run id>-<attempt>` | `data/shots.db` (WAL checkpointed into the one file), `data/raw/football-data/fixtures/` (newest 3), `data/processed/matches.parquet`, `data/processed/track_backfill.parquet` | every run; 5 kept |
+| current season | `shots-fd-current-v1-<season>-<run>` | `data/raw/football-data/<season>/` with ETags (conditional requests: an unchanged file costs a 304) | every run whose update cycle ran; 2 kept |
+| **state** | `shots-state-v1-<run id>-<attempt>` | `data/shots.db` (WAL checkpointed into the one file), `data/raw/football-data/fixtures/` (newest 3), `data/processed/matches.parquet`, `data/processed/track_backfill.parquet` | every run whose update cycle ran (never by a run that found nothing due); 5 kept |
 | models | `shots-models-v1-py312-<lock hash>-<models hash>` | `models_store/` (pickles: valid only for the exact packages) | when retrained (missing, older than 30 days, or the lock changed) |
 
 Caches are immutable, so state is saved under a new key each run and restored by prefix (newest wins); older
 ones are deleted (`gh cache delete`), leaving five generations to fall back on by hand. The state path list
 is constant on purpose: a cache is only restored by the exact path list that saved it, so a season-dependent
 path would orphan the database every July (`tests/test_worker_ci.py`). GitHub evicts caches not read for 7
-days and caps a repository at 10 GB: every cache above is read every 3 hours and the total stays well under
-1 GB (database ~45 MB uncompressed today, +0.3-0.6 GB per season).
+days and caps a repository at 10 GB: the state cache is read by every run (hourly), the others by every full
+update (about every 3 hours), and the total stays well under 1 GB (database ~45 MB uncompressed today, +0.3-0.6 GB per season).
 
 Everything else is rebuilt: `features.parquet` every run, the fixtures from the committed `calendars/*.ics`.
 A cold start (no cache at all) downloads ~374 season files with the usual 1.5 s delay (~10 min), trains both
@@ -760,8 +892,9 @@ public repository those are public).
 - [ ] Protect the `data` branch with a ruleset: block force pushes and deletions (the workflow never needs
       either).
 - [ ] GitHub disables scheduled workflows after 60 days without repository activity and may delay or skip
-      scheduled runs under load; commits to the `data` branch count as activity. If the schedule is ever
-      off for more than 7 days the caches expire (see Recovery).
+      scheduled runs under load (see "Triggers": hourly slots, watchdog, optional external cron); commits
+      to the `data` branch count as activity. If the schedule is ever off for more than 7 days the caches
+      expire (see Recovery).
 
 ## Before going public
 

@@ -1,0 +1,82 @@
+# Second, independent trigger for update.yml. GitHub's scheduler is best effort: a slot of update.yml can
+# be dropped. This workflow has its own schedule (another minute of the hour), looks at the recent runs of
+# update.yml and starts one when a slot was missed (rules and thresholds: src/shots/worker/watchdog.py,
+# tested in tests/test_worker_watchdog.py; design: docs/platform.md, "Stage 1", "Triggers").
+#
+# A run started here uses workflow_dispatch with force=false, so it behaves exactly like a scheduled run.
+# workflow_dispatch is one of the two events that do start a workflow when sent with GITHUB_TOKEN.
+# No secrets, no install: one sparse checkout, the runner's Python, the preinstalled gh.
+name: Watchdog
+
+on:
+  schedule:
+    - cron: "43 * * * *"  # every hour at :43 UTC, about half an hour after each slot of update.yml
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: shots-watchdog
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Start the update if the schedule missed it
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read  # check out the one script
+      actions: write  # list the runs of update.yml and start one (workflow_dispatch)
+    steps:
+      - name: Check out the watchdog script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: src/shots/worker/watchdog.py
+          sparse-checkout-cone-mode: false
+
+      - name: Look at the recent update runs and the site
+        id: look
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SITE_URL: ${{ vars.SITE_URL }}  # optional repository variable (custom domain); default: github.io
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          gh run list --workflow update.yml --limit 30 --json status,conclusion,createdAt,event > "$RUNNER_TEMP/runs.json"
+          if [ -z "$SITE_URL" ]; then
+            SITE_URL="https://$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]').github.io/${GH_REPO#*/}"
+          fi
+          # What visitors get. Unreachable or not JSON = age unknown: the script then ignores the site.
+          rm -f "$RUNNER_TEMP/site-meta.json"
+          curl --silent --show-error --fail --location --max-time 30 \
+            "${SITE_URL%/}/data/meta.json?watchdog=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/site-meta.json" \
+            || echo "::notice::could not fetch ${SITE_URL%/}/data/meta.json: site age unknown"
+          python3 src/shots/worker/watchdog.py --runs "$RUNNER_TEMP/runs.json" \
+            --site-meta "$RUNNER_TEMP/site-meta.json" > "$RUNNER_TEMP/decision.txt"
+          cat "$RUNNER_TEMP/decision.txt"
+          cat "$RUNNER_TEMP/decision.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Start the update workflow
+        if: ${{ steps.look.outputs.dispatch == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FORCE: ${{ steps.look.outputs.force }}
+          REASON: ${{ steps.look.outputs.reason }}
+        run: |
+          echo "::warning::Watchdog starts update.yml (force=$FORCE): $REASON"
+          gh workflow run update.yml -f "force=$FORCE"
+
+      - name: Summary
+        if: ${{ always() }}
+        env:
+          DISPATCH: ${{ steps.look.outputs.dispatch }}
+          FORCE: ${{ steps.look.outputs.force }}
+          REASON: ${{ steps.look.outputs.reason }}
+        run: |
+          {
+            echo "### Watchdog"
+            echo "- started update.yml: \`${DISPATCH:-no decision}\` (force: \`${FORCE:-false}\`)"
+            echo "- ${REASON:-the check itself failed, see the log}"
+          } >> "$GITHUB_STEP_SUMMARY"

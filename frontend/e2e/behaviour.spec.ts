@@ -49,9 +49,10 @@ test('missing data shows a friendly error', async ({ page }) => {
 
 test('no panel layout shift on desktop', async ({ page }) => {
   await boot(page)
-  const before = await page.locator('.g-list').boundingBox()
+  // Compare in document coordinates: clicking a row may scroll it into view, which is not a layout shift.
+  const box = () => page.locator('.g-list').evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y + window.scrollY, width: r.width, height: r.height } })
+  const before = await box()
   await page.locator('a.mlink').first().click()
   await expect(page.locator('#panel-h')).toBeVisible()
-  const after = await page.locator('.g-list').boundingBox()
-  expect(after).toEqual(before)
+  expect(await box()).toEqual(before)
 })

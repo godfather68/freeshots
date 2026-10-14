@@ -4,6 +4,7 @@ import { useApp } from '../lib/app'
 import { countLabel, filterItems, groupByLeague, sortItems, shiftDay } from '../lib/items'
 import type { Filters } from '../lib/items'
 import { dayLong, dayNum, dayShort } from '../lib/format'
+import { offsetLabel } from '../lib/time'
 import { collapsedStore, favouritesStore, toggleIn } from '../lib/storage'
 import { CHIPS, SORTS, TABS } from '../lib/url'
 import type { Chip, ListTab, Sort } from '../lib/url'
@@ -13,6 +14,21 @@ import { Help, LeagueIcon, Stepper, Tabs, leagueStyle, useStore } from './ui'
 const CHIP_LABEL: Record<Chip, string> = { all: 'All', p70: '70%+', odds: 'With odds', done: 'Finished' }
 const SORT_LABEL: Record<Sort, string> = { time: 'Kick-off time', prob: 'Highest chance', above: 'Most above league average' }
 const TAB_LABEL: Record<ListTab, string> = { all: 'All', fav: 'Favourites', leagues: 'Leagues' }
+
+function ZoneBar({ at }: { at: number }) {
+  const { zone, timeMode, setTimeMode } = useApp()
+  return (
+    <div className="zonebar">
+      <p id="zone-note">
+        {timeMode === 'mine' ? <>Times in <b>{zone.replace(/_/g, ' ')}</b> ({offsetLabel(at, zone)})</> : <>Times at each venue (local to the home club)</>}
+      </p>
+      <div role="group" aria-label="Show kick-off times in" className="zonetoggle">
+        <button type="button" className="chip" aria-pressed={timeMode === 'mine'} onClick={() => setTimeMode('mine')}>My time</button>
+        <button type="button" className="chip" aria-pressed={timeMode === 'venue'} onClick={() => setTimeMode('venue')}>Venue time</button>
+      </div>
+    </div>
+  )
+}
 
 export function ListColumn() {
   const { ds, items, days, date, today, state, set, href, totalStart } = useApp()
@@ -98,6 +114,7 @@ export function ListColumn() {
               <button type="button" className="sq" aria-label="Next day" disabled={!next} onClick={() => next && set({ date: next }, { replace: true })}>&rsaquo;</button>
               <button type="button" className="quiet" disabled={state.date === null} onClick={() => set({ date: null }, { replace: true })}>Today</button>
             </div>
+            <ZoneBar at={items.find((i) => i.date === date && i.utc !== null)?.utc ?? Date.now()} />
             <nav aria-label="Pick a day" className="strip" ref={stripRef}>
               {days.map((d) => (
                 <a key={d} href={href({ date: d })} aria-current={d === date ? 'date' : undefined} className={d === today ? 'istoday' : ''}

@@ -2,22 +2,28 @@
 import { probAt } from './curve'
 import type { Dataset, Item, League } from './types'
 import type { Chip, Sort } from './url'
+import { kickoffView } from './time'
+import type { TimeMode } from './time'
 
-export function buildItems(ds: Pick<Dataset, 'meta' | 'board' | 'results'>): Item[] {
+export interface TimeView { zone: string; mode: TimeMode }
+
+/** Without a `view`, times are the venue's own (the published `date` and `kickoff_local`). */
+export function buildItems(ds: Pick<Dataset, 'meta' | 'board' | 'results'>, view: TimeView = { zone: 'UTC', mode: 'venue' }): Item[] {
   const items: Item[] = []
   const seen = new Set<string>()
   for (const r of ds.results?.results ?? []) {
     seen.add(r.id)
     items.push({
-      id: r.id, league: r.league, date: r.date, time: null, home: r.home, away: r.away,
+      id: r.id, league: r.league, date: r.date, time: null, venueTime: false, utc: null, venueDate: r.date, venueClock: null, home: r.home, away: r.away,
       expected: r.expected, curve: r.curve, lb: r.lb, odds: r.odds, coldStart: false, experimental: false, dataQuality: 'full',
       aboveLeague: null, teamExpected: null, finished: true, actual: r.actual, fixture: null, result: r,
     })
   }
   for (const f of ds.board.fixtures) {
     if (seen.has(f.id)) continue
+    const k = kickoffView(f, view.zone, view.mode)
     items.push({
-      id: f.id, league: f.league, date: f.date, time: f.kickoff_local, home: f.home, away: f.away,
+      id: f.id, league: f.league, date: k.date, time: k.time, venueTime: k.venueTime, utc: k.utc, venueDate: k.venueDate, venueClock: k.venueClock, home: f.home, away: f.away,
       expected: f.expected, curve: f.curve, lb: f.lb, odds: f.odds, coldStart: f.cold_start,
       experimental: f.experimental === true, dataQuality: f.data_quality ?? 'full',
       aboveLeague: f.above_league,
@@ -29,8 +35,9 @@ export function buildItems(ds: Pick<Dataset, 'meta' | 'board' | 'results'>): Ite
 }
 
 /** Every date we can show: upcoming days from meta plus dates of finished matches. Sorted ascending. */
-export function availableDays(meta: Pick<Dataset['meta'], 'days'>, items: Item[]): string[] {
-  const s = new Set<string>(meta.days)
+export function availableDays(meta: Pick<Dataset['meta'], 'days'>, items: Item[], includeMeta = true): string[] {
+  // meta.days are venue dates: only valid as-is when times are shown at the venue.
+  const s = new Set<string>(includeMeta ? meta.days : [])
   for (const it of items) s.add(it.date)
   return [...s].sort()
 }
@@ -83,11 +90,15 @@ export function filterItems(items: Item[], f: Filters): Item[] {
   })
 }
 
+/** Kick-off order: the UTC instant when both are known, else the displayed clock time. */
+export const byKick = (a: Item, b: Item): number =>
+  a.utc !== null && b.utc !== null ? a.utc - b.utc : (a.time ?? '').localeCompare(b.time ?? '')
+
 export function sortItems(items: Item[], sort: Sort, n: number, totalStart: number): Item[] {
   const byTime = (a: Item, b: Item) =>
     a.date.localeCompare(b.date) ||
     Number(a.finished) - Number(b.finished) ||
-    (a.time ?? '').localeCompare(b.time ?? '') ||
+    byKick(a, b) ||
     a.home.localeCompare(b.home)
   const out = [...items]
   if (sort === 'prob') {
@@ -119,7 +130,7 @@ export function groupByLeague(items: Item[], leagues: League[]): Group[] {
 }
 
 const byChance = (n: number, totalStart: number) => (a: Item, b: Item) =>
-  (itemProb(b, n, totalStart) ?? 0) - (itemProb(a, n, totalStart) ?? 0) || (a.time ?? '').localeCompare(b.time ?? '')
+  (itemProb(b, n, totalStart) ?? 0) - (itemProb(a, n, totalStart) ?? 0) || byKick(a, b)
 
 /** Upcoming fixtures on a day with a probability at n, best first. */
 function dayCandidates(items: Item[], date: string, n: number, totalStart: number): Item[] {
