@@ -53,8 +53,9 @@ class Team(Base):
 class Match(Base):
     """Every match we know of, played or upcoming (one row per canonical match_id).
 
-    status: "played" (result row from matches.parquet), "scheduled" (listed as an upcoming
-    fixture), "unlisted" (was a fixture, no longer listed by any fixture source, e.g. postponed)."""
+    status: "played" (result row from matches.parquet, or a manual result: source "manual", migration
+    0006), "scheduled" (listed as an upcoming fixture), "unlisted" (was a fixture, no longer listed by any
+    fixture source, e.g. postponed)."""
     __tablename__ = "matches"
     match_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     source: Mapped[str] = mapped_column(String(32))
@@ -92,6 +93,57 @@ class Match(Base):
         Index("ix_matches_status_date", "status", "date"),
         Index("ix_matches_home_team", "home_team_id"),
         Index("ix_matches_away_team", "away_team_id"),
+    )
+
+
+class ManualResult(Base):
+    """Migration 0006: a result entered by hand (results_manual/*.csv) for a match of a competition with no
+    automatic results source (cross-border competitions). The values are also written to the `matches`
+    row (status 'played', source 'manual'), which is what outcomes are derived from; this row keeps what
+    `matches` cannot: the provider URL, when it was entered, notes, and the match's source / status before
+    it was settled (restored if the CSV row is removed). Not append-only: corrections update it, and every
+    change is recorded in manual_result_edits. Triggers keep it off domestic / football-data matches."""
+    __tablename__ = "manual_results"
+    match_id: Mapped[str] = mapped_column(ForeignKey("matches.match_id"), primary_key=True)
+    file: Mapped[str] = mapped_column(String(120))
+    home_shots: Mapped[int] = mapped_column(Integer)
+    away_shots: Mapped[int] = mapped_column(Integer)
+    home_goals: Mapped[int] = mapped_column(Integer)
+    away_goals: Mapped[int] = mapped_column(Integer)
+    home_sot: Mapped[int | None] = mapped_column(Integer)
+    away_sot: Mapped[int | None] = mapped_column(Integer)
+    source_url: Mapped[str] = mapped_column(Text)
+    entered_at: Mapped[datetime] = mapped_column(DateTime)  # UTC, as stated in the CSV
+    notes: Mapped[str | None] = mapped_column(Text)
+    prev_source: Mapped[str] = mapped_column(String(32))
+    prev_status: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        CheckConstraint("home_shots >= 0 AND away_shots >= 0 AND home_goals >= 0 AND away_goals >= 0",
+                        name="ck_manual_results_non_negative"),
+        CheckConstraint("(home_sot IS NULL OR (home_sot >= 0 AND home_sot <= home_shots)) AND "
+                        "(away_sot IS NULL OR (away_sot >= 0 AND away_sot <= away_shots))",
+                        name="ck_manual_results_sot"),
+    )
+
+
+class ManualResultEdit(Base):
+    """Audit trail of manual results (append-only: triggers forbid UPDATE and DELETE). action: insert |
+    update | delete; changes: {column: [old, new]} (only the columns that changed)."""
+    __tablename__ = "manual_result_edits"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    match_id: Mapped[str] = mapped_column(ForeignKey("matches.match_id"))
+    action: Mapped[str] = mapped_column(String(8))
+    changes: Mapped[dict] = mapped_column(JSON)
+    file: Mapped[str] = mapped_column(String(120))
+    entered_at: Mapped[datetime | None] = mapped_column(DateTime)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        CheckConstraint("action IN ('insert', 'update', 'delete')", name="ck_manual_result_edits_action"),
+        Index("ix_manual_result_edits_match", "match_id", "recorded_at"),
     )
 
 

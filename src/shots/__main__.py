@@ -2,6 +2,7 @@
 
 Usage:
     python -m shots update            # results -> calendars -> picks -> UI board -> track record -> database
+                                      # (incl. manual results of competitions without a source)
     python -m shots update --days 14  # board window (default 30 days)
     python -m shots update --export-dir site/data   # then write the static JSON export (docs/static-api.md)
 
@@ -87,6 +88,8 @@ def update(days: int = 30, shots: int = 24, min_prob: float = 0.70, export_dir: 
         ("board", f"rebuild the UI board ({days} days)", lambda: board.build(days=days, refresh=False)),
         ("track", "settle picks and rebuild the dashboard", lambda: track.build_dashboard(min_prob)),
         ("db", "load results and fixtures into the database", db_step("db", dbload.sync_results)),
+        ("db-manual", "load hand-entered results (results_manual/*.csv)",
+         db_step("db-manual", dbload.sync_manual_results)),
         ("db-board", "record the board as a prediction run", db_step("db-board", dbload.import_board_file)),
         ("db-picks", "record picks scans and the backfill; outcomes", db_step("db-picks", dbload.sync_predictions)),
     ]

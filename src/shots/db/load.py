@@ -5,6 +5,7 @@
     import_board(engine, board_df, meta)          one prediction run from the UI board
     import_picks_file / import_picks_dir          one picks run per scan CSV in reports/picks/
     import_backfill(engine, backfill_df)          the out-of-sample season replay as a run
+    sync_manual_results(engine)                   hand-entered results (results_manual/*.csv; shots.db.manual)
     sync_all(engine)                              all of the above from the default file locations
 
 Predictions are only ever inserted (append-only, enforced by DB triggers). Outcomes are not copied:
@@ -709,7 +710,7 @@ def incremental_since(engine: Engine, days: int = 400) -> date | None:
     """Start date for an incremental results upsert: `days` before the latest played match in the DB
     (covers the current and previous season, which football-data may still correct). None = empty DB."""
     with session_scope(engine) as s:
-        last = s.scalar(select(func.max(Match.date)).where(Match.status == "played"))
+        last = s.scalar(select(func.max(Match.date)).where(Match.status == "played", Match.source != "manual"))
     return None if last is None else last - pd.Timedelta(days=days).to_pytimedelta()
 
 
@@ -721,6 +722,15 @@ def sync_results(engine: Engine, today: date | None = None, full: bool = False) 
         out["matches"] = upsert_matches(engine, pd.read_parquet(MATCHES_PATH), since)
     out["fixtures"] = upsert_fixtures(engine, read_fixtures(today), today)
     return out
+
+
+def sync_manual_results(engine: Engine, directory: Path | None = None) -> dict:
+    """Manual results of competitions without an automatic source (shots.db.manual.load_manual_results).
+    Raises shots.ingest.manual_results.ManualResultsError listing every problem (files without problems
+    are still loaded)."""
+    from shots.db.manual import load_manual_results
+
+    return load_manual_results(engine, directory)
 
 
 def sync_predictions(engine: Engine, backfill: bool = True) -> dict:
@@ -742,6 +752,7 @@ def sync_all(target=None, today: date | None = None, full: bool = False) -> dict
     try:
         migrate.upgrade(engine)
         out = sync_results(engine, today, full)
+        out["manual"] = sync_manual_results(engine)
         out["board"] = import_board_file(engine)
         out.update(sync_predictions(engine))
         return out

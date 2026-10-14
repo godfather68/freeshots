@@ -758,7 +758,195 @@
       }
      ]
     }
-   }
+   },
+   "daily": [
+    {
+     "date": "2026-10-09",
+     "matches": 8,
+     "mae": 5.0,
+     "bias": 1.5,
+     "floor80_held": 0.625,
+     "by_n": {
+      "24": {
+       "picks": 6,
+       "hits": 3
+      }
+     }
+    },
+    {
+     "date": "2026-10-10",
+     "matches": 53,
+     "mae": 4.77,
+     "bias": -2.09,
+     "floor80_held": 0.9057,
+     "by_n": {
+      "24": {
+       "picks": 33,
+       "hits": 30
+      }
+     }
+    },
+    {
+     "date": "2026-10-11",
+     "matches": 34,
+     "mae": 4.79,
+     "bias": 0.09,
+     "floor80_held": 0.8529,
+     "by_n": {
+      "24": {
+       "picks": 21,
+       "hits": 18
+      }
+     }
+    },
+    {
+     "date": "2026-10-12",
+     "matches": 9,
+     "mae": 5.11,
+     "bias": -4.22,
+     "floor80_held": 1.0,
+     "by_n": {
+      "24": {
+       "picks": 5,
+       "hits": 5
+      }
+     }
+    }
+   ],
+   "weekly": [
+    {
+     "date": "2026-10-05",
+     "matches": 95,
+     "mae": 4.8,
+     "bias": -1.01,
+     "floor80_held": 0.8632,
+     "by_n": {
+      "24": {
+       "picks": 60,
+       "hits": 51
+      }
+     }
+    },
+    {
+     "date": "2026-10-12",
+     "matches": 9,
+     "mae": 5.11,
+     "bias": -4.22,
+     "floor80_held": 1.0,
+     "by_n": {
+      "24": {
+       "picks": 5,
+       "hits": 5
+      }
+     }
+    }
+   ]
+  },
+  "experimental": {
+   "label": "Champions League (experimental, manual results)",
+   "settled": 9,
+   "pending": 27,
+   "void": 0,
+   "by_n": {
+    "24": {
+     "selected_min_prob": 0.7,
+     "n": 7,
+     "hits": 6,
+     "hit_rate": 0.8571,
+     "mean_stated": 0.8017,
+     "wilson95": [
+      0.4869,
+      0.9743
+     ],
+     "brier": 0.1465,
+     "brier_baseline": 0.257,
+     "reliability": [
+      {
+       "band": [
+        0.5,
+        0.6
+       ],
+       "n": 1,
+       "stated": 0.554,
+       "realised": 0.0
+      },
+      {
+       "band": [
+        0.6,
+        0.7
+       ],
+       "n": 1,
+       "stated": 0.622,
+       "realised": 1.0
+      },
+      {
+       "band": [
+        0.7,
+        0.8
+       ],
+       "n": 4,
+       "stated": 0.7517,
+       "realised": 0.75
+      },
+      {
+       "band": [
+        0.8,
+        0.9
+       ],
+       "n": 2,
+       "stated": 0.8405,
+       "realised": 1.0
+      },
+      {
+       "band": [
+        0.9,
+        1.0
+       ],
+       "n": 1,
+       "stated": 0.924,
+       "realised": 1.0
+      }
+     ],
+     "by_league": [
+      {
+       "league": "uefa-champions-league",
+       "n": 7,
+       "hit_rate": 0.8571,
+       "stated": 0.8017
+      }
+     ]
+    }
+   },
+   "daily": [
+    {
+     "date": "2026-10-13",
+     "matches": 9,
+     "mae": 4.67,
+     "bias": -1.78,
+     "floor80_held": 0.8889,
+     "by_n": {
+      "24": {
+       "picks": 7,
+       "hits": 6
+      }
+     }
+    }
+   ],
+   "weekly": [
+    {
+     "date": "2026-10-12",
+     "matches": 9,
+     "mae": 4.67,
+     "bias": -1.78,
+     "floor80_held": 0.8889,
+     "by_n": {
+      "24": {
+       "picks": 7,
+       "hits": 6
+      }
+     }
+    }
+   ]
   }
  }
 }

@@ -13,7 +13,10 @@ difference. Checks:
              odds_used flag equals the fixture's; it equals the explanation stored with the prediction
   board      the fixtures are exactly the latest board run's upcoming rows, value for value, in order
   results    exactly the settled matches of the last 30 days with their last pre-match board prediction
-  track      live counts and per-N selected picks / hits equal v_official_picks and the backfill run
+             (ordinary and experimental), the experimental flag, result_source and the manual source_url
+  track      live / experimental counts and per-N selected picks / hits equal v_official_picks /
+             v_experimental_picks and the backfill run; the daily / weekly accuracy series recomputed
+             from the same per-match predictions as results.json
   meta       thresholds, counts, days, leagues, models, last_job consistent with the above
 
 Exit code 0 = all good, 1 = differences (listed), 2 = cannot run.
@@ -36,6 +39,9 @@ FORBIDDEN_KEY = re.compile(r"odds_|mkt|market|source|goal|sot$|_sot|b365|bookmak
                            re.IGNORECASE)
 RESULT_DAYS = 30
 MIN_PROB = 0.70
+SERIES_POINTS = {"daily": 30, "weekly": 52}
+# the only contract keys that may contain a forbidden word: where a result's actual counts come from
+ALLOWED_PATHS = re.compile(r"^\.results\[\d+\]\.(result_source|source_url)$")
 EXPLAIN_MAX_RESIDUAL_TENTHS = 5  # rounding of up to ten one-decimal parts; anything larger is a bug
 
 
@@ -102,7 +108,8 @@ class Checker:
         for name in NAMES:
             for path, key in walk_keys(self.docs[name]):
                 # the two boolean flags of the contract: a fixture's `odds` and explain.signals.odds_used
-                if key != "odds" and not path.endswith(".explain.signals.odds_used") and FORBIDDEN_KEY.search(key):
+                if (key != "odds" and not path.endswith(".explain.signals.odds_used")
+                        and not (name == "results" and ALLOWED_PATHS.match(path)) and FORBIDDEN_KEY.search(key)):
                     self.fail(f"privacy: {name}.json has key {path}")
         for f in self.docs["board"]["fixtures"] + self.docs["results"]["results"]:
             if not isinstance(f.get("odds"), bool):
@@ -244,24 +251,30 @@ class Checker:
         self.checked["board fixtures"] = len(got)
         return dict(run)
 
-    def results(self) -> None:
-        since = (self.today - timedelta(days=RESULT_DAYS)).isoformat()
+    def settled_board(self) -> dict[str, sqlite3.Row]:
+        """Per settled match dated up to today: its last pre-match board prediction (either flag)."""
         rows = self.q("""
             SELECT p.match_id, p.created_at, p.median, p.lb_70, p.lb_80, p.lb_90, p.odds_available, p.total_curve,
-                   r.id AS run_id, r.built_at, o.date, o.competition, o.actual_total, o.actual_home, o.actual_away,
-                   m.home_team, m.away_team
+                   p.experimental, r.id AS run_id, r.built_at, r.curve_n_min, o.date, o.competition, o.actual_total,
+                   o.actual_home, o.actual_away, m.home_team, m.away_team, mr.source_url, mr.match_id AS manual_id
             FROM v_prediction_outcomes o
             JOIN predictions p ON p.id = o.prediction_id
             JOIN prediction_runs r ON r.id = p.run_id
             JOIN matches m ON m.match_id = p.match_id
+            LEFT JOIN manual_results mr ON mr.match_id = m.match_id
             WHERE o.kind = 'board' AND r.status = 'complete' AND o.pre_match = 1 AND o.status = 'settled'
-              AND p.experimental = 0
-              AND o.date >= ? AND o.date <= ?""", since, self.today.isoformat())
+              AND o.date <= ?""", self.today.isoformat())
         best: dict[str, sqlite3.Row] = {}
         for r in rows:  # the last pre-match board run per match
             b = best.get(r["match_id"])
             if b is None or (r["built_at"], r["run_id"]) > (b["built_at"], b["run_id"]):
                 best[r["match_id"]] = r
+        return best
+
+    def results(self) -> None:
+        since = (self.today - timedelta(days=RESULT_DAYS)).isoformat()
+        self.best = self.settled_board()
+        best = {m: r for m, r in self.best.items() if str(r["date"])[:10] >= since}
         got = {x["id"]: x for x in self.docs["results"]["results"]}
         if len(got) != len(self.docs["results"]["results"]):
             self.fail("results: duplicate ids")
@@ -281,6 +294,13 @@ class Checker:
                     self.fail(f"results: {mid}.{k} differs from the database")
             if not same(x["expected"], r["median"]) or any(not same(x["lb"][qn], r[f"lb_{qn}"]) for qn in ("70", "80", "90")):
                 self.fail(f"results: {mid} expected / lb differ from the database")
+            if x.get("experimental", False) is not bool(r["experimental"]) or x.get("experimental") is False:
+                self.fail(f"results: {mid}.experimental = {x.get('experimental')!r}, database has {bool(r['experimental'])}")
+            manual = r["manual_id"] is not None
+            if x.get("result_source") != ("manual" if manual else "football-data"):
+                self.fail(f"results: {mid}.result_source = {x.get('result_source')!r} differs from the database")
+            if x.get("source_url") != (r["source_url"] if manual else None) or ("source_url" in x and not manual):
+                self.fail(f"results: {mid}.source_url differs from the database")
             if x["actual"]["home"] + x["actual"]["away"] != x["actual"]["total"]:
                 self.fail(f"results: {mid} home + away != total")
         self.checked["results"] = len(got)
@@ -307,14 +327,72 @@ class Checker:
                 self.fail(f"track: {name} N={n}: reliability bands do not add up to the settled rows")
         self.checked[f"track {name} thresholds"] = len(want)
 
+    def _series(self, name: str, block: dict, view: str, experimental: bool) -> None:
+        """daily / weekly accuracy, recomputed here: matches / mae / bias / floor80_held from the per-match
+        predictions of settled_board(), by_n from the settled picks of `view` (keys = its thresholds)."""
+        best = self.best if hasattr(self, "best") else self.settled_board()
+        rows = [r for r in best.values() if bool(r["experimental"]) is experimental]
+        picks = self.q(f"SELECT date, n, p, hit FROM {view} WHERE status = 'settled' AND date <= ?",
+                       self.today.isoformat())
+        ns = sorted({int(r["n"]) for r in self.q(f"SELECT DISTINCT n FROM {view} WHERE status = 'settled'")})
+        for period, limit in SERIES_POINTS.items():
+            def key_of(day) -> str:
+                d = date.fromisoformat(str(day)[:10])
+                return (d if period == "daily" else d - timedelta(days=d.weekday())).isoformat()
+            groups: dict[str, list] = {}
+            pgroups: dict[str, list] = {}
+            for r in rows:
+                groups.setdefault(key_of(r["date"]), []).append(r)
+            for r in picks:
+                pgroups.setdefault(key_of(r["date"]), []).append(r)
+            want = []
+            for key in sorted(set(groups) | set(pgroups))[-limit:]:
+                g = groups.get(key, [])
+                errs = [(r["actual_total"], r["median"]) for r in g if r["median"] is not None]
+                floor = [r["actual_total"] >= r["lb_80"] for r in g if r["lb_80"] is not None]
+                by_n = {}
+                for n in ns:
+                    sel = [bool(r["hit"]) for r in pgroups.get(key, []) if int(r["n"]) == n and r["p"] >= MIN_PROB]
+                    by_n[str(n)] = {"picks": len(sel), "hits": sum(sel)}
+                want.append({"date": key, "matches": len(g),
+                             "mae": round(sum(abs(a - e) for a, e in errs) / len(errs), 2) if errs else None,
+                             "bias": round(sum(e - a for a, e in errs) / len(errs), 2) if errs else None,
+                             "floor80_held": round(sum(floor) / len(floor), 4) if floor else None, "by_n": by_n})
+            got = block.get(period)
+            if got is None:
+                self.fail(f"track: {name}.{period} is missing")
+                continue
+            if [x["date"] for x in got] != [x["date"] for x in want]:
+                self.fail(f"track: {name}.{period} dates {[x['date'] for x in got][-5:]} != database "
+                          f"{[x['date'] for x in want][-5:]}")
+                continue
+            for g_, w in zip(got, want):
+                for k in ("matches", "by_n"):
+                    if g_[k] != w[k]:
+                        self.fail(f"track: {name}.{period} {w['date']}.{k} = {g_[k]!r}, database gives {w[k]!r}")
+                for k in ("mae", "bias", "floor80_held"):
+                    if not same(g_[k], w[k]):
+                        self.fail(f"track: {name}.{period} {w['date']}.{k} = {g_[k]!r}, database gives {w[k]!r}")
+            self.checked[f"track {name} {period}"] = len(want)
+
+    def _picks(self, name: str, view: str, block: dict | None) -> None:
+        if block is None:
+            self.fail(f"track: records.{name} is missing")
+            return
+        rows = self.q(f"SELECT n, p, status, hit FROM {view}")
+        counts = {s: sum(1 for r in rows if r["status"] == s) for s in ("settled", "pending", "void")}
+        for s, k in counts.items():
+            if block.get(s, 0) != k:
+                self.fail(f"track: {name}.{s} = {block.get(s)}, {view} has {k}")
+        self._headline(name, block["by_n"], [(r["n"], r["p"], r["hit"]) for r in rows if r["status"] == "settled"])
+
     def track(self) -> None:
         rec = self.docs["track"]["records"]
-        live = self.q("SELECT n, p, status, hit FROM v_official_picks")
-        counts = {s: sum(1 for r in live if r["status"] == s) for s in ("settled", "pending", "void")}
-        for s, k in counts.items():
-            if rec["live"].get(s, 0) != k:
-                self.fail(f"track: live.{s} = {rec['live'].get(s)}, v_official_picks has {k}")
-        self._headline("live", rec["live"]["by_n"], [(r["n"], r["p"], r["hit"]) for r in live if r["status"] == "settled"])
+        self._picks("live", "v_official_picks", rec["live"])
+        self._series("live", rec["live"], "v_official_picks", False)
+        self._picks("experimental", "v_experimental_picks", rec.get("experimental"))
+        if rec.get("experimental") is not None:
+            self._series("experimental", rec["experimental"], "v_experimental_picks", True)
         run = self.q("SELECT id FROM prediction_runs WHERE kind = 'backfill' AND status = 'complete' "
                      "ORDER BY built_at DESC, id DESC LIMIT 1")
         back = []
@@ -357,10 +435,13 @@ class Checker:
         for f in fixtures:
             per[f["league"]] = per.get(f["league"], 0) + 1
         exp_only = {lid for lid in per if all(f.get("experimental") for f in fixtures if f["league"] == lid)}
+        # a league with an ordinary fixture or result anywhere can never be featured
+        ordinary = ({f["league"] for f in fixtures if not f.get("experimental")}
+                    | {x["league"] for x in self.docs["results"]["results"] if not x.get("experimental")})
         listed = {x["id"]: x for x in meta["leagues"]}
         used = set(per) | {x["league"] for x in self.docs["results"]["results"]}
         rec = self.docs["track"]["records"]
-        for block in (rec["backfill"], rec["live"]):
+        for block in (rec["backfill"], rec["live"], rec.get("experimental")):
             for e in ((block or {}).get("by_n") or {}).values():
                 used |= {x["league"] for x in e["by_league"]}
         if used - set(listed):
@@ -375,7 +456,7 @@ class Checker:
                 self.fail(f"meta: league {lid} fixtures {x['fixtures']} != board.json {per.get(lid, 0)}")
             # featured = a competition without a football-data division code whose board fixtures are all
             # experimental (the cross-border competitions); the flag is `true` or absent, never false
-            if "featured" in x and (x["featured"] is not True or lid not in exp_only or (c is not None and c["code"])):
+            if "featured" in x and (x["featured"] is not True or lid in ordinary or (c is not None and c["code"])):
                 self.fail(f"meta: league {lid} is marked featured but is not an experimental-only competition")
             if lid in exp_only and c is not None and not c["code"] and "featured" not in x:
                 self.fail(f"meta: league {lid} holds only experimental fixtures but is not marked featured")

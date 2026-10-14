@@ -266,14 +266,16 @@ class Repository:
         """source 'live': official picks (per match and N the last live scan on or before match day
         that was made and inserted before kick-off), columns match_id, date, competition, n, p, status
         (settled | pending | void), actual, hit, scan_ts, source. source 'replay': the same for replay
-        files (after-the-fact re-runs, never official). source 'backfill': the latest backfill run, same
-        columns (status always settled or void). date is datetime64; hit is boolean (NA unless settled)."""
+        files (after-the-fact re-runs, never official). source 'experimental': the same rule for
+        experimental predictions (v_experimental_picks; settled by manual results, never official).
+        source 'backfill': the latest backfill run, same columns (status always settled or void). date is
+        datetime64; hit is boolean (NA unless settled)."""
         cols = ["match_id", "date", "competition", "n", "p", "status", "actual", "hit", "scan_ts", "source"]
         path = self._file()
         if path is not None and not path.exists():  # never create the DB file from a read
             return pd.DataFrame(columns=cols).astype({"n": int, "p": float})
-        if source in ("live", "replay"):
-            view = "v_official_picks" if source == "live" else "v_replay_picks"
+        if source in ("live", "replay", "experimental"):
+            view = {"live": "v_official_picks", "replay": "v_replay_picks", "experimental": "v_experimental_picks"}[source]
             sql = text("SELECT match_id, date, competition, n, p, status, actual_total AS actual, hit, scan_ts, source "
                        f"FROM {view} ORDER BY date, n, match_id")
             params = {}
@@ -362,31 +364,45 @@ class Repository:
         and whose result has shots data (status settled). Newest match first. Keys: match_id, date,
         competition, country, tier, home_team, away_team, actual_total/home/away, predicted_at (the
         prediction's insert time, DB clock, UTC), expected_shots, lb_70/80/90, odds (bool),
-        total_curve, curve_n_min, curve_n_max."""
+        total_curve, curve_n_min, curve_n_max, experimental (always False here), result_source
+        ("football-data" | "manual"), source_url (manual results only, else None).
+        Experimental predictions are excluded: see settled_results."""
+        return self.settled_results(since, until, ent, experimental=False)
+
+    def settled_results(self, since: date | None, until: date, ent: Entitlements = FULL_ACCESS,
+                        experimental: bool | None = None) -> list[dict]:
+        """official_results' rule applied to ordinary (experimental=False), experimental (True:
+        cross-border competitions, settled by manual results, never part of the official record) or all
+        (None) predictions. since=None: no lower date bound. Same keys and order as official_results;
+        `experimental` tells the two kinds apart."""
         path = self._file()
         if path is not None and not path.exists():  # never create the DB file from a read
             return []
-        sql = text("""
+        flags = {None: "0, 1", False: "0", True: "1"}[experimental]
+        sql = text(f"""
             SELECT match_id, date, competition, country, tier, home_team, away_team, actual_total, actual_home,
                    actual_away, predicted_at, expected_shots, lb_70, lb_80, lb_90, odds, total_curve,
-                   curve_n_min, curve_n_max
+                   curve_n_min, curve_n_max, experimental, manual, source_url
             FROM (SELECT p.match_id, o.date, o.competition, c.country, c.tier, m.home_team, m.away_team,
                          o.actual_total, o.actual_home, o.actual_away, p.created_at AS predicted_at,
                          p.median AS expected_shots, p.lb_70, p.lb_80, p.lb_90, p.odds_available AS odds,
-                         p.total_curve, r.curve_n_min, r.curve_n_max,
+                         p.total_curve, r.curve_n_min, r.curve_n_max, o.experimental,
+                         mr.match_id IS NOT NULL AS manual, mr.source_url,
                          ROW_NUMBER() OVER (PARTITION BY p.match_id ORDER BY r.built_at DESC, r.id DESC) AS rn
                   FROM predictions p
                   JOIN prediction_runs r ON r.id = p.run_id
                   JOIN v_prediction_outcomes o ON o.prediction_id = p.id
                   JOIN matches m ON m.match_id = p.match_id
                   JOIN competitions c ON c.id = m.competition_id
+                  LEFT JOIN manual_results mr ON mr.match_id = m.match_id
                   WHERE r.kind = 'board' AND r.status = 'complete' AND o.pre_match = 1 AND o.status = 'settled'
-                    AND o.experimental = 0
+                    AND o.experimental IN ({flags})
                     AND m.date >= :since AND m.date <= :until)
             WHERE rn = 1
             ORDER BY date DESC, competition, home_team, match_id""")
+        params = {"since": since.isoformat() if since else "0000-01-01", "until": until.isoformat()}
         with self.engine.connect() as c:
-            rows = [dict(r) for r in c.execute(sql, {"since": since.isoformat(), "until": until.isoformat()}).mappings()]
+            rows = [dict(r) for r in c.execute(sql, params).mappings()]
         out = []
         for r in rows:
             if not ent.league_allowed(r["competition"]):
@@ -395,22 +411,32 @@ class Repository:
             r["predicted_at"] = pd.Timestamp(r["predicted_at"]).to_pydatetime()
             r["total_curve"] = _json_list(r["total_curve"])
             r["odds"] = None if r["odds"] is None else bool(r["odds"])
+            r["experimental"] = bool(r["experimental"])
+            r["result_source"] = "manual" if r.pop("manual") else "football-data"
             out.append(r)
         return out
 
     def base_rates(self, n: int, before: date) -> tuple[dict[str, float], float | None]:
         """Naive baseline of the track record: per competition, the share of played matches (with shots
         data) dated before `before` that reached at least n total shots; and the overall share (None
-        without history). Same definition as shots.predict.track.base_rates, from the DB's results."""
-        sql = text("SELECT c.name, sum(m.home_shots + m.away_shots >= :n), count(*) FROM matches m "
-                   "JOIN competitions c ON c.id = m.competition_id "
+        without history). Same definition as shots.predict.track.base_rates, from the DB's results.
+        The overall share counts automatic-source results only, so manual results (experimental
+        competitions) never move a domestic baseline; they only form their own competition's share."""
+        sql = text("SELECT c.name, sum(m.home_shots + m.away_shots >= :n), count(*), m.source = 'manual' "
+                   "FROM matches m JOIN competitions c ON c.id = m.competition_id "
                    "WHERE m.status = 'played' AND m.home_shots IS NOT NULL AND m.away_shots IS NOT NULL "
-                   "AND m.date < :before GROUP BY c.name")
+                   "AND m.date < :before GROUP BY c.name, m.source = 'manual'")
         with self.engine.connect() as c:
             rows = c.execute(sql, {"n": int(n), "before": before.isoformat()}).all()
-        total = sum(int(k) for _, _, k in rows)
-        return ({name: int(h) / int(k) for name, h, k in rows},
-                sum(int(h) for _, h, _ in rows) / total if total else None)
+        per: dict[str, list[int]] = {}
+        for name, h, k, _ in rows:
+            acc = per.setdefault(name, [0, 0])
+            acc[0] += int(h)
+            acc[1] += int(k)
+        auto = [(int(h), int(k)) for _, h, k, manual in rows if not manual]
+        total = sum(k for _, k in auto)
+        return ({name: h / k for name, (h, k) in per.items()},
+                sum(h for h, _ in auto) / total if total else None)
 
     def competitions(self) -> dict[str, dict]:
         """{competition name: {country, tier}} for every competition in the DB."""

@@ -7,7 +7,7 @@ from shots.db.models import JobRun
 from shots.ingest import calendar_ics, football_data
 from shots.predict import board, scan, track
 
-ALL = ["results", "calendars", "picks", "board", "track", "db", "db-board", "db-picks"]
+ALL = ["results", "calendars", "picks", "board", "track", "db", "db-manual", "db-board", "db-picks"]
 
 
 def _stub(monkeypatch, calls, fail=()):
@@ -25,6 +25,7 @@ def _stub(monkeypatch, calls, fail=()):
     monkeypatch.setattr(board, "build", make("board"))
     monkeypatch.setattr(track, "build_dashboard", make("track"))
     monkeypatch.setattr(dbload, "sync_results", make("db"))
+    monkeypatch.setattr(dbload, "sync_manual_results", make("db-manual"))
     monkeypatch.setattr(dbload, "import_board_file", make("db-board"))
     monkeypatch.setattr(dbload, "sync_predictions", make("db-picks"))
 

@@ -12,7 +12,7 @@ export const TABS = ['all', 'fav', 'leagues'] as const
 export type ListTab = (typeof TABS)[number]
 export const PANEL_TABS = ['pred', 'teams', 'edge', 'about'] as const
 export type PanelTab = (typeof PANEL_TABS)[number]
-export const RECORDS = ['backfill', 'live'] as const
+export const RECORDS = ['backfill', 'live', 'experimental'] as const
 export type RecordKind = (typeof RECORDS)[number]
 
 export interface ViewState {

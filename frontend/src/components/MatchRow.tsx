@@ -27,7 +27,7 @@ function MatchRowImpl({ item, n, totalStart, href, selected, starred, homeFav, a
     `${label}, ${item.finished ? 'finished' : `kick-off ${item.time ?? 'time to be confirmed'}${item.venueTime && item.utc === null ? ' venue time' : ''}`}, ${pct(p)} chance of ${n}+ shots` +
     (item.experimental ? ', experimental' : '') +
     (isLimited(item) ? ', limited data' : '') +
-    (item.actual ? `, actual ${item.actual.total} shots, ${hit ? 'hit' : 'miss'}` : '')
+    (item.actual ? `, actual ${item.actual.total} shots against ${item.expected} expected, ${hit ? 'hit' : 'miss'}, 80% floor ${item.actual.total >= item.lb['80'] ? 'held' : 'broken'}` : '')
   return (
     <li className={`mrow${selected ? ' sel' : ''}${item.finished ? ' done' : ''}`}>
       <a className="mlink" href={href} data-id={item.id} aria-current={selected ? 'true' : undefined} aria-label={aria}>
@@ -46,9 +46,12 @@ function MatchRowImpl({ item, n, totalStart, href, selected, starred, homeFav, a
         <span className="mprob" aria-hidden="true">
           <ProbPill p={p} />
           {item.actual && (
-            <span className={`res ${hit ? 'hit' : 'miss'}`}>
-              {item.actual.total} shots {hit ? '✓ hit' : '✗ miss'}
-            </span>
+            <>
+              <span className={`res ${hit ? 'hit' : 'miss'}`}>
+                {item.actual.total} shots {hit ? '✓ hit' : '✗ miss'}
+              </span>
+              <span className="resx">expected {item.expected} &middot; floor {item.lb['80']} {item.actual.total >= item.lb['80'] ? '✓' : '✗'}</span>
+            </>
           )}
           {!item.actual && !item.odds && <span className="nodds">no odds</span>}
         </span>

@@ -207,7 +207,7 @@ def test_push_forces_the_update_only_when_pipeline_files_changed(state):
     state(timedelta(minutes=10))
     code = ci.plan("push", changed_files=["src/shots/models/negbin.py", "docs/platform.md"], now=NOW, **RULES)
     assert (code["update"], code["force"], code["site"]) == (True, True, "always")
-    for files in (["calendars/laliga.ics"], ["requirements.lock"], [".github/workflows/update.yml"], ["migrations/versions/0005.py"]):
+    for files in (["calendars/laliga.ics"], ["results_manual/uefa-champions-league_2026-27.csv"], ["requirements.lock"], [".github/workflows/update.yml"], ["migrations/versions/0005.py"]):
         assert ci.plan("push", changed_files=files, now=NOW, **RULES)["force"] is True
     front = ci.plan("push", changed_files=["frontend/src/App.tsx", "frontend/package-lock.json", ""], now=NOW, **RULES)
     assert front == {"update": False, "force": False, "site": "always", "export": True, "deployed_at": "",
@@ -216,7 +216,7 @@ def test_push_forces_the_update_only_when_pipeline_files_changed(state):
     for unknown in (None, [], [""]):  # the diff could not be computed: assume the pipeline changed
         assert ci.plan("push", changed_files=unknown, now=NOW, **RULES)["force"] is True
     assert ci.touches_pipeline(["src/x.py"]) and not ci.touches_pipeline(["srcs/x.py", "frontend/src/a.ts", "pyproject.toml.bak"])
-    assert ci.push_paths() == ["src/**", "migrations/**", "calendars/**", "requirements.lock", "pyproject.toml",
+    assert ci.push_paths() == ["src/**", "migrations/**", "calendars/**", "results_manual/**", "requirements.lock", "pyproject.toml",
                                ".github/workflows/update.yml", "frontend/**", ".github/data-branch-README.md"]
     assert not any(p.startswith(("docs", "tests", "reports")) for p in ci.push_paths())
 

@@ -84,6 +84,12 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
   calibration evidence and no settlement source, so these never count in the official track record
   (`v_experimental_picks`). New clubs or matchdays: extend the `.ics` and the mapping. Report:
   `reports/2026-10-13_champions_league.md`.
+- **Manual results (competitions with no automatic source, e.g. UCL):** add rows to
+  `results_manual/uefa-champions-league_2026-27.csv` (fixture date + our team names, total shots incl. blocked,
+  source URL, `entered_at` UTC; source used so far: ESPN team stats). Check with
+  `python -m shots.db manual --check`, load with `python -m shots.db manual` (also part of `update`). Edits are
+  audited (`manual_result_edits`); these settle only the experimental record, never the official one. Pushing
+  the CSV triggers a publish.
 - Web UI (local, server-side rendered): `python -m shots.web` → http://127.0.0.1:8000. Reads the DB through
   `shots.db.repo.Repository` only (never runs a model, no SQL in routes). Access control is by entitlement,
   enforced in the repository queries. Preview config: `.claude/launch.json` (`shots-web`).

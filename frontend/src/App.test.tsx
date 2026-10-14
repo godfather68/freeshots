@@ -2,7 +2,8 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import App from './App'
-import { board, dataset, meta, results } from './test-fixtures'
+import { board, dataset, meta, results, trackFull, trackLegacy } from './test-fixtures'
+import type { Dataset } from './lib/types'
 import { UNDER_CAVEAT } from './lib/config'
 
 const START = meta.thresholds.total[0]
@@ -426,5 +427,114 @@ describe('why this number', () => {
     await mount(`#/?date=${plain.date}&m=${plain.id}`)
     expect(document.querySelector('.why')).toBeNull()
     expect(screen.getByTestId('headline')).toBeInTheDocument()
+  })
+})
+
+const xpRows = results.results.filter((r) => r.experimental === true)
+const dRows = results.results.filter((r) => r.experimental !== true)
+
+describe('results page', () => {
+  it('shows recap cards with the predicted-against-actual comparison, newest day first', async () => {
+    await mount('#/results')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Results' })).toBeInTheDocument()
+    const official = document.querySelector('section.rgroup:not(.xp)')!
+    const days = [...official.querySelectorAll('section.rday h3')].map((h) => h.textContent)
+    expect(days[0]).toMatch(/^Sun 11 Oct/)
+    expect(days.length).toBe(new Set(dRows.map((r) => r.date)).size)
+    const first = official.querySelector('section.rday')!
+    expect(first).toHaveTextContent(/70%\+ calls that reached 24\+/)
+    expect(first).toHaveTextContent(/Average miss/)
+    expect(first).toHaveTextContent(/80% sure.{0,3} floor held/)
+    const row = first.querySelector('li.rrow')!
+    expect(row).toHaveTextContent(/We expected/)
+    expect(row.querySelector('.res')!.textContent).toMatch(/[✓✗]/)
+  })
+
+  it('threshold from the URL drives hit and miss', async () => {
+    await mount('#/results?n=45')
+    const marks = [...document.querySelectorAll('section.rgroup:not(.xp) li.rrow dl.rstats > div:last-child .res')].map((e) => e.textContent)
+    expect(marks.length).toBe(dRows.length)
+    expect(marks.every((t) => /Miss/.test(t!))).toBe(true)
+    await userEvent.click(screen.getByRole('button', { name: 'Decrease Shots' }))
+    expect(hash()).toContain('n=44')
+  })
+
+  it('keeps Champions League apart: experimental caveat, manual tag, source link, separate totals', async () => {
+    await mount('#/results')
+    const xp = document.querySelector('section.rgroup.xp')!
+    expect(xp).toHaveTextContent(/Experimental/)
+    expect(xp).toHaveTextContent(/typed in by hand/)
+    expect(xp.querySelectorAll('li.rrow')).toHaveLength(xpRows.length)
+    expect(xp.querySelector('a.srclink')).toHaveAttribute('href', expect.stringContaining('https://example.org/'))
+    expect(xp.querySelector('a.srclink')).toHaveAttribute('rel', expect.stringContaining('noopener'))
+    expect(xp).toHaveTextContent('Entered by hand')
+    const official = document.querySelector('section.rgroup:not(.xp)')!
+    expect(official.querySelectorAll('li.rrow')).toHaveLength(dRows.length)
+    expect(official.textContent).not.toMatch(/Entered by hand/)
+  })
+
+  it('empty states explain when data will appear', async () => {
+    const empty: Dataset = { ...dataset, results: { schema: 1, results: [] } }
+    await mount('#/results', () => Promise.resolve(empty))
+    expect(await screen.findByText(/about twice a week/)).toBeInTheDocument()
+    expect(screen.getByText(/entered by hand after each matchday/)).toBeInTheDocument()
+  })
+
+  it('works when results.json is missing entirely', async () => {
+    await mount('#/results', () => Promise.resolve({ ...dataset, results: null }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Results' })).toBeInTheDocument()
+  })
+
+  it('finished rows on the matches list show actual, expected and the floor', async () => {
+    await mount('#/?date=2026-10-11&chip=done')
+    const link = [...document.querySelectorAll('a.mlink')].find((a) => a.getAttribute('aria-label')?.includes('actual'))!
+    expect(link.getAttribute('aria-label')).toMatch(/expected, (hit|miss), 80% floor (held|broken)/)
+    expect(link.querySelector('.resx')!.textContent).toMatch(/expected \d+ . floor \d+ [✓✗]/)
+  })
+
+  it('navigation has a Results item', async () => {
+    await mount('#/results')
+    expect(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'Results' })).toHaveAttribute('aria-current', 'page')
+  })
+})
+
+describe('track record evolution', () => {
+  const withTrack = (track: Dataset['track']): (() => Promise<Dataset>) => () => Promise.resolve({ ...dataset, track })
+
+  it('charts weekly hit rate and miss for live, with a table alternative and a small-sample note', async () => {
+    await mount('#/track?rec=live', withTrack(trackFull))
+    expect(await screen.findByRole('img', { name: /Weekly hit rate of 70%\+ calls at 24\+/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Weekly average miss/ })).toBeInTheDocument()
+    expect(screen.getByText(/Small samples:/)).toBeInTheDocument()
+    const table = screen.getByRole('table', { name: /Weekly numbers behind the charts/ })
+    expect(within(table).getAllByRole('row')).toHaveLength(1 + 4)
+    expect(table).toHaveTextContent('19 of 24')
+    expect(table).toHaveTextContent('(small)')
+    expect(table).toHaveTextContent('none')
+  })
+
+  it('shows the Champions League record as its own labelled tab, never mixed with live', async () => {
+    await mount('#/track?rec=experimental', withTrack(trackFull))
+    expect(await screen.findByRole('tab', { name: 'Champions League', selected: true })).toBeInTheDocument()
+    expect(screen.getByText(/never counted in, the official live record/)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Weekly hit rate/ })).toHaveAccessibleName(/Weekly hit rate.*Week of 5 Oct: 1 of 2 hit/)
+  })
+
+  it('live empty state explains when weekly points appear', async () => {
+    await mount('#/track?rec=live')
+    expect(await screen.findByText(/about twice a week/)).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /Weekly/ })).toBeNull()
+  })
+
+  it('legacy track files (no experimental, no weekly) still work; rec=experimental falls back', async () => {
+    await mount('#/track?rec=experimental', withTrack(trackLegacy))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Track record' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Champions League' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Backfill (past season)', selected: true })).toBeInTheDocument()
+  })
+
+  it('threshold without weekly data falls back to the nearest published one, with a notice', async () => {
+    await mount('#/track?rec=live&n=30', withTrack(trackFull))
+    expect(await screen.findByText(/No weekly numbers for 30\+; showing the nearest published threshold, 24\+/)).toBeInTheDocument()
   })
 })

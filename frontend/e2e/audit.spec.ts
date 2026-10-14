@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { trackFull } from '../src/test-fixtures'
 import { FINISHED, TODAY_FIXTURE, audit, boot, noHorizontalScroll } from './helpers'
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -46,6 +47,20 @@ for (const scheme of ['light', 'dark'] as const) {
       await audit(page, 'full match page')
     })
 
+    test('results page and evolution charts', async ({ page }) => {
+      await boot(page, '#/results')
+      await expect(page.getByRole('heading', { name: 'Results', level: 1 })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /^Champions League/ })).toBeVisible()
+      await audit(page, 'results')
+      await page.screenshot({ path: `test-results/results-${scheme}.png`, fullPage: true })
+      await boot(page, '#/track?rec=live', { data: { 'track.json': trackFull } })
+      await expect(page.getByRole('img', { name: /Weekly hit rate/ })).toBeVisible()
+      await audit(page, 'track live charts')
+      await page.screenshot({ path: `test-results/track-live-${scheme}.png`, fullPage: true })
+      await boot(page, '#/track?rec=experimental', { data: { 'track.json': trackFull } })
+      await audit(page, 'track champions league')
+    })
+
     test('stale data warning', async ({ page }) => {
       await boot(page, '#/', { now: '2026-10-20T10:00:00Z' })
       await expect(page.locator('.statusbar.stale')).toBeVisible()
@@ -71,6 +86,14 @@ test.describe('mobile 380px', () => {
       await boot(page, '#/track')
       await noHorizontalScroll(page)
       await audit(page, `mobile track ${scheme}`)
+      await boot(page, '#/results')
+      await noHorizontalScroll(page)
+      await audit(page, `mobile results ${scheme}`)
+      await page.screenshot({ path: `test-results/mobile-results-${scheme}.png`, fullPage: true })
+      await boot(page, '#/track?rec=live', { data: { 'track.json': trackFull } })
+      await noHorizontalScroll(page)
+      await audit(page, `mobile charts ${scheme}`)
+      await page.screenshot({ path: `test-results/mobile-charts-${scheme}.png`, fullPage: true })
     })
   }
 })

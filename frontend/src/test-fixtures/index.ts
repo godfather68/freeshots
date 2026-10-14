@@ -1,6 +1,6 @@
 // Realistic, deterministic fixtures that follow docs/static-api.md. Used by unit/component tests and by the
 // Playwright audits (served in place of data/*.json). Never shipped: not imported by the app.
-import type { Board, Dataset, Explain, Fixture, Meta, Result, Results, Track, TrackNEntry } from '../lib/types'
+import type { Board, Dataset, Explain, Fixture, Meta, Period, Result, Results, Track, TrackNEntry, TrackRecord } from '../lib/types'
 
 const TOTAL: [number, number] = [10, 45]
 const TEAM: [number, number] = [3, 25]
@@ -186,7 +186,29 @@ function buildResults(): Result[] {
       })
     }
   }
+  out.push(...buildEuropeanResults())
   return out
+}
+
+/** Champions League results: experimental, entered by hand, with a source link. */
+function buildEuropeanResults(): Result[] {
+  const lg = LEAGUES.find((l) => l.featured)!
+  const rows: Array<[string, number, number, number, number]> = [
+    ['2026-10-08', 0, 1, 15, 12], ['2026-10-08', 2, 3, 11, 9], ['2026-10-07', 4, 5, 18, 10], ['2026-10-07', 6, 7, 9, 8],
+  ]
+  return rows.map(([date, h, a, hs, as], i) => {
+    const mean = lg.avg + (i - 1.5)
+    const curve = makeCurve(mean, 6.1, TOTAL)
+    return {
+      id: `clr00${i + 1}`, league: lg.id, date, home: lg.teams[h], away: lg.teams[a],
+      actual: { total: hs + as, home: hs, away: as },
+      predicted_at: `${date.slice(0, 8)}01T09:00:00Z`,
+      expected: Math.round(mean),
+      lb: { '70': bound(curve, TOTAL[0], 0.7), '80': bound(curve, TOTAL[0], 0.8), '90': bound(curve, TOTAL[0], 0.9) },
+      odds: false, curve, experimental: true, result_source: 'manual' as const,
+      source_url: 'https://example.org/ucl/match-' + (i + 1),
+    }
+  })
 }
 
 function trackEntry(n: number): TrackNEntry {
@@ -235,9 +257,34 @@ export const track: Track = {
     live: { label: 'Live picks (saved before kick-off)', settled: 0, pending: 127, by_n: {} },
   },
 }
+const period = (date: string, matches: number, mae: number, bias: number, floor: number, picks: number, hits: number): Period => ({
+  date, matches, mae, bias, floor80_held: floor, by_n: { '24': { picks, hits } },
+})
+/** Weekly points of every kind: a big week, a small one, and a week without any 70%+ call. */
+export const WEEKLY: Period[] = [
+  period('2026-09-21', 38, 4.6, 0.4, 0.84, 24, 19),
+  period('2026-09-28', 41, 4.2, -0.3, 0.8, 27, 21),
+  period('2026-10-05', 6, 5.1, 1.2, 0.83, 4, 2),
+  period('2026-10-12', 3, 3.8, 0.2, 1, 0, 0),
+]
+export const DAILY: Period[] = [period('2026-10-11', 14, 4.1, 1.2, 0.86, 9, 7), period('2026-10-10', 9, 4.4, -0.2, 0.78, 6, 5)]
+const liveFull: TrackRecord = {
+  label: 'Live picks (saved before kick-off)', settled: 88, pending: 40, daily: DAILY, weekly: WEEKLY,
+  by_n: { '24': { ...trackEntry(24), n: 55, hits: 42, hit_rate: 0.7636, mean_stated: 0.74, wilson95: [0.636, 0.859], by_league: [] } },
+}
+const experimentalRec: TrackRecord = {
+  label: 'Champions League (experimental, manual results)', settled: 4, pending: 4, by_n: {},
+  daily: [period('2026-10-08', 2, 5.5, 1.5, 1, 1, 1)], weekly: [period('2026-10-05', 4, 5.9, 0.8, 0.75, 2, 1)],
+}
+/** The default track: live not yet settled (empty state), Champions League with one small week. */
+export const trackFull: Track = { schema: 1, records: { ...track.records, live: liveFull, experimental: experimentalRec } }
+track.records.experimental = { ...experimentalRec }
+/** The pre-extension contract: no experimental record, no daily or weekly. */
+export const trackLegacy: Track = { schema: 1, records: { backfill: track.records.backfill, live: track.records.live } }
 export const dataset: Dataset = { meta, board, results, track }
 
 /** Map a request path to a fixture body, for Playwright route interception. */
-export function fixtureFor(file: string): unknown {
+export function fixtureFor(file: string, overrides: Record<string, unknown> = {}): unknown {
+  if (file in overrides) return overrides[file]
   return { 'meta.json': meta, 'board.json': board, 'results.json': results, 'track.json': track }[file] ?? null
 }

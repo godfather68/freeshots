@@ -15,7 +15,7 @@ export function buildItems(ds: Pick<Dataset, 'meta' | 'board' | 'results'>, view
     seen.add(r.id)
     items.push({
       id: r.id, league: r.league, date: r.date, time: null, venueTime: false, utc: null, venueDate: r.date, venueClock: null, home: r.home, away: r.away,
-      expected: r.expected, curve: r.curve, lb: r.lb, odds: r.odds, coldStart: false, experimental: false, dataQuality: 'full',
+      expected: r.expected, curve: r.curve, lb: r.lb, odds: r.odds, coldStart: false, experimental: r.experimental === true, dataQuality: 'full',
       aboveLeague: null, teamExpected: null, finished: true, actual: r.actual, fixture: null, result: r,
     })
   }

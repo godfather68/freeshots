@@ -555,3 +555,55 @@ table.checks td, table.checks th { font-variant-numeric: tabular-nums; }
 .outcome-tag { font-weight: 700; white-space: nowrap; }
 .outcome-tag.pending { color: var(--mut); font-weight: 600; }
 .csvbox { width: 100%; box-sizing: border-box; font: .78rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface); color: var(--fg); border: 1px solid var(--bd-strong); border-radius: var(--r1); padding: .5rem; }
+
+/* ---------- results: predicted against actual */
+.rgroup { margin: 1.4rem 0 2rem; }
+.rgroup > h2 { font-size: 1.35rem; margin-bottom: .1em; }
+.rgroup.xp { border-left: .3rem dashed var(--gold); padding-left: clamp(.6rem, 2vw, 1.1rem); }
+.rgroup.xp .card { border-style: dashed; }
+.rtotal, .rday { margin: .8rem 0; }
+.rday h3, .rtotal h3 { margin-top: 0; font-size: 1rem; text-transform: none; letter-spacing: 0; color: var(--fg); }
+.rday h3 .cnt { color: var(--mut); font-weight: 600; }
+.rcstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .5rem .9rem; margin: .5rem 0; }
+.rcstats > div { border-left: .22rem solid var(--grass); padding-left: .6rem; }
+.rgroup.xp .rcstats > div { border-left-color: var(--gold); }
+.rcstats dt, .rstats dt { font-size: .72rem; color: var(--mut); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; line-height: 1.25; }
+.rcstats dd { margin: .1rem 0 0; font-size: .95rem; }
+.rcstats dd b { font-size: 1.5rem; font-stretch: 82%; font-weight: 800; line-height: 1.1; }
+.rcstats .none { color: var(--mut); }
+.rmatches { margin-top: .5rem; }
+.rmatches > summary { cursor: pointer; font-weight: 700; min-height: 2.5rem; display: flex; align-items: center; }
+.rlist { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); gap: .6rem; }
+.rrow { border: 1px solid var(--bd); border-radius: var(--r1); background: var(--surface-2); padding: .6rem .75rem; min-width: 0; }
+.rhead { display: flex; justify-content: space-between; align-items: flex-start; gap: .6rem; }
+.rteams { display: flex; flex-direction: column; gap: .25rem; min-width: 0; color: var(--fg); text-decoration: none; padding: .15rem 0; }
+.rteams:hover .tn { text-decoration: underline; }
+.ractual { margin: 0; text-align: right; line-height: 1.1; flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; column-gap: .25rem; }
+.ractual b { font-size: 2rem; font-stretch: 80%; font-weight: 800; }
+.ractual span { font-size: .78rem; color: var(--mut); }
+.ractual small { flex-basis: 100%; }
+.rmeta { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; margin: .35rem 0; }
+.srclink { font-size: .8rem; font-weight: 600; }
+.rstats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem .8rem; margin: .4rem 0 0; }
+.rstats dd { margin: .1rem 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .4rem; }
+.rstats dd b { font-size: 1.15rem; font-weight: 800; }
+.rstats .pill { padding: .1rem .45rem; } .rstats .pill b { font-size: 1rem; min-width: 0; }
+.resx { font-size: .64rem; color: var(--mut); white-space: nowrap; font-weight: 600; }
+.res { white-space: nowrap; }
+.evolution { margin-top: 1.4rem; }
+.evolution figure { margin: 0; } .evolution figcaption { margin-bottom: .3rem; }
+.trend { width: 100%; height: auto; display: block; max-width: 36rem; }
+.trend .pitch { fill: var(--surface-2); stroke: var(--bd); }
+.trend .grid { stroke: var(--bd); stroke-width: 1; stroke-dasharray: 2 4; }
+.trend .axis { fill: var(--mut); font-size: 11px; font-family: var(--font); font-variant-numeric: tabular-nums; }
+.trend .axis.sub { font-size: 10px; }
+.trend .axis.lab { fill: var(--fg); font-weight: 700; }
+.trend .stated { stroke: var(--gold-ink); stroke-width: 2; stroke-dasharray: 6 4; }
+.trend .tline { fill: none; stroke: var(--grass); stroke-width: 2.5; stroke-linejoin: round; }
+.trend .whisk { stroke: var(--grass); stroke-width: 2.5; stroke-linecap: round; opacity: .55; }
+.trend .tdot { fill: var(--grass); stroke: var(--surface); stroke-width: 2.5; }
+.trend .tdot.hollow { fill: var(--surface); stroke: var(--grass); stroke-width: 3; }
+.trend .tbar { fill: var(--grass); } .trend .tbar.hollow { fill: var(--surface); stroke: var(--grass); stroke-width: 2.5; stroke-dasharray: 4 3; }
+.trend .dotlabel { font-size: 12px; font-weight: 800; font-family: var(--font); fill: var(--fg); }
+.smallnote { max-width: 66ch; }
+@media (max-width: 520px) { .rstats { grid-template-columns: 1fr 1fr; } .ractual b { font-size: 1.7rem; } }

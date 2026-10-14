@@ -41,7 +41,7 @@ COUNT_TABLES = ("prediction_runs", "predictions", "job_runs")
 # A push to main starts the workflow only when one of these paths changed (update.yml `on.push.paths`
 # must equal push_paths(); a test keeps them equal). A change under PIPELINE_PATHS can change the
 # predictions, so the update cycle is forced; a change under SITE_PATHS only needs a new build.
-PIPELINE_PATHS = ("src/", "migrations/", "calendars/", "requirements.lock", "pyproject.toml",
+PIPELINE_PATHS = ("src/", "migrations/", "calendars/", "results_manual/", "requirements.lock", "pyproject.toml",
                   ".github/workflows/update.yml")
 SITE_PATHS = ("frontend/", ".github/data-branch-README.md")
 SCHEDULED, ALWAYS, IF_CHANGED = "schedule", "always", "if-changed"

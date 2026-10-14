@@ -116,6 +116,41 @@
       "type": "object", "additionalProperties": false,
       "patternProperties": {"^[0-9]+$": {"$ref": "#/$defs/by_n_entry"}}
     },
+    "accuracy_point": {
+      "description": "Additive (schema 1). Accuracy of one day (match date, venue-local) or one week (date = its Monday, venue-local match dates). matches / mae / bias / floor80_held: the settled matches, one prediction per match by the results.json rule (the last pre-match board prediction); mae = mean |actual - expected|, bias = mean (expected - actual) (positive = more shots expected than played), floor80_held = share of matches with actual >= lb 80; null when the group has no such match. by_n: exactly the thresholds of the record's by_n; picks = the record's settled picks (same view, published P(total >= N) >= 0.70) in the group, hits = those that reached N. A group can have picks but matches 0 (no settled board prediction).",
+      "type": "object", "additionalProperties": false,
+      "required": ["date", "matches", "mae", "bias", "floor80_held", "by_n"],
+      "properties": {
+        "date": {"$ref": "#/$defs/date"},
+        "matches": {"type": "integer", "minimum": 0},
+        "mae": {"type": ["number", "null"], "minimum": 0},
+        "bias": {"type": ["number", "null"]},
+        "floor80_held": {"anyOf": [{"$ref": "#/$defs/probability"}, {"type": "null"}]},
+        "by_n": {
+          "type": "object", "additionalProperties": false,
+          "patternProperties": {"^[0-9]+$": {
+            "type": "object", "additionalProperties": false, "required": ["picks", "hits"],
+            "properties": {"picks": {"type": "integer", "minimum": 0}, "hits": {"type": "integer", "minimum": 0}}
+          }}
+        }
+      }
+    },
+    "accuracy_series": {"type": "array", "items": {"$ref": "#/$defs/accuracy_point"}},
+    "picks_record": {
+      "type": "object", "additionalProperties": false, "required": ["label", "settled", "pending", "by_n"],
+      "properties": {
+        "label": {"type": "string"},
+        "settled": {"type": "integer", "minimum": 0},
+        "pending": {"type": "integer", "minimum": 0},
+        "void": {"description": "Additive (schema 1): picks whose match has no shots data.",
+                 "type": "integer", "minimum": 0},
+        "by_n": {"$ref": "#/$defs/by_n"},
+        "daily": {"description": "Additive (schema 1). The 30 most recent days with at least one settled match, oldest first.",
+                  "$ref": "#/$defs/accuracy_series"},
+        "weekly": {"description": "Additive (schema 1). The 52 most recent weeks (Monday to Sunday) with at least one settled match, oldest first.",
+                   "$ref": "#/$defs/accuracy_series"}
+      }
+    },
 
     "meta": {
       "type": "object", "additionalProperties": false,
@@ -253,7 +288,13 @@
               "expected": {"$ref": "#/$defs/count"},
               "lb": {"$ref": "#/$defs/lb"},
               "odds": {"type": "boolean"},
-              "curve": {"$ref": "#/$defs/curve"}
+              "curve": {"$ref": "#/$defs/curve"},
+              "result_source": {"description": "Additive (schema 1). Where the actual counts come from: football-data (automatic) or manual (entered by hand from a public match page, for competitions without an automatic source).",
+                                "enum": ["football-data", "manual"]},
+              "source_url": {"description": "Additive (schema 1). Only with result_source manual: the page the counts were read from.",
+                             "type": "string", "pattern": "^https?://"},
+              "experimental": {"description": "Additive (schema 1). Present (true) only for an experimental prediction (cross-border competitions); such results are never part of the official live record. Absent = an ordinary prediction.",
+                               "const": true}
             }
           }
         }
@@ -277,17 +318,10 @@
                 }
               ]
             },
-            "live": {
-              "type": "object", "additionalProperties": false, "required": ["label", "settled", "pending", "by_n"],
-              "properties": {
-                "label": {"type": "string"},
-                "settled": {"type": "integer", "minimum": 0},
-                "pending": {"type": "integer", "minimum": 0},
-                "void": {"description": "Additive (schema 1): official picks whose match has no shots data.",
-                         "type": "integer", "minimum": 0},
-                "by_n": {"$ref": "#/$defs/by_n"}
-              }
-            }
+            "live": {"description": "The official record: live picks saved before kick-off (v_official_picks).",
+                     "$ref": "#/$defs/picks_record"},
+            "experimental": {"description": "Additive (schema 1). Experimental predictions (cross-border competitions) settled by manual results (v_experimental_picks); never part of the official record.",
+                             "$ref": "#/$defs/picks_record"}
           }
         }
       }

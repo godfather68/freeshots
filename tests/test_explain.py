@@ -512,7 +512,7 @@ def test_migration_0005_upgrades_a_0004_database_in_place_and_roundtrips(tmp_pat
         objects = set(c.execute(text("SELECT type, name, sql FROM sqlite_master WHERE type IN ('trigger', 'view')")).all())
     engine.dispose()
     assert len(fx) == len(FIX)
-    assert migrate.upgrade(path) == migrate.head() == "0005_explain"
+    assert migrate.upgrade(path, "0005_explain") == "0005_explain"  # 0006 has its own test (test_db_manual.py)
     engine = make_engine(path)
     with engine.connect() as c:
         assert c.execute(text(f"SELECT {cols} FROM predictions")).all() == before  # no row rewritten
@@ -526,4 +526,4 @@ def test_migration_0005_upgrades_a_0004_database_in_place_and_roundtrips(tmp_pat
         assert "explain" not in {r[1] for r in c.execute(text("PRAGMA table_info(predictions)"))}
         assert c.execute(text(f"SELECT {cols} FROM predictions")).all() == before
     engine.dispose()
-    assert migrate.upgrade(path) == "0005_explain"
+    assert migrate.upgrade(path, "0005_explain") == "0005_explain"

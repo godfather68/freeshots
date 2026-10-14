@@ -5,6 +5,8 @@
     import [--full]      load every cached file: results, fixtures, the current board, picks CSVs,
                          backfill (idempotent; --full re-checks all past seasons' results too)
     status               counts and freshness of what the app shows
+    manual [--check]     load hand-entered results (results_manual/*.csv); --check validates and lists
+                         the match each row resolves to without writing anything (exit 1 on any problem)
 
 The database is data/shots.db; set SHOTS_DB to use another file.
 """
@@ -29,6 +31,9 @@ def main(argv=None) -> None:
     imp = sub.add_parser("import", help="load cached files into the database")
     imp.add_argument("--full", action="store_true", help="re-check every season's results, not only recent ones")
     sub.add_parser("status", help="what the app shows")
+    man = sub.add_parser("manual", help="load (or --check) the manual results in results_manual/")
+    man.add_argument("--check", action="store_true", help="validate and resolve only; write nothing")
+    man.add_argument("--dir", default=None, help="directory of the CSV files (default results_manual/)")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 
@@ -39,6 +44,23 @@ def main(argv=None) -> None:
         print(f"{db_path()}: revision {rev or '(none)'}, head {migrate.head()}")
     elif args.command == "import":
         print(json.dumps(load.sync_all(full=args.full), indent=2, default=str))
+    elif args.command == "manual":
+        from shots.db import manual
+        from shots.ingest.manual_results import ManualResultsError
+
+        if not db_path().exists():
+            sys.exit(f"{db_path()} does not exist; run `python -m shots.db import` first")
+        engine = make_engine()
+        try:
+            if not args.check:
+                migrate.upgrade(engine)
+            fn =manual.check_manual_results if args.check else manual.load_manual_results
+            print(json.dumps(fn(engine, args.dir), indent=2, default=str))
+        except ManualResultsError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+        finally:
+            engine.dispose()
     elif args.command == "status":
         if not db_path().exists():
             sys.exit(f"{db_path()} does not exist; run `python -m shots.db upgrade` then `python -m shots.db import`")

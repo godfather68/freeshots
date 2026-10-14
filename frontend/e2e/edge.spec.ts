@@ -20,7 +20,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await audit(page, 'odds check result')
 
         await page.getByRole('button', { name: 'Under' }).click()
-        await expect(page.locator('.edge')).toContainText('less tested')
+        await expect(page.locator('.edge')).toContainText('Under probabilities have held up')
         await audit(page, 'odds check under')
 
         const odds = page.getByLabel(/Bookmaker odds for/)

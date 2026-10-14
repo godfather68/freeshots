@@ -70,6 +70,12 @@ export interface Result {
   lb: Bounds
   odds: boolean
   curve: number[]
+  /** Additive (optional): a competition without a results feed (Champions League). Never counted in the official record. */
+  experimental?: boolean
+  /** Additive (optional): where the result came from. */
+  result_source?: 'football-data' | 'manual'
+  /** Additive (optional, manual results): link to the page the result was copied from. */
+  source_url?: string | null
 }
 export interface Results { schema: number; results: Result[] }
 export interface ReliabilityBand { band: [number, number]; n: number; stated: number; realised: number }
@@ -85,13 +91,24 @@ export interface TrackNEntry {
   reliability: ReliabilityBand[]
   by_league: { league: string; n: number; hit_rate: number; stated: number }[]
 }
+/** Additive (optional): one day or week of settled matches. `date` is the day, or the week start. */
+export interface Period {
+  date: string
+  matches: number
+  mae: number | null
+  bias: number | null
+  floor80_held: number | null
+  by_n: Record<string, { picks: number; hits: number }>
+}
 export interface TrackRecord {
   label: string
   by_n: Record<string, TrackNEntry>
   settled?: number
   pending?: number
+  daily?: Period[]
+  weekly?: Period[]
 }
-export interface Track { schema: number; records: { backfill: TrackRecord; live: TrackRecord } }
+export interface Track { schema: number; records: { backfill: TrackRecord; live: TrackRecord; experimental?: TrackRecord } }
 
 /** One row in the list: an upcoming fixture or a finished match, normalised. */
 export interface Item {

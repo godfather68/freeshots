@@ -3,7 +3,65 @@ import { entryFor, pc } from '../lib/track'
 import { RECORDS } from '../lib/url'
 import type { RecordKind } from '../lib/url'
 import { Help, Stepper, Tabs, ScrollRegion } from '../components/ui'
-import type { ReliabilityBand } from '../lib/types'
+import type { ReliabilityBand, TrackRecord } from '../lib/types'
+import { weeklyPoints } from '../lib/recap'
+import { HitRateChart, MissChart } from '../components/TrendChart'
+import { dayLong } from '../lib/format'
+
+const EMPTY_WEEKLY = {
+  live: 'Weekly points appear once matches with a saved prediction have been settled. football-data publishes results about twice a week, so the first weeks fill in gradually.',
+  experimental: 'Champions League results are entered by hand after each matchday, so weekly points appear a little after the matches. None have been entered yet.',
+}
+
+/** Week by week: did 70%+ calls land as often as we said, and how far off were we? With a table, and honest about small samples. */
+function Evolution({ rec, kind, n }: { rec: TrackRecord; kind: 'live' | 'experimental'; n: number }) {
+  const w = weeklyPoints(rec.weekly, n)
+  const stated = entryFor(rec, n)?.entry.mean_stated ?? null
+  const xp = kind === 'experimental'
+  const id = `ev-${kind}`
+  return (
+    <section className="evolution" aria-labelledby={`${id}-h`}>
+      <h2 id={`${id}-h`}>Week by week{xp && <> <span className="tag xp">Experimental</span></>}</h2>
+      {w.points.length === 0 ? (
+        <div className="card empty"><h3>No weeks to chart yet</h3><p>{EMPTY_WEEKLY[kind]}</p></div>
+      ) : (
+        <>
+          {w.usedN !== null && !w.exact && <p className="warn" role="status">No weekly numbers for {n}+; showing the nearest published threshold, {w.usedN}+.</p>}
+          <div className="trackgrid">
+            <figure className="card">
+              <figcaption><b>Hit rate of 70%+ calls at {w.usedN ?? n}+ shots</b><br /><small>Dot: share that reached it. Line through the dot: 95% range. Dashed: what we said on average{stated === null ? ' (at least 70%)' : ''}.</small></figcaption>
+              <HitRateChart points={w.points} stated={stated} n={w.usedN ?? n} id={`${id}-hit`} />
+            </figure>
+            <figure className="card">
+              <figcaption><b>Average miss per week, in shots</b><br /><small>How far the actual total landed from our expected total. Lower is better.</small></figcaption>
+              <MissChart points={w.points} id={`${id}-miss`} />
+            </figure>
+          </div>
+          <p className="hint smallnote">Small samples: a hollow dot or bar means fewer than 10 calls (or matches) that week, and its range is wide. Two or three weeks do not make a trend; read the overall hit rate above for the real picture.</p>
+          <ScrollRegion label={`Weekly numbers, ${xp ? 'Champions League' : 'live record'}`}>
+            <table>
+              <caption className="sr">Weekly numbers behind the charts</caption>
+              <thead><tr><th scope="col">Week of</th><th scope="col">Matches</th><th scope="col">70%+ calls</th><th scope="col">Hit rate (95% range)</th><th scope="col">Avg miss</th><th scope="col">80% floor held</th></tr></thead>
+              <tbody>
+                {[...w.points].reverse().map((p) => (
+                  <tr key={p.date}>
+                    <th scope="row">{dayLong(p.date)}</th>
+                    <td>{p.matches}</td>
+                    <td>{p.picks === 0 ? 'none' : `${p.hits} of ${p.picks}`}{p.small && p.picks > 0 ? ' (small)' : ''}</td>
+                    <td>{p.rate === null ? 'n/a' : `${pc(p.rate)} (${pc(p.lo)}–${pc(p.hi)})`}</td>
+                    <td>{p.mae === null ? 'n/a' : p.mae.toFixed(1)}</td>
+                    <td>{p.floor80 === null ? 'n/a' : pc(p.floor80)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollRegion>
+        </>
+      )}
+    </section>
+  )
+}
+
 
 function Reliability({ bands }: { bands: ReliabilityBand[] }) {
   const W = 320, H = 300, m = { l: 40, r: 12, t: 12, b: 40 }
@@ -44,11 +102,13 @@ export function TrackPage() {
       </div>
     )
   }
-  const kind: RecordKind = state.rec
-  const rec = t.records[kind]
+  const hasXp = !!t.records.experimental
+  const kind: RecordKind = state.rec === 'experimental' && !hasXp ? 'backfill' : state.rec
+  const rec = (t.records[kind] ?? t.records.live) as TrackRecord
   const e = entryFor(rec, state.n)
   const [lo, hi] = ds.meta.thresholds.total
-  const live = kind === 'live'
+  const live = kind !== 'backfill'
+  const xp = kind === 'experimental'
   const settled = rec.settled ?? 0
 
   return (
@@ -58,8 +118,8 @@ export function TrackPage() {
       <div className="card trackctl">
         <Stepper id="trk-n" label="Shots" value={state.n} min={lo} max={hi} onChange={(v) => set({ n: v }, { replace: true })} />
       </div>
-      <Tabs label="Which record" tabs={RECORDS.map((r) => ({ id: r, label: r === 'backfill' ? 'Backfill (past season)' : 'Live picks' }))} value={kind} onChange={(r) => set({ rec: r }, { replace: true })}>
-        <p className="recnote"><b>{rec.label}.</b> {live ? 'Saved before kick-off and settled afterwards. This is the proof that counts.' : 'The model run on matches it had not seen. A fair test, but not the same as picks saved in advance.'}</p>
+      <Tabs label="Which record" tabs={RECORDS.filter((r) => r !== 'experimental' || hasXp).map((r) => ({ id: r, label: r === 'backfill' ? 'Backfill (past season)' : r === 'live' ? 'Live picks' : 'Champions League' }))} value={kind} onChange={(r) => set({ rec: r }, { replace: true })}>
+        <p className="recnote"><b>{rec.label}.</b> {xp ? 'Experimental: built from domestic form, results entered by hand. Kept apart from, and never counted in, the official live record.' : live ? 'Saved before kick-off and settled afterwards. This is the proof that counts.' : 'The model run on matches it had not seen. A fair test, but not the same as picks saved in advance.'}</p>
         {live && (
           <p className="livebox"><b>{settled}</b> settled, <b>{rec.pending ?? 0}</b> waiting for kick-off.</p>
         )}
@@ -121,6 +181,7 @@ export function TrackPage() {
             )}
           </>
         )}
+        {live && <Evolution rec={rec} kind={kind as 'live' | 'experimental'} n={state.n} />}
       </Tabs>
       <p className="hint">Small samples prove nothing: judge over hundreds of matches, not a weekend. Lineups, injuries and red cards are not in the model.</p>
     </div>

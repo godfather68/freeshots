@@ -27,6 +27,9 @@ DEFAULT_TEAM = 12
 SELECTED_MIN_PROB = 0.70
 RESULT_DAYS = 30
 LIVE_LABEL = "Live picks (saved before kick-off)"
+EXPERIMENTAL_LABEL = "Champions League (experimental, manual results)"
+DAILY_POINTS = 30  # the most recent days with at least one settled match
+WEEKLY_POINTS = 52  # the most recent weeks (Monday to Sunday) with at least one settled match
 DATA_QUALITY = ("full", "partial", "none")
 
 
@@ -170,8 +173,9 @@ def build_board(repo: Repository, today: date) -> tuple[dict, dict]:
 
 
 def build_results(repo: Repository, today: date, days: int = RESULT_DAYS) -> tuple[dict, list[dict]]:
-    """-> (results.json document, the repository rows)."""
-    rows = repo.official_results(today - timedelta(days=days), today, FULL_ACCESS)
+    """-> (results.json document, the repository rows). Ordinary predictions by the official rule, plus
+    experimental ones (cross-border competitions settled by manual results) flagged `experimental`."""
+    rows = repo.settled_results(today - timedelta(days=days), today, FULL_ACCESS, experimental=None)
     results = []
     for r in rows:
         results.append({
@@ -186,7 +190,12 @@ def build_results(repo: Repository, today: date, days: int = RESULT_DAYS) -> tup
             "lb": {"70": _count(r["lb_70"]), "80": _count(r["lb_80"]), "90": _count(r["lb_90"])},
             "odds": bool(r["odds"]),
             "curve": _curve(r["total_curve"], r["curve_n_min"], r["curve_n_max"], f"result {r['match_id']}"),
+            "result_source": r["result_source"],  # additive: where the actual counts come from
         })
+        if r["result_source"] == "manual":
+            results[-1]["source_url"] = r["source_url"]
+        if r["experimental"]:  # additive; absent for ordinary predictions
+            results[-1]["experimental"] = True
     return {"schema": SCHEMA_VERSION, "results": results}, rows
 
 
@@ -234,7 +243,71 @@ def _by_n(repo: Repository, settled: pd.DataFrame, min_prob: float) -> dict:
     return out
 
 
-def build_track(repo: Repository, min_prob: float = SELECTED_MIN_PROB) -> tuple[dict, set[str]]:
+def accuracy_point(key: date, rows: list[dict], picks: list[tuple[int, float, bool]], ns: list[int],
+                   min_prob: float = SELECTED_MIN_PROB) -> dict:
+    """Accuracy of one day / week.
+    rows: settled_results rows of the group (one per match, the results.json rule): matches, mae = mean
+    |actual - expected|, bias = mean (expected - actual) (positive: more shots expected than played),
+    floor80_held = share of matches with actual >= lb 80 (None when no row has the value).
+    picks: (n, p, hit) of the group's settled picks of the record (v_official_picks / v_experimental_picks),
+    so by_n uses the record's own pick definition (p >= min_prob) and has exactly the record's
+    thresholds `ns` (0 / 0 for a threshold without picks in the group)."""
+    exp = [(int(r["actual_total"]), float(r["expected_shots"])) for r in rows if r["expected_shots"] is not None]
+    floor = [(int(r["actual_total"]), float(r["lb_80"])) for r in rows if r["lb_80"] is not None]
+    by_n = {str(n): {"picks": 0, "hits": 0} for n in ns}
+    for n, p, hit in picks:
+        if p >= min_prob and str(n) in by_n:
+            by_n[str(n)]["picks"] += 1
+            by_n[str(n)]["hits"] += int(bool(hit))
+    return {
+        "date": key.isoformat(),
+        "matches": len(rows),
+        "mae": _num(sum(abs(a - e) for a, e in exp) / len(exp), 2) if exp else None,
+        "bias": _num(sum(e - a for a, e in exp) / len(exp), 2) if exp else None,
+        "floor80_held": _num(sum(a >= lb for a, lb in floor) / len(floor), 4) if floor else None,
+        "by_n": by_n,
+    }
+
+
+def _period_key(d: date, period: str) -> date:
+    return d if period == "day" else d - timedelta(days=d.weekday())  # week: its Monday
+
+
+def accuracy_series(rows: list[dict], picks: list[tuple[date, int, float, bool]], ns: list[int], period: str,
+                    limit: int, min_prob: float = SELECTED_MIN_PROB) -> list[dict]:
+    """rows (settled_results) and picks ((match date, n, p, hit) of settled picks) grouped by match date
+    ("day") or week ("week": key = the Monday of the match dates' week); the most recent `limit` groups
+    with at least one settled match or pick, oldest first."""
+    groups: dict[date, list[dict]] = {}
+    pgroups: dict[date, list[tuple[int, float, bool]]] = {}
+    for r in rows:
+        groups.setdefault(_period_key(r["date"], period), []).append(r)
+    for d, n, p, hit in picks:
+        pgroups.setdefault(_period_key(d, period), []).append((n, p, hit))
+    keys = sorted(set(groups) | set(pgroups))[-limit:]
+    return [accuracy_point(k, groups.get(k, []), pgroups.get(k, []), ns, min_prob) for k in keys]
+
+
+def _picks_record(repo: Repository, source: str, label: str, today: date, experimental: bool,
+                  min_prob: float) -> tuple[dict, set[str]]:
+    """records.live (source live) / records.experimental: counts and by_n of the picks view, plus the
+    daily / weekly accuracy series."""
+    df = repo.track_records(source, FULL_ACCESS)
+    counts = df["status"].value_counts().to_dict() if len(df) else {}
+    settled = df[df["status"] == "settled"]
+    by_n = _by_n(repo, settled, min_prob) if len(settled) else {}
+    rows = repo.settled_results(None, today, FULL_ACCESS, experimental=experimental)
+    sp = settled[settled["date"].dt.date <= today]
+    picks = [(d.date(), int(n), float(p), bool(h)) for d, n, p, h in zip(sp["date"], sp["n"], sp["p"], sp["hit"])]
+    ns = sorted(int(n) for n in by_n)
+    rec = {"label": label, "settled": int(counts.get("settled", 0)), "pending": int(counts.get("pending", 0)),
+           "void": int(counts.get("void", 0)), "by_n": by_n,
+           "daily": accuracy_series(rows, picks, ns, "day", DAILY_POINTS, min_prob),
+           "weekly": accuracy_series(rows, picks, ns, "week", WEEKLY_POINTS, min_prob)}
+    return rec, set(settled.loc[settled["p"] >= min_prob, "competition"])
+
+
+def build_track(repo: Repository, min_prob: float = SELECTED_MIN_PROB, today: date | None = None) -> tuple[dict, set[str]]:
     """-> (track.json document, competition names it refers to)."""
     records: dict = {}
     used: set[str] = set()
@@ -247,13 +320,13 @@ def build_track(repo: Repository, min_prob: float = SELECTED_MIN_PROB) -> tuple[
     else:
         records["backfill"] = None
 
-    live = repo.track_records("live", FULL_ACCESS)
-    counts = live["status"].value_counts().to_dict() if len(live) else {}
-    settled = live[live["status"] == "settled"]
-    records["live"] = {"label": LIVE_LABEL, "settled": int(counts.get("settled", 0)),
-                       "pending": int(counts.get("pending", 0)), "void": int(counts.get("void", 0)),
-                       "by_n": _by_n(repo, settled, min_prob) if len(settled) else {}}
-    used |= set(settled.loc[settled["p"] >= min_prob, "competition"])
+    today = today or date.today()
+    # live = the official record (v_official_picks); experimental = v_experimental_picks (cross-border
+    # competitions settled by manual results), kept apart and never mixed into the live numbers.
+    for key, source, label, experimental in (("live", "live", LIVE_LABEL, False),
+                                             ("experimental", "experimental", EXPERIMENTAL_LABEL, True)):
+        records[key], comps = _picks_record(repo, source, label, today, experimental, min_prob)
+        used |= comps
     return {"schema": SCHEMA_VERSION, "records": records}, used
 
 
@@ -309,7 +382,7 @@ def build_all(repo: Repository, built_at: datetime | None = None, today: date | 
     today = today or built_at.date()
     board, board_src = build_board(repo, today)
     results, result_rows = build_results(repo, today)
-    track, used = build_track(repo)
+    track, used = build_track(repo, today=today)
     used |= {r["competition"] for r in result_rows}
     meta = build_meta(repo, built_at, board_src, used)
     return {"meta": meta, "board": board, "results": results, "track": track}

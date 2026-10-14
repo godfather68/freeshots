@@ -35,6 +35,7 @@ on:
       - "src/**"
       - "migrations/**"
       - "calendars/**"
+      - "results_manual/**"
       - "requirements.lock"
       - "pyproject.toml"
       - ".github/workflows/update.yml"

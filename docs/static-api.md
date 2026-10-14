@@ -64,9 +64,10 @@ Rules
 ```
 - `experimental` is **`true` or absent** (never `false`). It marks a fixture of a competition we have no
   shot history for: the numbers are built from each club's domestic league form, their calibration on that
-  competition is unknown, and the fixture can never be settled (no results source), so it never appears in
-  `results.json` or `track.json`. The UI must label these fixtures and must not present them as equal to
-  ordinary predictions. Method and limits: `reports/2026-10-13_champions_league.md`.
+  competition is unknown, and it has no automatic results source: it is settled only when a result is
+  entered by hand (`results_manual/`, see "Experimental results" below), and then appears in `results.json`
+  flagged `experimental` and in `track.json` under `records.experimental`, **never** in `records.live`. The
+  UI must label these fixtures and must not present them as equal to ordinary predictions. Method and limits: `reports/2026-10-13_champions_league.md`.
 - `data_quality` (only with `experimental`): `"full"` = both clubs have domestic shot data; `"partial"` = one
   club has none and is replaced by a neutral stand-in (less informed; in practice barely wider); `"none"` = neither club has data (a
   generic estimate from the level of the known clubs' leagues). Absent on ordinary fixtures (= full).
@@ -158,12 +159,30 @@ the under-(N-1).5 band `[1 - hi, 1 - lo]` with stated `1 - s` and realised `1 - 
     "actual": {"total": 25, "home": 14, "away": 11},
     "predicted_at": "2026-10-02T09:43:00Z",
     "expected": 26, "lb": {"70": 22, "80": 21, "90": 19}, "odds": true,
-    "curve": [0.9999, 0.9995]
+    "curve": [0.9999, 0.9995],
+    "result_source": "football-data"
+  }, {
+    "id": "…", "league": "uefa-champions-league", "date": "2026-10-13", "home": "Arsenal", "away": "Lille",
+    "actual": {"total": 26, "home": 15, "away": 11},
+    "predicted_at": "2026-10-13T08:12:00Z",
+    "expected": 25, "lb": {"70": 22, "80": 20, "90": 18}, "odds": false,
+    "curve": [0.9999, 0.9995],
+    "result_source": "manual", "source_url": "https://www.example.org/match/arsenal-lille", "experimental": true
   }]
 }
 ```
 The client marks hit/miss for the visitor's threshold N as `actual.total >= N` next to `curve[N]`.
-Only predictions the database counts as official (`v_official_picks` rule: live, pre-match) appear.
+Only predictions the database counts as official appear (`v_official_picks` rule: live, pre-match; per match
+the last pre-match board prediction), plus experimental ones settled by the same rule (see below).
+
+### Experimental results (additive, schema 1; UEFA Champions League)
+- `result_source` (every result): `"football-data"` (automatic) or `"manual"` (typed in from a public match
+  page, for competitions without an automatic source). `source_url` (only with `"manual"`): that page.
+- `experimental: true` (**`true` or absent**) marks a result of an experimental prediction. Such results are
+  listed so visitors can compare, but they belong to `track.json` `records.experimental`, never to
+  `records.live`. A manual result can be corrected later: the file then shows the corrected numbers.
+- Providers count shots slightly differently (blocked shots, headers off target); the number published is
+  the one entered from `source_url`, no adjustment is applied.
 
 ## `data/track.json`
 ```json
@@ -176,10 +195,34 @@ Only predictions the database counts as official (`v_official_picks` rule: live,
       "reliability": [{"band": [0.7, 0.8], "n": 925, "stated": 0.739, "realised": 0.763}],
       "by_league": [{"league": "netherlands-eredivisie", "n": 239, "hit_rate": 0.77, "stated": 0.774}]
     }}},
-    "live": {"label": "Live picks (saved before kick-off)", "settled": 0, "pending": 127, "by_n": {}}
+    "live": {"label": "Live picks (saved before kick-off)", "settled": 104, "pending": 113, "void": 0, "by_n": {},
+             "daily": [{"date": "2026-10-13", "matches": 9, "mae": 4.1, "bias": 1.2, "floor80_held": 0.8889,
+                        "by_n": {"24": {"picks": 7, "hits": 6}}}],
+             "weekly": [{"date": "2026-10-12", "matches": 41, "mae": 4.4, "bias": 0.6, "floor80_held": 0.8293,
+                         "by_n": {"24": {"picks": 30, "hits": 23}}}]},
+    "experimental": {"label": "Champions League (experimental, manual results)", "settled": 0, "pending": 36,
+                     "void": 0, "by_n": {}, "daily": [], "weekly": []}
   }
 }
 ```
+- `records.experimental` (additive, schema 1): same shape as `live`, from `v_experimental_picks` (experimental
+  predictions, live scans, pre-match, deduplicated like the official record), settled by manual results. It is
+  never merged into `live`; its `by_n` entries have the same fields (`mean_stated` included) once picks settle.
+- `daily` / `weekly` (additive, schema 1, on `live` and `experimental`): accuracy over time, oldest first.
+  `daily` = the 30 most recent **match dates** (venue-local, as `date` everywhere) with at least one settled
+  match or pick; `weekly` = the 52 most recent weeks, `date` = the **Monday** of the week (venue-local match
+  dates, weeks Monday to Sunday). Per point:
+  - `matches`, `mae`, `bias`, `floor80_held`: over the settled matches of that day / week, one prediction per
+    match chosen by the `results.json` rule (the last pre-match board prediction; experimental ones for
+    `experimental`). `mae` = mean |actual - expected| (expected = the integer median `expected`), `bias` =
+    mean (expected - actual) (**positive = the model expected more shots than were played**), 2 decimals;
+    `floor80_held` = share of matches with `actual.total >= lb.80`, 4 decimals. `null` when no match (`matches`
+    can be 0 on a day that only has settled picks).
+  - `by_n`: **exactly the thresholds of the record's own `by_n`** (live scans save N = 24 today, so `{"24": …}`;
+    `{}` for an empty record), with the record's pick definition: picks = settled picks of the same view
+    (`v_official_picks` / `v_experimental_picks`) whose published P(total >= N) >= `selected_min_prob` (0.70),
+    hits = those with actual >= N. Summed over all days, `picks` / `hits` equal `by_n[N].n` / `.hits` (when the
+    record is within the window), so a weekly hit rate can be compared with `by_n[N].mean_stated`.
 
 ## Audit trail
 Each scheduled run commits the regenerated `data/*.json` to the published branch. Git history (with
@@ -194,7 +237,8 @@ The shapes above are unchanged. Details an implementer of the site needs (JSON S
   `track.records.backfill` (no backfill), and in a `by_n` entry `brier_baseline`, `hit_rate`, `mean_stated`,
   `wilson95` (no selected picks).
 - **Additive fields:** `meta.record.since` (start of the live record of the database behind this export; it
-  moves forward if the database had to be rebuilt), `track.records.live.void`, and, for cross-border
+  moves forward if the database had to be rebuilt), `track.records.live.void`, `track.records.experimental`, `daily` / `weekly` on the live and experimental
+  records, result `result_source` / `source_url` / `experimental` (see "Experimental results"), and, for cross-border
   competitions only, fixture `experimental` / `data_quality` and league `featured` (see "Experimental
   fixtures"), and fixture `explain` (see "`explain`"). `meta.counts.cold_start` includes experimental
   fixtures with a club without data.

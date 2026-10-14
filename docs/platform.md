@@ -20,7 +20,7 @@ Code: `src/shots/db/` (`engine.py`, `models.py`, `migrate.py`, `load.py`, `repo.
 Every connection: `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=10000`, `synchronous=NORMAL`,
 `cache_size=64MB`. WAL lets the web app read while `shots update` writes.
 
-## Schema (revisions `0001_initial`, `0002_pre_match`, `0003_run_integrity`, `0004_experimental`, `0005_explain`)
+## Schema (revisions `0001_initial`, `0002_pre_match`, `0003_run_integrity`, `0004_experimental`, `0005_explain`, `0006_manual_results`)
 
 Timestamps named `*_at` are **UTC** (naive). `matches.date` is the local match date and
 `kickoff_local` the local "HH:MM", exactly as in the canonical schema. Board `meta.built_at` (and picks
@@ -34,7 +34,8 @@ Timestamps named `*_at` are **UTC** (naive). `matches.date` is the local match d
 | `teams` | `team_id` | canonical `<country>:<slug>`; `name` = latest normalized name |
 | `matches` | `match_id` | **one table for played and upcoming matches** (same canonical key; see below). Canonical columns + `kickoff_local`, `kickoff_utc` (calendar fixtures), `round`, `status`, `search_key` |
 
-`matches.status`: `played` (row from `matches.parquet`, has results), `scheduled` (listed by a fixture
+`matches.status`: `played` (row from `matches.parquet`, or a manual result with `source = 'manual'`, see
+"Manual results"), `scheduled` (listed by a fixture
 source), `unlisted` (was scheduled, no fixture source lists it any more: postponed/moved; set back to
 `scheduled` if it reappears).
 
@@ -76,6 +77,8 @@ Results get corrected upstream, so outcomes are derived from the current `matche
   labelled replays).
 - `v_replay_picks(...)`: the same columns for replay files (`replay_*.csv`, `params.source = 'replay'`):
   after-the-fact re-runs of past rounds, queryable separately, never official.
+- `v_experimental_picks(...)` (`0004`): the official rule applied to experimental predictions; settled by
+  manual results (`0006`), never part of the official record.
 
 ### Operations and accounts
 
@@ -167,13 +170,63 @@ Method, proxy validation and limits: `reports/2026-10-13_champions_league.md`. P
   `experimental`; **`v_official_picks` and `v_replay_picks` exclude experimental predictions**, as do
   `Repository.official_results` and the file record (`track.dedupe`), so the live record, its counts and its
   metrics are unaffected. `v_experimental_picks` lists them apart (same columns): they stay `pending`
-  because no source of Champions League shot counts exists ("unsettleable" today). The migration adds the
+  until a manual result is entered (`0006`, see "Manual results"), then settle in that separate record. The migration adds the
   columns with `ALTER TABLE ADD COLUMN` (no table copy: triggers and existing rows untouched).
-- **Lifecycle of an unsettleable fixture**: it stays `scheduled`, leaves the board the day after its date
-  (board rows are `date >= today`), and is never `played`. The worker's `results` reason fires once when it
+- **Lifecycle of an experimental fixture**: it stays `scheduled`, leaves the board the day after its date
+  (board rows are `date >= today`), and becomes `played` only through a manual result. The worker's `results` reason fires once when it
   ends, as for any match.
 - **Export**: fixture `experimental: true` + `data_quality`, league `featured: true` (additive, schema 1;
   `docs/static-api.md`). `shots.export.verify` checks both against the database.
+
+## Manual results (migration `0006_manual_results`)
+
+Competitions without an automatic results source (the UEFA Champions League: football-data.co.uk has none)
+are settled from a committed, human-edited CSV per competition and season:
+`results_manual/<calendar prefix>_<YYYY-YY>.csv` (e.g. `uefa-champions-league_2026-27.csv`).
+
+- **Columns** (header required, all present, any order): `date` (YYYY-MM-DD, the match date as in our
+  fixtures: venue-local, the home club's zone), `home`, `away` (calendar spellings or canonical names; both
+  go through `team_aliases.csv` source `calendar`, as the calendar ingest does), `home_shots`, `away_shots`
+  (total shots incl. blocked, 0..60), `home_sot`, `away_sot` (optional, both or neither, <= shots), `home_goals`,
+  `away_goals` (0..20), `source` (http(s) URL the numbers were read from), `entered_at` (ISO 8601 UTC, `Z` or
+  `+00:00`), `notes` (optional, e.g. a provider's definition caveat).
+- **Checks** (`shots.ingest.manual_results.read_file`, then `shots.db.manual`): file name prefix must be a
+  cross-border competition (a domestic league is refused); header exact; every value format / range above;
+  no duplicate match, no team twice on one date, home != away; each row must resolve by canonical `match_id`
+  (competition, date, normalised names) to a match of that competition in the DB, else the error lists the
+  three closest candidates (`date home v away [match_id]`) and says when home / away are swapped; the
+  competition must have no football-data division code and the match must not come from football-data;
+  the match season must be the file's; the match must have finished (`kickoff_utc` + 105 min, unknown
+  kick-off: 00:00 UTC of the date + 105 min) before `entered_at` and before now; `entered_at` not in the future
+  (10 min tolerance). Any problem rejects that whole file (other valid files still load) and the update step
+  `db-manual` fails, listing `file:line: problem` in `job_runs.error`.
+- **Storage**: the result goes into the `matches` row (status `played`, `source = 'manual'`, shot / goal
+  columns), so every outcome view settles from it. `manual_results` (one row per match) keeps what `matches`
+  cannot: `source_url`, `entered_at`, `notes`, `file`, and the match's `prev_source` / `prev_status`.
+  Results are **not** append-only: a corrected CSV row updates both; a removed row restores the match
+  (`prev_status`, `prev_source`, empty result columns). Every insert / update / delete is recorded in
+  `manual_result_edits` (`action`, `changes` = `{column: [old, new]}` of the changed columns, `file`,
+  `entered_at`, `recorded_at`), append-only by trigger.
+- **Guards (triggers)**: `matches.source` can become `'manual'` only in a competition without a division
+  code, and never for a football-data match; `manual_results` rows only for such matches. So domestic
+  results can never be overwritten by hand, and football-data's own loader never sees these matches
+  (they are not in `matches.parquet`; fixture upserts never touch `played` rows).
+- **Settlement**: experimental predictions settle through `v_prediction_outcomes` like any other and are
+  counted by `v_experimental_picks` (live scans, pre-match, deduplicated); `v_official_picks` and
+  `Repository.official_results` are unchanged (still `experimental = 0`). `Repository.base_rates` takes the
+  overall share from automatic-source results only, and `load.incremental_since` ignores manual results,
+  so domestic numbers do not move. The modelling pipeline never reads these results (it reads parquet).
+- **Commands**: `python -m shots.db manual --check` (validate and list `line -> match_id, date, home, away,
+  kickoff_utc, total`; exit 1 with every problem; writes nothing), `python -m shots.db manual` (load), and
+  the update step `db-manual` (after `db`, before `db-board`). Loader counts:
+  `{files, rows, inserted, updated, deleted, unchanged, fingerprint}`.
+- **Worker**: reason `manual-results` = the files' fingerprint differs from `counts["db-manual"].fingerprint`
+  of the last `ok` update (without one: when a file holds a data row), so a pushed CSV is picked up by the
+  next scheduled slot. (`results_manual/` is not in the workflow's push paths: a push alone does not start
+  a run; dispatch the workflow by hand to publish at once.)
+- **Export**: `results.json` lists settled experimental fixtures with `experimental: true`, every result has
+  `result_source` (`football-data` | `manual`) and manual ones `source_url`; `track.json` has
+  `records.experimental` and `daily` / `weekly` accuracy series (`docs/static-api.md`).
 
 ## Repository API (`shots.db.repo.Repository`)
 
@@ -203,14 +256,16 @@ Method, proxy validation and limits: `reports/2026-10-13_champions_league.md`. P
   same keys plus `curve_ns` + `curve` (lists), and `team_ns`, `home_curve`, `away_curve` (None without
   team data/entitlement). None if not on the board or not visible (league / `max_days_ahead`).
 - `track_records(source, ent) -> DataFrame`: `source="live"` -> `v_official_picks`; `"replay"` ->
-  `v_replay_picks`; `"backfill"` -> the latest backfill run. Columns `match_id, date (datetime64), competition, n, p, status, actual (Int64),
+  `v_replay_picks`; `"experimental"` -> `v_experimental_picks`; `"backfill"` -> the latest backfill run. Columns `match_id, date (datetime64), competition, n, p, status, actual (Int64),
   hit (boolean, NA unless settled), scan_ts, source`.
 - `track_summary(source, n, min_prob, ent) -> dict`: `{src, counts (live status counts), avail (Ns with
   settled rows), n (resolved), has_data, settled (DataFrame), metrics (shots.predict.track.metrics; only
   `all`/`selected` without track_detail), total, n_comp}`.
 - Static export (used by `shots.export` only, always with `FULL_ACCESS`; no odds values or source columns are
   selected): `board_export(today, ent)` (upcoming rows of the latest board with full curves and `kickoff_utc`),
-  `official_results(since, until, ent)` (see "Stage 1"), `base_rates(n, before)` (per-league share of past
+  `official_results(since, until, ent)` (see "Stage 1"; rows also carry `experimental`, `result_source`,
+  `source_url`), `settled_results(since | None, until, ent, experimental=None | False | True)` (the same rule
+  for ordinary, experimental or all predictions), `base_rates(n, before)` (per-league share of past
   matches with >= n shots: the Brier baseline), `competitions()`, `last_finished_job(job)`, `record_since()`.
 - `data_status(today) -> dict`: `{revision, matches_played, latest_result, upcoming_fixtures,
   competitions, teams, runs: {kind: {count, latest_built_at}}, predictions, latest_board_run, last_job}`.
@@ -225,6 +280,7 @@ The web app takes `create_app(db=None, today=None, entitlements=None)`, where `e
 `python -m shots update` steps: results -> calendars -> picks scan -> board -> track dashboard ->
 **db** (`sync_results`: migrate, upsert results of the last ~400 days (all on an empty DB) and the
 upcoming fixtures from `fixtures.parquet` + the latest `data/raw/football-data/fixtures/fixtures_*.csv`) ->
+**db-manual** (`sync_manual_results`: `results_manual/*.csv`, see "Manual results") ->
 **db-board** (`import_board_file`: the fresh board as a `board` run) -> **db-picks** (`sync_predictions`:
 every picks CSV not yet imported as a `picks` run, the backfill as a `backfill` run, outcome counts).
 Each step runs even if an earlier one failed; the run is recorded in `job_runs`.
@@ -626,7 +682,10 @@ is read through `Repository` with `FULL_ACCESS`; the exporter never opens the pa
   prediction's insert time (`predictions.created_at`, DB clock, trigger-enforced), not a claimed build time.
   This is the `v_official_picks` rule applied to board runs (a picks run only holds one probability; the
   board run holds the full curve the page needs).
-- **`track.json`:** `backfill` = latest backfill run, `live` = `v_official_picks`; per threshold N the selected
+- **`track.json`:** `backfill` = latest backfill run, `live` = `v_official_picks`, `experimental` =
+  `v_experimental_picks` (same shape as `live`), each of `live` / `experimental` with `daily` / `weekly`
+  accuracy series (matches / MAE / bias / floor-80 from the `results.json` rule, `by_n` from the record's own
+  picks; `docs/static-api.md`); per threshold N the selected
   picks (p >= 0.70) with Wilson interval, reliability bands and Brier over all settled rows, the Brier
   baseline from `Repository.base_rates` (equal to the dashboard's `track.base_rates`; checked on the real
   data: N=24 gives 1085 picks / 846 hits / Brier 0.2205 / baseline 0.2419 in both), and the per-league table.

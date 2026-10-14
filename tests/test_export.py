@@ -190,7 +190,9 @@ def test_results_use_the_official_rule(seeded, tmp_path):
     assert m1["league"] == "spain-la-liga" and m1["odds"] is False and len(m1["curve"]) == 36
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", m1["predicted_at"])
     assert abs(datetime.fromisoformat(m1["predicted_at"][:-1]) - NOW) < timedelta(minutes=10)  # the insert time
-    assert list(m1) == ["id", "league", "date", "home", "away", "actual", "predicted_at", "expected", "lb", "odds", "curve"]
+    assert list(m1) == ["id", "league", "date", "home", "away", "actual", "predicted_at", "expected", "lb", "odds", "curve",
+                        "result_source"]
+    assert m1["result_source"] == "football-data" and "source_url" not in m1 and "experimental" not in m1
     late = D1 + timedelta(days=31)  # M1 is now older than 30 days, M2 exactly 30
     run_export(seeded, tmp_path / "late", today=late)
     assert [r["id"] for r in read(tmp_path / "late")["results"]["results"]] == [M2]
@@ -201,6 +203,8 @@ def test_no_odds_values_or_source_columns_are_published(seeded, tmp_path):
     text = "".join((tmp_path / "out" / f"{n}.json").read_text(encoding="utf-8") for n in NAMES)
     for value in (*ODDS.values(), MKT):
         assert str(value) not in text and f"{value:.4f}" not in text and f"{value:.3f}" not in text
+    # the only "source" words allowed: each result's result_source ("football-data" | "manual")
+    text = text.replace('"result_source":"football-data"', "")
     for word in ("odds_home", "odds_draw", "odds_away", "odds_over", "odds_under", "mkt", "market", "football-data", "calendar", "source", "goals", "sot", "search_key", "team_id"):
         assert word not in text, word
     allowed = {"schema", "built_at", "results_up_to", "last_job", "status", "finished_at", "models", "thresholds",
@@ -210,7 +214,8 @@ def test_no_odds_values_or_source_columns_are_published(seeded, tmp_path):
                "model", "curve", "mean", "median", "lb80", "results", "actual", "predicted_at", "records", "backfill",
                "live", "label", "by_n", "selected_min_prob", "n", "hits", "hit_rate", "mean_stated", "wilson95", "brier",
                "brier_baseline", "reliability", "band", "stated", "realised", "by_league", "settled", "pending", "void",
-               "22", "24"}
+               "22", "24", "result_source", "experimental", "daily", "weekly", "matches", "mae", "bias",
+               "floor80_held", "picks"}
 
     def keys(obj):
         if isinstance(obj, dict):
@@ -341,7 +346,10 @@ def test_verifier_agrees_with_the_export(seeded, tmp_path, migrated_db):
     run_export(seeded, tmp_path / "out")
     res = verify_mod.verify(tmp_path / "out", migrated_db)
     assert res["ok"], res["problems"]
-    assert res["checked"] == {"board fixtures": 3, "results": 2, "track live thresholds": 1, "track backfill thresholds": 2}
+    assert res["checked"] == {"board fixtures": 3, "results": 2, "track live thresholds": 1, "track backfill thresholds": 2,
+                              "track live daily": 2, "track live weekly": res["checked"]["track live weekly"],
+                              "track experimental thresholds": 0, "track experimental daily": 0,
+                              "track experimental weekly": 0}
     with pytest.raises(SystemExit) as exc:
         verify_mod.main(["--dir", str(tmp_path / "out"), "--db", str(migrated_db)])
     assert exc.value.code == 0
@@ -398,6 +406,7 @@ def _stub_update(monkeypatch, with_board: bool):
     monkeypatch.setattr(board_mod, "build", ok)
     monkeypatch.setattr(track, "build_dashboard", ok)
     monkeypatch.setattr(dbload, "sync_results", ok)
+    monkeypatch.setattr(dbload, "sync_manual_results", ok)
     monkeypatch.setattr(dbload, "sync_predictions", ok)
     monkeypatch.setattr(dbload, "import_board_file",
                         (lambda engine: load.import_board(engine, board_frame(), meta_at(NOW))) if with_board else ok)

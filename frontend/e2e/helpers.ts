@@ -7,12 +7,12 @@ export const TODAY_FIXTURE = board.fixtures.find((f) => f.date === '2026-10-12')
 export const FINISHED = results.results.find((r) => r.date === '2026-10-11') ?? results.results[0]
 
 /** Serve data/*.json from the test fixtures and freeze the clock at the fixtures' "today". */
-export async function boot(page: Page, hash = '#/', opts: { missing?: string[]; now?: string } = {}) {
+export async function boot(page: Page, hash = '#/', opts: { missing?: string[]; now?: string; data?: Record<string, unknown> } = {}) {
   await page.clock.setFixedTime(new Date(opts.now ?? '2026-10-12T10:00:00Z'))
   await page.route('**/data/*.json', (route) => {
     const file = new URL(route.request().url()).pathname.split('/').pop()!
     if (opts.missing?.includes(file)) return route.fulfill({ status: 404, body: 'not found' })
-    return route.fulfill({ json: fixtureFor(file) })
+    return route.fulfill({ json: fixtureFor(file, opts.data) })
   })
   await page.goto(`/${hash}`)
   await page.reload()
