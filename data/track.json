@@ -608,12 +608,122 @@
   },
   "live": {
    "label": "Live picks (saved before kick-off)",
-   "settled": 0,
-   "pending": 112,
+   "settled": 13,
+   "pending": 99,
    "void": 0,
-   "by_n": {},
-   "daily": [],
-   "weekly": []
+   "by_n": {
+    "24": {
+     "selected_min_prob": 0.7,
+     "n": 9,
+     "hits": 8,
+     "hit_rate": 0.8889,
+     "mean_stated": 0.7478,
+     "wilson95": [
+      0.565,
+      0.9801
+     ],
+     "brier": 0.1434,
+     "brier_baseline": 0.2173,
+     "reliability": [
+      {
+       "band": [
+        0.0,
+        0.1
+       ],
+       "n": 1,
+       "stated": 0.061,
+       "realised": 0.0
+      },
+      {
+       "band": [
+        0.5,
+        0.6
+       ],
+       "n": 1,
+       "stated": 0.515,
+       "realised": 0.0
+      },
+      {
+       "band": [
+        0.6,
+        0.7
+       ],
+       "n": 2,
+       "stated": 0.672,
+       "realised": 0.5
+      },
+      {
+       "band": [
+        0.7,
+        0.8
+       ],
+       "n": 8,
+       "stated": 0.7376,
+       "realised": 0.875
+      },
+      {
+       "band": [
+        0.8,
+        0.9
+       ],
+       "n": 1,
+       "stated": 0.829,
+       "realised": 1.0
+      }
+     ],
+     "by_league": [
+      {
+       "league": "england-championship",
+       "n": 9,
+       "hit_rate": 0.8889,
+       "stated": 0.7478
+      }
+     ]
+    }
+   },
+   "daily": [
+    {
+     "date": "2026-10-13",
+     "matches": 9,
+     "mae": 3.67,
+     "bias": 0.33,
+     "floor80_held": 0.8889,
+     "by_n": {
+      "24": {
+       "picks": 6,
+       "hits": 5
+      }
+     }
+    },
+    {
+     "date": "2026-10-14",
+     "matches": 4,
+     "mae": 5.75,
+     "bias": -3.75,
+     "floor80_held": 1.0,
+     "by_n": {
+      "24": {
+       "picks": 3,
+       "hits": 3
+      }
+     }
+    }
+   ],
+   "weekly": [
+    {
+     "date": "2026-10-12",
+     "matches": 13,
+     "mae": 4.31,
+     "bias": -0.92,
+     "floor80_held": 0.9231,
+     "by_n": {
+      "24": {
+       "picks": 9,
+       "hits": 8
+      }
+     }
+    }
+   ]
   },
   "experimental": {
    "label": "Champions League (experimental, manual results)",

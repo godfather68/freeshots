@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-10-14T11:49:47Z",
- "results_up_to": "2026-10-12",
+ "built_at": "2026-10-15T00:30:16Z",
+ "results_up_to": "2026-10-14",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-14T11:49:38Z"
+  "finished_at": "2026-10-15T00:30:11Z"
  },
  "models": [
   "negbin_pit_comp-noodds_2026-10-12",
@@ -43,7 +43,7 @@
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 65
+   "fixtures": 61
   },
   {
    "id": "england-league-one",
@@ -64,7 +64,7 @@
    "name": "UEFA Champions League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 43,
+   "fixtures": 34,
    "featured": true
   },
   {
@@ -138,6 +138,13 @@
    "fixtures": 30
   },
   {
+   "id": "scotland-championship",
+   "name": "Championship",
+   "country": "Scotland",
+   "tier": 2,
+   "fixtures": 0
+  },
+  {
    "id": "spain-la-liga",
    "name": "La Liga",
    "country": "Spain",
@@ -160,7 +167,6 @@
   }
  ],
  "days": [
-  "2026-10-14",
   "2026-10-15",
   "2026-10-16",
   "2026-10-17",
@@ -186,9 +192,9 @@
   "2026-11-08"
  ],
  "counts": {
-  "fixtures": 499,
-  "with_odds": 5,
-  "cold_start": 14
+  "fixtures": 486,
+  "with_odds": 1,
+  "cold_start": 10
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
