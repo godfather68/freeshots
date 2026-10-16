@@ -1,15 +1,14 @@
 {
  "schema": 1,
- "built_at": "2026-10-15T00:30:16Z",
+ "built_at": "2026-10-16T01:22:08Z",
  "results_up_to": "2026-10-14",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-15T00:30:11Z"
+  "finished_at": "2026-10-16T01:22:01Z"
  },
  "models": [
   "negbin_pit_comp-noodds_2026-10-12",
-  "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
-  "negbin_pit_comp_2026-10-12"
+  "negbin_pit_comp-noodds_2026-10-12-ucl-exp"
  ],
  "thresholds": {
   "total": [
@@ -50,7 +49,7 @@
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "england-league-two",
@@ -156,7 +155,7 @@
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 44
+   "fixtures": 55
   },
   {
    "id": "turkey-super-lig",
@@ -167,7 +166,6 @@
   }
  ],
  "days": [
-  "2026-10-15",
   "2026-10-16",
   "2026-10-17",
   "2026-10-18",
@@ -189,11 +187,12 @@
   "2026-11-04",
   "2026-11-06",
   "2026-11-07",
-  "2026-11-08"
+  "2026-11-08",
+  "2026-11-15"
  ],
  "counts": {
-  "fixtures": 486,
-  "with_odds": 1,
+  "fixtures": 496,
+  "with_odds": 0,
   "cold_start": 10
  },
  "record": {
