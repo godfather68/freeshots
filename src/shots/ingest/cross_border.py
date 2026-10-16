@@ -1,4 +1,4 @@
-"""Cross-border competitions (clubs from several countries): the UEFA Champions League.
+"""Cross-border competitions (clubs from several countries): the UEFA Champions, Europa and Conference Leagues.
 
 Domestic competitions scope a team by the competition's country (``<country>:<slug>``). In a
 cross-border competition each club keeps its DOMESTIC team id, so its rolling form comes from its
@@ -34,6 +34,8 @@ class CrossBorder:
 # calendar file prefix -> competition
 COMPETITIONS: dict[str, CrossBorder] = {
     "uefa-champions-league": CrossBorder("UEFA Champions League", "Europe", 1, "ucl-exp"),
+    "uefa-europa-league": CrossBorder("UEFA Europa League", "Europe", 1, "uel-exp"),
+    "uefa-conference-league": CrossBorder("UEFA Conference League", "Europe", 1, "uecl-exp"),
 }
 BY_NAME: dict[str, CrossBorder] = {c.name: c for c in COMPETITIONS.values()}
 COUNTRY_LABELS: frozenset[str] = frozenset(c.country for c in COMPETITIONS.values())

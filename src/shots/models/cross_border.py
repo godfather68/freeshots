@@ -236,6 +236,15 @@ class CrossBorderModel(ShotModel):
         n = np.broadcast_to(np.asarray(n), (len(rows),)).astype(int)
         return 1.0 - self.base_.pit_map_(cdf_at(cdf, n - 1), self._groups(rows))
 
+    def prob_at_least_curve(self, rows: pd.DataFrame, ns) -> np.ndarray:
+        """``prob_at_least`` for every n of ``ns`` (columns); same arithmetic per n."""
+        cdf = self._cdfs(rows)["total"]
+        out = np.empty((len(rows), len(ns)))
+        for j, n in enumerate(ns):
+            nn = np.broadcast_to(np.asarray(n), (len(rows),)).astype(int)
+            out[:, j] = 1.0 - self.base_.pit_map_(cdf_at(cdf, nn - 1), self._groups(rows))
+        return out
+
     def mean(self, rows: pd.DataFrame) -> np.ndarray:
         """Expected total shots of the (uncalibrated) mixture distribution."""
         cdf = self._cdfs(rows)["total"]
@@ -253,6 +262,16 @@ class CrossBorderModel(ShotModel):
         g = np.repeat(np.asarray(rows[self.group]), MAX_SIDE) if self.group else None
         G = base.team_pit_map_[side](cdf[:, :MAX_SIDE].ravel(), g).reshape(len(rows), MAX_SIDE)
         out["mean"] = (1.0 - G).sum(axis=1)
+        return out
+
+    def team_prob_at_least_curve(self, rows: pd.DataFrame, side: str, ns) -> np.ndarray:
+        base = self.base_
+        base._require_team()
+        cdf = self._cdfs(rows)[side]
+        out = np.empty((len(rows), len(ns)))
+        for j, n in enumerate(ns):
+            nn = np.broadcast_to(np.asarray(n), (len(rows),)).astype(int)
+            out[:, j] = 1.0 - base.team_pit_map_[side](cdf_at(cdf, nn - 1), self._groups(rows))
         return out
 
     def team_prob_at_least(self, rows: pd.DataFrame, side: str, n) -> np.ndarray:

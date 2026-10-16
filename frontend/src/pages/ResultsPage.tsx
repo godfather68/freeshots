@@ -133,11 +133,11 @@ export function ResultsPage() {
       {hasXp && (
         <Group
           kind="xp"
-          title="Champions League"
+          title="European cups"
           intro="Experimental: built from each club's domestic form, never checked on this competition, and results are typed in by hand, so they lag. These numbers are kept apart and never count in the official record."
           rows={xp}
           n={state.n}
-          empty="Champions League results are entered by hand after each matchday, so they appear a little after the matches. None have been entered yet."
+          empty="European cup results are entered by hand after each matchday, so they appear a little after the matches. None have been entered yet."
         />
       )}
       <p className="hint">&ldquo;Floor&rdquo; is the highest shot count we were at least 80% sure the match would reach. &ldquo;Average miss&rdquo; is how far the actual total landed from our expected total, in shots, ignoring direction. Lineups, injuries and red cards are not in the model.</p>

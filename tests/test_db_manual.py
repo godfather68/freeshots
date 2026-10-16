@@ -86,11 +86,11 @@ def problems(fn, *a, **k) -> str:
 
 def test_committed_file_parses():
     # Structure only: matching rows to fixtures needs the live DB (`python -m shots.db manual --check`).
-    path = mr.MANUAL_DIR / FILE
+    path = mr.COMMITTED_DIR / FILE
     assert path.read_text(encoding="utf-8").splitlines()[0] == HEADER
     f = mr.read_file(path)
     assert f.competition.name == UCL and f.season_start == 2026
-    assert f.rows.empty == (not mr.has_rows(mr.MANUAL_DIR))
+    assert f.rows.empty == (not mr.has_rows(mr.COMMITTED_DIR))
 
 
 def test_a_valid_row_is_parsed_and_normalised(tmp_path):
@@ -274,7 +274,7 @@ def test_export_publishes_experimental_results_and_record(seeded, tmp_path, migr
     today = LATER.date()
     plain = export_at(seeded, tmp_path / "plain", today)
     assert plain["track"]["records"]["experimental"] == {
-        "label": "Champions League (experimental, manual results)", "settled": 0, "pending": 2, "void": 0,
+        "label": "European cups (experimental, manual results)", "settled": 0, "pending": 2, "void": 0,
         "by_n": {}, "daily": [], "weekly": []}
     write(tmp_path / "m", line(), line(day=D2, home="Viking", away="Bayern Munich", hs="9", as_="13",
                                        entered=z(KICK2 + timedelta(hours=2))))

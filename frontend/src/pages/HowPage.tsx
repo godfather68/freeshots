@@ -20,8 +20,8 @@ export function HowPage() {
       <h2>Team shots <span className="badge xp">experimental</span></h2>
       <p>Each row also shows the expected shots for each team (&ldquo;17 &ndash; 13&rdquo;, home first). These team numbers are experimental: the team bounds pass the overall calibration checks on 2025/26 but not yet the per-competition check, so we make no per-league confidence claim for them and they deserve more caution than the match totals.</p>
 
-      <h2>Champions League and other experimental matches <span className="tag xp">Experimental</span></h2>
-      <p>Featured competitions such as the Champions League are pinned to the top of the list. Their numbers are built from each club&rsquo;s domestic form and have not yet been validated on that competition, so they carry an <span className="tag xp">Experimental</span> tag, and they are left out of Top picks unless a day has nothing else.</p>
+      <h2>European cups and other experimental matches <span className="tag xp">Experimental</span></h2>
+      <p>Featured competitions (Champions League, Europa League, Conference League) are pinned to the top of the list. Their numbers are built from each club&rsquo;s domestic form and have not yet been validated on that competition, so they carry an <span className="tag xp">Experimental</span> tag, and they are left out of Top picks unless a day has nothing else.</p>
       <p>A <span className="tag ltd">Limited data</span> tag means one or both clubs have no domestic data in our sources (for example a side from a league we do not cover). The estimate then rests on less, so treat it as a rough guide.</p>
 
       <h2>Odds and no odds</h2>

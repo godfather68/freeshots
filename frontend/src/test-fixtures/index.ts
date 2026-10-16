@@ -273,7 +273,7 @@ const liveFull: TrackRecord = {
   by_n: { '24': { ...trackEntry(24), n: 55, hits: 42, hit_rate: 0.7636, mean_stated: 0.74, wilson95: [0.636, 0.859], by_league: [] } },
 }
 const experimentalRec: TrackRecord = {
-  label: 'Champions League (experimental, manual results)', settled: 4, pending: 4, by_n: {},
+  label: 'European cups (experimental, manual results)', settled: 4, pending: 4, by_n: {},
   daily: [period('2026-10-08', 2, 5.5, 1.5, 1, 1, 1)], weekly: [period('2026-10-05', 4, 5.9, 0.8, 0.75, 2, 1)],
 }
 /** The default track: live not yet settled (empty state), Champions League with one small week. */

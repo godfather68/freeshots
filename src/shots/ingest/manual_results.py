@@ -41,6 +41,7 @@ from shots.ingest import football_data as fd
 from shots.ingest.schema import make_match_id, normalize_team
 
 MANUAL_DIR = fd.ROOT / "results_manual"
+COMMITTED_DIR = MANUAL_DIR  # the repository folder (tests redirect MANUAL_DIR to an empty one)
 ALIAS_SOURCE = "calendar"  # names are entered as the season calendars spell them
 COLUMNS = ("date", "home", "away", "home_shots", "away_shots", "home_sot", "away_sot", "home_goals", "away_goals",
            "source", "entered_at", "notes")

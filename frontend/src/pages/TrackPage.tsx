@@ -10,7 +10,7 @@ import { dayLong } from '../lib/format'
 
 const EMPTY_WEEKLY = {
   live: 'Weekly points appear once matches with a saved prediction have been settled. football-data publishes results about twice a week, so the first weeks fill in gradually.',
-  experimental: 'Champions League results are entered by hand after each matchday, so weekly points appear a little after the matches. None have been entered yet.',
+  experimental: 'European cup results are entered by hand after each matchday, so weekly points appear a little after the matches. None have been entered yet.',
 }
 
 /** Week by week: did 70%+ calls land as often as we said, and how far off were we? With a table, and honest about small samples. */
@@ -38,7 +38,7 @@ function Evolution({ rec, kind, n }: { rec: TrackRecord; kind: 'live' | 'experim
             </figure>
           </div>
           <p className="hint smallnote">Small samples: a hollow dot or bar means fewer than 10 calls (or matches) that week, and its range is wide. Two or three weeks do not make a trend; read the overall hit rate above for the real picture.</p>
-          <ScrollRegion label={`Weekly numbers, ${xp ? 'Champions League' : 'live record'}`}>
+          <ScrollRegion label={`Weekly numbers, ${xp ? 'European cups' : 'live record'}`}>
             <table>
               <caption className="sr">Weekly numbers behind the charts</caption>
               <thead><tr><th scope="col">Week of</th><th scope="col">Matches</th><th scope="col">70%+ calls</th><th scope="col">Hit rate (95% range)</th><th scope="col">Avg miss</th><th scope="col">80% floor held</th></tr></thead>
@@ -118,7 +118,7 @@ export function TrackPage() {
       <div className="card trackctl">
         <Stepper id="trk-n" label="Shots" value={state.n} min={lo} max={hi} onChange={(v) => set({ n: v }, { replace: true })} />
       </div>
-      <Tabs label="Which record" tabs={RECORDS.filter((r) => r !== 'experimental' || hasXp).map((r) => ({ id: r, label: r === 'backfill' ? 'Backfill (past season)' : r === 'live' ? 'Live picks' : 'Champions League' }))} value={kind} onChange={(r) => set({ rec: r }, { replace: true })}>
+      <Tabs label="Which record" tabs={RECORDS.filter((r) => r !== 'experimental' || hasXp).map((r) => ({ id: r, label: r === 'backfill' ? 'Backfill (past season)' : r === 'live' ? 'Live picks' : 'European cups' }))} value={kind} onChange={(r) => set({ rec: r }, { replace: true })}>
         <p className="recnote"><b>{rec.label}.</b> {xp ? 'Experimental: built from domestic form, results entered by hand. Kept apart from, and never counted in, the official live record.' : live ? 'Saved before kick-off and settled afterwards. This is the proof that counts.' : 'The model run on matches it had not seen. A fair test, but not the same as picks saved in advance.'}</p>
         {live && (
           <p className="livebox"><b>{settled}</b> settled, <b>{rec.pending ?? 0}</b> waiting for kick-off.</p>

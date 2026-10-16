@@ -513,9 +513,9 @@ describe('track record evolution', () => {
     expect(table).toHaveTextContent('none')
   })
 
-  it('shows the Champions League record as its own labelled tab, never mixed with live', async () => {
+  it('shows the European cups record as its own labelled tab, never mixed with live', async () => {
     await mount('#/track?rec=experimental', withTrack(trackFull))
-    expect(await screen.findByRole('tab', { name: 'Champions League', selected: true })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'European cups', selected: true })).toBeInTheDocument()
     expect(screen.getByText(/never counted in, the official live record/)).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Weekly hit rate/ })).toHaveAccessibleName(/Weekly hit rate.*Week of 5 Oct: 1 of 2 hit/)
   })

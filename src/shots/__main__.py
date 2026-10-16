@@ -94,17 +94,19 @@ def update(days: int = 30, shots: int = 24, min_prob: float = 0.70, export_dir: 
         ("db-picks", "record picks scans and the backfill; outcomes", db_step("db-picks", dbload.sync_predictions)),
     ]
     failed, errors = [], []
-    for name, what, run in steps:
-        t0 = time.time()
-        log.info("[%s] %s", name, what)
-        try:
-            run()
-            log.info("[%s] done in %.0fs", name, time.time() - t0)
-        except (Exception, SystemExit) as exc:  # keep going: later steps can use cached data
-            failed.append(name)
-            errors.append(f"{name}: {exc}")
-            log.error("[%s] FAILED: %s", name, exc)
-            log.debug(traceback.format_exc())
+    # picks and board share one fixtures download, one feature pass and the loaded models (outputs unchanged)
+    with scan.shared_run(days):
+        for name, what, run in steps:
+            t0 = time.time()
+            log.info("[%s] %s", name, what)
+            try:
+                run()
+                log.info("[%s] done in %.0fs", name, time.time() - t0)
+            except (Exception, SystemExit) as exc:  # keep going: later steps can use cached data
+                failed.append(name)
+                errors.append(f"{name}: {exc}")
+                log.error("[%s] FAILED: %s", name, exc)
+                log.debug(traceback.format_exc())
     def record() -> None:
         if job_id is None:
             return

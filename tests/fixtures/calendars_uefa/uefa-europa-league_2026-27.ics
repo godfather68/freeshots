@@ -1,0 +1,39 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+NAME:UEFA Europa League · 2026/27
+BEGIN:VEVENT
+UID:1@matches.app
+SUMMARY:Lyon - Crystal Palace
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Europa League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:2@matches.app
+SUMMARY:Beşiktaş - Omonia Nicosia
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Europa League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:3@matches.app
+SUMMARY:Real Sociedad - Celtic
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Europa League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:4@matches.app
+SUMMARY:Torreense - Olympiakos Piraeus
+DTSTART:20261029T170000Z
+DTEND:20261029T190000Z
+DESCRIPTION:UEFA Europa League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:5@matches.app
+SUMMARY:Lillestrom - AC Milan
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Europa League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+END:VCALENDAR

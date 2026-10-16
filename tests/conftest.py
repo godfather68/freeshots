@@ -12,6 +12,17 @@ def _isolated_db(tmp_path, monkeypatch):
     monkeypatch.delenv("SHOTS_EXPORT_DIR", raising=False)  # no test writes an export unless it asks for one
 
 
+@pytest.fixture(autouse=True)
+def _isolated_manual_results(tmp_path_factory, monkeypatch):
+    """The committed results_manual/ holds real hand-entered results that need the live DB's fixtures;
+    tests use an empty directory unless they pass one explicitly. Tests that check the committed files
+    themselves read shots.ingest.manual_results.COMMITTED_DIR (the unpatched path)."""
+    from shots.ingest import manual_results as mr
+
+    empty = tmp_path_factory.mktemp("no_manual_results")  # outside the test's own tmp_path
+    monkeypatch.setattr(mr, "MANUAL_DIR", empty)
+
+
 @pytest.fixture(scope="session")
 def _migrated_template(tmp_path_factory):
     from shots.db import migrate

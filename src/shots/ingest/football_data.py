@@ -70,7 +70,8 @@ ODDS_COLUMNS = {
 # Closing-odds columns in football-data headers: a "C" right after the bookmaker prefix
 # (B365CH, PSCH, MaxCH, AvgCH, BbAvC..., BFECH, PC>2.5, MaxC<2.5, AvgCAHH, ...).
 _CLOSING_RE = re.compile(
-    r"^(?:B365|BFD|BFE|BMGM|BV|BW|CL|LB|PS|P|Max|Avg|BbMx|BbAv|Bb|GB|IW|SB|SJ|SO|VC|WH|Sy)C(?:[HDA]|>|<|AH|\d|$)"
+    r"^(?:B365|BFD|BFE|BMGM|BV|BW|CL|LB|PS|P|Max|Avg|BbMx|BbAv|Bb|GB|IW|SB|SJ|SO|VC|WH|Sy|1XB)C(?:[HDA]|>|<|AH|\d|$)"
+    r"|^AHC"  # closing Asian handicap line (AHCh); the pre-match line is AHh
 )
 
 

@@ -106,16 +106,22 @@ def assemble(prep: sc.Prepared, info: pd.DataFrame, ns=NS) -> pd.DataFrame:
         pr = mdl.predict(sub)
         for key in cols:
             cols[key][mask.to_numpy()] = pr[key].to_numpy(float)
-        for j, n in enumerate(ns):
-            curve[mask.to_numpy(), j] = mdl.prob_at_least(sub, n)
+        if hasattr(mdl, "prob_at_least_curve"):  # one CDF per route instead of one per threshold
+            curve[mask.to_numpy(), :] = mdl.prob_at_least_curve(sub, ns)
+        else:
+            for j, n in enumerate(ns):
+                curve[mask.to_numpy(), j] = mdl.prob_at_least(sub, n)
         if team and getattr(mdl, "has_team_calibration", False):
             m = mask.to_numpy()
             for k, side in SIDES.items():
                 tp = mdl.team_predict(sub, side)
                 for c in TEAM_SCALARS:
                     tcols[f"{side}_{c}"][m] = tp[c].to_numpy(float)
-                for j, n in enumerate(TEAM_NS):
-                    tcurve[k][m, j] = mdl.team_prob_at_least(sub, side, n)
+                if hasattr(mdl, "team_prob_at_least_curve"):
+                    tcurve[k][m, :] = mdl.team_prob_at_least_curve(sub, side, TEAM_NS)
+                else:
+                    for j, n in enumerate(TEAM_NS):
+                        tcurve[k][m, j] = mdl.team_prob_at_least(sub, side, n)
     quality = None
     if exp.any():
         quality = up["data_quality"].where(exp, "full").fillna("full")
@@ -172,7 +178,7 @@ def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFA
         fd.build(refresh_current=True)
     matches = pd.read_parquet(fd.OUT_PATH)
     fixtures = sc.gather_fixtures(today, days)
-    fixtures = fixtures[~fixtures["match_id"].isin(matches["match_id"])]
+    fixtures = fixtures[~sc.member(fixtures["match_id"], matches["match_id"])]
     if fixtures.empty:
         raise SystemExit("no upcoming fixtures in supported divisions")
     prep = sc.prepare_upcoming(fixtures, matches, model_name, None, max_model_age_days)
@@ -180,7 +186,9 @@ def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFA
     if sc.CALENDAR_PATH.exists():
         cal = pd.read_parquet(sc.CALENDAR_PATH, columns=["match_id", "round"])
         info = info.join(cal.drop_duplicates("match_id").set_index("match_id")["round"])
-    board = assemble(prep, info)
+    board = sc.published(assemble(prep, info))
+    if board.empty:
+        raise SystemExit("no upcoming fixtures in published competitions")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = out_path.with_suffix(".tmp")

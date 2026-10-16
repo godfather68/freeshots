@@ -65,11 +65,17 @@ log = logging.getLogger(__name__)
 
 
 def _cdf(nb: NegBinModel, rows: pd.DataFrame) -> np.ndarray:
+    # Base models other than the NB GLM (structural candidates, ``candidates.py``) expose their raw
+    # CDF directly; the production NegBinModel has no ``total_cdf`` and takes the original path.
+    if hasattr(nb, "total_cdf"):
+        return nb.total_cdf(rows)
     return np.cumsum(nb.total_pmf(rows), axis=1)
 
 
 def _side_cdf(nb: NegBinModel, rows: pd.DataFrame, side: str) -> np.ndarray:
     """CDF of one team's shots (raw NB of that side) on 0..MAX_SIDE, rows = matches."""
+    if hasattr(nb, "side_cdf"):  # candidate base models (see ``_cdf``); width >= MAX_SIDE + 1
+        return nb.side_cdf(rows, side)
     return np.cumsum(nb_pmf(nb.side_mu(rows, side), nb.sides_[side]["alpha"], MAX_SIDE), axis=1)
 
 
@@ -220,6 +226,19 @@ class NegBinCal(ShotModel):
         t = cdf_at(cdf, n - 1)
         return 1.0 - self.team_pit_map_[side](t, rows[self.group] if self.group else None)
 
+    def team_prob_at_least_curve(self, rows: pd.DataFrame, side: str, ns) -> np.ndarray:
+        """``team_prob_at_least(rows, side, n)`` for every n of ``ns`` (columns), from one side CDF:
+        the board's per-team curve. Element-wise the same arithmetic as the scalar method."""
+        self._require_team()
+        side = _check_side(side)
+        cdf = _side_cdf(self.nb_, rows, side)
+        g = rows[self.group] if self.group else None
+        out = np.empty((len(rows), len(ns)))
+        for j, n in enumerate(ns):
+            nn = np.broadcast_to(np.asarray(n), (len(rows),)).astype(int)
+            out[:, j] = 1.0 - self.team_pit_map_[side](cdf_at(cdf, nn - 1), g)
+        return out
+
     def team_predict(self, rows: pd.DataFrame, side: str, confidences=CONFIDENCES) -> pd.DataFrame:
         """Per-team shots for ``side``, indexed like ``rows``: ``median`` (integer-valued float,
         recalibrated 0.5 level), ``lb_70``... (int, monotone in q, the side's calibrated lower
@@ -267,6 +286,17 @@ class NegBinCal(ShotModel):
         n = np.broadcast_to(np.asarray(n), (len(rows),)).astype(int)
         t = cdf_at(cdf, n - 1)
         return 1.0 - self.pit_map_(t, rows[self.group] if self.group else None)
+
+    def prob_at_least_curve(self, rows: pd.DataFrame, ns) -> np.ndarray:
+        """``prob_at_least(rows, n)`` for every n of ``ns`` (columns), from one CDF computation (the
+        board's curve; calling the scalar method per n recomputed the NB pmf each time)."""
+        cdf = _cdf(self.nb_, rows)
+        g = rows[self.group] if self.group else None
+        out = np.empty((len(rows), len(ns)))
+        for j, n in enumerate(ns):
+            nn = np.broadcast_to(np.asarray(n), (len(rows),)).astype(int)
+            out[:, j] = 1.0 - self.pit_map_(cdf_at(cdf, nn - 1), g)
+        return out
 
     def bound_probabilities(self, rows: pd.DataFrame, confidences=CONFIDENCES) -> pd.DataFrame:
         """Columns ``p_70``... = recalibrated P(total >= lb_q) for this model's own bounds."""

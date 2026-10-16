@@ -64,6 +64,8 @@ def model_features(model: ShotModel) -> list[str]:
                 cols += list(m.extra_inputs())
         if hasattr(m, "boosters_"):
             cols += list(FEATURES) + ["competition"]
+        if hasattr(m, "input_columns"):  # structural candidates (candidates.py)
+            cols += list(m.input_columns())
     if getattr(model, "group", None):
         cols.append(model.group)
     if not cols:  # baselines

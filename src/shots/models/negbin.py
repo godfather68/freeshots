@@ -76,8 +76,10 @@ class _Design:
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         side, other = self.side, ("away" if self.side == "home" else "home")
         prior = df["league_prior_shots"].astype(float).fillna(self.prior_mean_).clip(lower=1.0)
-        X = pd.DataFrame(index=df.index)
-        X["const"] = 1.0
+        # Columns are collected in a dict and the frame is built once (column-by-column inserts made this
+        # the hot spot of the board: ~0.4 s per call). Same values, same column order as before.
+        X: dict = {}
+        X["const"] = np.ones(len(df))
         X["log_prior"] = np.log(prior)
         for who, name in RATE_COLS:
             v = _col(df, who, side, name)
@@ -102,7 +104,9 @@ class _Design:
         o25 = df["mkt_p_over25"].astype(float)
         X["mkt_o25_missing"] = o25.isna().astype(float)
         X["mkt_p_over25"] = o25.fillna(self.mkt_mean_["mkt_p_over25"])
-        return X
+        # every entry is a float64 Series on df.index (or an array of its length): plain arrays avoid any
+        # re-alignment, so duplicate row labels behave as they did with column-by-column inserts
+        return pd.DataFrame({k: np.asarray(v, dtype=float) for k, v in X.items()}, index=df.index)
 
 
 def _fit_nb(y: np.ndarray, X: pd.DataFrame):

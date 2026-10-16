@@ -8,7 +8,7 @@ Calendar team names differ from football-data's ("1. FC Heidenheim" vs "Heidenhe
 mapped through team_aliases.csv (source "calendar"); unmapped names are reported, never guessed
 silently. Fixtures carry no shots or odds; odds are attached later when football-data publishes them.
 
-Cross-border competitions (shots.ingest.cross_border: the UEFA Champions League) resolve every club
+Cross-border competitions (shots.ingest.cross_border: UEFA Champions / Europa / Conference League) resolve every club
 to its DOMESTIC team id through the reviewed club_countries.csv, so its form comes from its domestic
 matches; clubs whose league we do not cover keep their own id and no history, and clubs missing from
 the mapping are reported, never guessed. Their local date / kick-off use the home club's country.
@@ -61,6 +61,14 @@ TIMEZONES = {
     # countries that only appear through cross-border competitions (the home club's zone)
     "Norway": "Europe/Oslo", "Austria": "Europe/Vienna", "Azerbaijan": "Asia/Baku", "Ukraine": "Europe/Kyiv",
     "Czechia": "Europe/Prague", "Slovakia": "Europe/Bratislava",
+    "Denmark": "Europe/Copenhagen", "Sweden": "Europe/Stockholm", "Switzerland": "Europe/Zurich",
+    "Poland": "Europe/Warsaw", "Croatia": "Europe/Zagreb", "Serbia": "Europe/Belgrade",
+    "Cyprus": "Asia/Nicosia", "Israel": "Asia/Jerusalem", "Bulgaria": "Europe/Sofia",
+    "Armenia": "Asia/Yerevan", "Kazakhstan": "Asia/Almaty", "Lithuania": "Europe/Vilnius",
+    "Latvia": "Europe/Riga", "Finland": "Europe/Helsinki", "Albania": "Europe/Tirane",
+    "Bosnia and Herzegovina": "Europe/Sarajevo", "Gibraltar": "Europe/Gibraltar",
+    "Andorra": "Europe/Andorra", "Georgia": "Asia/Tbilisi", "Hungary": "Europe/Budapest",
+    "Slovenia": "Europe/Ljubljana", "Romania": "Europe/Bucharest",
 }
 FALLBACK_TZ = "UTC"  # club of a cross-border competition that is not in club_countries.csv
 EXTRA_COLUMNS = ["kickoff", "kickoff_utc", "round", "status", "home_country", "away_country"]

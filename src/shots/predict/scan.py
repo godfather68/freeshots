@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -49,9 +50,107 @@ PICKS_DIR = fd.ROOT / "reports" / "picks"
 CALENDAR_PATH = fd.ROOT / "data" / "processed" / "fixtures.parquet"  # built by shots.ingest.calendar_ics
 DEFAULT_MODEL = "negbin_pit_comp"
 COLD_START_MATCHES = 5
+# Competitions whose fixtures are scored but never published (picks, board): kept in training and history.
+# England National League (football-data `EC`): no shot data 2016-2026, 2026/27 median off by ~2 shots and 80%
+# coverage 68% (user decision 2026-10-15; reports/2026-10-15_model_candidates.md).
+UNPUBLISHED_COMPETITIONS = frozenset({"England National League"})
+
+
+def published(frame: pd.DataFrame) -> pd.DataFrame:
+    """Rows of ``frame`` that may be published (drops ``UNPUBLISHED_COMPETITIONS``); index reset. Applied
+    after scoring, so every published row is computed exactly as before the exclusion."""
+    return frame[~frame["competition"].isin(UNPUBLISHED_COMPETITIONS)].reset_index(drop=True)
+
+
+def member(values: pd.Series, pool) -> pd.Series:
+    """``values.isin(pool)`` for id columns (match_id): the same boolean Series, through a Python set.
+    pandas' isin on Arrow-backed strings took ~3 s per call on 1e5 rows here."""
+    allowed = set(pd.Series(pool).tolist())
+    return pd.Series([v in allowed for v in values.tolist()], index=values.index, dtype=bool)
+
+
+class SharedRun:
+    """What one ``python -m shots update`` run computes once and shares between the picks scan and the
+    board (see ``shared_run``). Everything here is a pure function of the run's inputs, so sharing it
+    changes no output (tests/test_predict_shared.py; reports/2026-10-15_model_candidates.md):
+
+    * fixtures.csv is downloaded once per date;
+    * the domestic feature pass is built once, for the widest window of the run (``days``), and a
+      narrower window is a slice of it. Features only look strictly backwards in time, so a fixture's
+      row depends only on played matches and on fixtures dated on or before it; the slice is used only
+      when the narrower window holds exactly the wider window's fixtures up to its last date, with
+      identical rows (otherwise the features are rebuilt as before);
+    * saved models are loaded once (per directory / label).
+    Cross-border rows are always rebuilt: they depend on the whole fixture list.
+    """
+
+    def __init__(self, days: int | None = None):
+        self.days = days
+        self.fetched: dict = {}
+        self.domestic: tuple | None = None   # (matches key, fixtures, played, upcoming)
+        self.loaded: dict = {}
+        self.stats = {"feature_builds": 0, "feature_slices": 0, "fetches": 0}
+
+    @staticmethod
+    def matches_key(matches: pd.DataFrame) -> tuple:
+        h = pd.util.hash_pandas_object(matches, index=False).to_numpy()
+        return (len(matches), tuple(matches.columns), int(h.sum(dtype=np.uint64)),
+                int(h[::7].sum(dtype=np.uint64)))
+
+    def slice(self, fixtures: pd.DataFrame, matches: pd.DataFrame):
+        """(played, upcoming) for ``fixtures`` cut from the stored wider pass, or None."""
+        if self.domestic is None:
+            return None
+        key, fc, played, up = self.domestic
+        ids = fixtures["match_id"].tolist()
+        pos = dict(zip(fc["match_id"].tolist(), range(len(fc))))
+        if len(set(ids)) != len(ids) or any(i not in pos for i in ids) or key != self.matches_key(matches):
+            return None
+        if len(ids) and set(fc.loc[fc["date"] <= fixtures["date"].max(), "match_id"].tolist()) != set(ids):
+            return None
+        sub = fc.iloc[[pos[i] for i in ids]].reset_index(drop=True)
+        if list(sub.columns) != list(fixtures.columns) or not sub.equals(fixtures.reset_index(drop=True)):
+            return None
+        upos = dict(zip(up["match_id"].tolist(), range(len(up))))
+        self.stats["feature_slices"] += 1
+        return played, up.iloc[[upos[i] for i in ids]].reset_index(drop=True)
+
+
+_SHARED: SharedRun | None = None
+
+
+@contextmanager
+def shared_run(days: int | None = None):
+    """Share fixtures, features and loaded models between the steps of one update run. ``days`` = the
+    widest window any step asks for (the board's), so the picks scan can slice it."""
+    global _SHARED
+    prev, _SHARED = _SHARED, SharedRun(days)
+    try:
+        yield _SHARED
+    finally:
+        _SHARED = prev
+
+
+def _load(path: Path):
+    if _SHARED is None:
+        return load(path)
+    key = ("dir", str(path))
+    if key not in _SHARED.loaded:
+        _SHARED.loaded[key] = load(path)
+    return _SHARED.loaded[key]
 
 
 def fetch_fixtures(today: date) -> pd.DataFrame:
+    """fixtures.csv for ``today`` (``_fetch_fixtures``); downloaded once per date inside a shared run."""
+    if _SHARED is None:
+        return _fetch_fixtures(today)
+    if today not in _SHARED.fetched:
+        _SHARED.fetched[today] = _fetch_fixtures(today)
+        _SHARED.stats["fetches"] += 1
+    return _SHARED.fetched[today].copy()
+
+
+def _fetch_fixtures(today: date) -> pd.DataFrame:
     """Download fixtures.csv (kept raw under data/raw) and convert supported divisions."""
     resp = requests.get(FIXTURES_URL, headers={"User-Agent": fd.USER_AGENT}, timeout=30)
     resp.raise_for_status()
@@ -83,7 +182,7 @@ def gather_fixtures(start: date, days: int | None, use_calendar: bool = True) ->
         cal = pd.read_parquet(CALENDAR_PATH)
         cal = cal[cal["date"] >= pd.Timestamp(start)]
         if len(fd_fx):
-            cal = cal[~cal["match_id"].isin(fd_fx["match_id"])]
+            cal = cal[~member(cal["match_id"], fd_fx["match_id"])]
         frames.append(cal.drop(columns=["round", "status", "kickoff_utc", "home_country", "away_country"],
                                errors="ignore"))
     if not frames:
@@ -107,14 +206,22 @@ def latest_no_odds_model(name: str, played: pd.DataFrame, max_age_days: int) -> 
     its picks (2025/26: 67% hit at 77% stated, vs 75.5% at 76.2% for this variant)."""
     label = f"{name}-noodds"
     last_played = pd.to_datetime(played["date"]).max()
+    key = ("noodds", name, last_played, max_age_days)
+    if _SHARED is not None and key in _SHARED.loaded:
+        return _SHARED.loaded[key]
     saved = sorted(STORE.glob(f"{label}_*"), key=lambda p: load_metadata(p)["until"])
     if saved and (last_played - pd.Timestamp(load_metadata(saved[-1])["until"])).days <= max_age_days:
-        return load(saved[-1]), saved[-1].name
+        got = _load(saved[-1]), saved[-1].name
+        if _SHARED is not None:
+            _SHARED.loaded[key] = got
+        return got
     train = no_odds_rows(played[played["total_shots"].notna()])
     model = MODELS[name]().fit(train)
     out = STORE / f"{label}_{last_played:%Y-%m-%d}"
     save(model, out, train, until=str(last_played.date()), variant="no market features")
     log.info("trained %s on %d rows -> %s", label, len(train), out)
+    if _SHARED is not None:
+        _SHARED.loaded[key] = (model, out.name)
     return model, out.name
 
 
@@ -125,10 +232,15 @@ def cross_border_model(nomodel, nolabel: str, played: pd.DataFrame, persist: boo
     from shots.models.cross_border import CrossBorderModel
 
     path = STORE / "cross_border" / f"{nolabel}-exp"
+    key = ("cross_border", nolabel)
+    if _SHARED is not None and persist and key in _SHARED.loaded:
+        return _SHARED.loaded[key]
     if persist and (path / "model.joblib").exists():
-        saved = load(path)
+        saved = _load(path)
         current = (xbm.LEVEL_SD, xbm.SPLIT_SD, xbm.N_PROFILES, xbm.PROFILE_SEED)
         if (saved.level_sd, saved.split_sd, saved.n_profiles, saved.seed) == current:
+            if _SHARED is not None:
+                _SHARED.loaded[key] = saved
             return saved
         log.info("saved cross-border model has other parameters than the code; rebuilding")
     train = no_odds_rows(played[played["total_shots"].notna()])
@@ -138,6 +250,8 @@ def cross_border_model(nomodel, nolabel: str, played: pd.DataFrame, persist: boo
              validation="reports/2026-10-13_champions_league.md",
              note="not fitted or calibrated on any cross-border competition; global PIT fallback")
         log.info("built the experimental cross-border model on %s -> %s", nolabel, path)
+        if _SHARED is not None:
+            _SHARED.loaded[key] = model
     return model
 
 
@@ -192,6 +306,33 @@ class Prepared:
                    f"{self.nolabel}-{xb.BY_NAME[comp].label}")
 
 
+def _domestic_pass(matches: pd.DataFrame, fixtures: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(played, upcoming) feature rows from one feature pass over played matches + domestic fixtures."""
+    combined = pd.concat([matches, fixtures.drop(columns="kickoff")], ignore_index=True)
+    feats = build_features(combined)
+    played = feats[member(feats["match_id"], matches["match_id"])]
+    upcoming = feats[member(feats["match_id"], fixtures["match_id"])].reset_index(drop=True)
+    upcoming = upcoming.drop(columns=["home_shots", "away_shots", "total_shots"], errors="ignore")
+    return played, upcoming
+
+
+def _warm_shared(today: date, days: int | None, use_calendar: bool, matches: pd.DataFrame) -> None:
+    """Inside a shared run whose widest window is longer than this scan's, build the domestic features
+    for the widest window first, so that this scan and the board slice the same pass."""
+    if (_SHARED is None or _SHARED.domestic is not None or not use_calendar or days is None
+            or _SHARED.days is None or _SHARED.days <= days):
+        return
+    wide = gather_fixtures(today, _SHARED.days, use_calendar)
+    wide = wide[~member(wide["match_id"], matches["match_id"])]
+    wide = wide[~wide["competition"].map(xb.is_cross_border).astype(bool)]
+    if wide.empty:
+        return
+    played, upcoming = _domestic_pass(matches, wide)
+    played.to_parquet(FEATURES_PATH, index=False)  # identical to a matches-only build
+    _SHARED.domestic = (SharedRun.matches_key(matches), wide.reset_index(drop=True), played, upcoming)
+    _SHARED.stats["feature_builds"] += 1
+
+
 def prepare_upcoming(fixtures: pd.DataFrame, matches: pd.DataFrame, model_name: str = DEFAULT_MODEL,
                      as_of: date | None = None, max_model_age_days: int = 30) -> Prepared:
     """Build pre-match features for played + upcoming matches in one pass and load (or, in replay
@@ -202,11 +343,15 @@ def prepare_upcoming(fixtures: pd.DataFrame, matches: pd.DataFrame, model_name: 
     # priors and team histories are exactly what they are without them.
     is_xb = fixtures["competition"].map(xb.is_cross_border).astype(bool)
     xb_fixtures, fixtures = fixtures[is_xb], fixtures[~is_xb]
-    combined = pd.concat([matches, fixtures.drop(columns="kickoff")], ignore_index=True)
-    feats = build_features(combined)
-    played = feats[feats["match_id"].isin(matches["match_id"])]
-    upcoming = feats[feats["match_id"].isin(fixtures["match_id"])].reset_index(drop=True)
-    upcoming = upcoming.drop(columns=["home_shots", "away_shots", "total_shots"], errors="ignore")
+    shared = _SHARED is not None and not as_of
+    hit = _SHARED.slice(fixtures, matches) if shared else None
+    if hit is not None:
+        played, upcoming = hit
+    else:
+        played, upcoming = _domestic_pass(matches, fixtures)
+        if shared:
+            _SHARED.domestic = (SharedRun.matches_key(matches), fixtures.reset_index(drop=True), played, upcoming)
+            _SHARED.stats["feature_builds"] += 1
     experimental = None
     if len(xb_fixtures):
         xrows = build_cross_border_features(matches, xb_fixtures.drop(columns="kickoff"), columns=upcoming.columns)
@@ -226,9 +371,10 @@ def prepare_upcoming(fixtures: pd.DataFrame, matches: pd.DataFrame, model_name: 
             nomodel = MODELS[model_name]().fit(no_odds_rows(played[played["total_shots"].notna()]))
             nolabel = f"{model_name}-noodds_fit_before_{as_of}"
     else:
-        played.to_parquet(FEATURES_PATH, index=False)  # identical to a matches-only build
+        if hit is None:  # a slice comes from a pass of this run that already wrote the file
+            played.to_parquet(FEATURES_PATH, index=False)  # identical to a matches-only build
         model_dir = latest_model(model_name, pd.to_datetime(played["date"]).max(), max_model_age_days)
-        model, model_label = load(model_dir), model_dir.name
+        model, model_label = _load(model_dir), model_dir.name
         if (~has_odds).any():
             nomodel, nolabel = latest_no_odds_model(model_name, played, max_model_age_days)
     if experimental is not None and need_noodds:
@@ -252,7 +398,8 @@ def scan(shots: int = 24, min_prob: float = 0.70, model_name: str = DEFAULT_MODE
     else:
         matches = all_matches
         fixtures = gather_fixtures(today, days, use_calendar)
-        fixtures = fixtures[~fixtures["match_id"].isin(matches["match_id"])]
+        fixtures = fixtures[~member(fixtures["match_id"], matches["match_id"])]
+        _warm_shared(today, days, use_calendar, matches)
     if fixtures.empty:
         log.info("no upcoming fixtures in supported divisions")
         return pd.DataFrame()
@@ -305,6 +452,7 @@ def scan(shots: int = 24, min_prob: float = 0.70, model_name: str = DEFAULT_MODE
         out["actual_shots"] = out["match_id"].map(actual).astype("Int64")
         out["hit"] = out["actual_shots"] >= shots
     out = out.sort_values(f"p_at_least_{shots}", ascending=False).reset_index(drop=True)
+    out = published(out)
 
     PICKS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = f"replay_{as_of}" if as_of else datetime.now().strftime("%Y-%m-%d_%H%M")

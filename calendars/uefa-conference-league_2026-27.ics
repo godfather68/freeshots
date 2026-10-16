@@ -1,0 +1,765 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+CALSCALE:GREGORIAN
+PRODID:-//matchesio//IT
+METHOD:PUBLISH
+NAME:UEFA Conference League · 2026/27
+X-WR-CALNAME:UEFA Conference League · 2026/27
+X-WR-CALDESC:UEFA Conference League · 2026/27
+BEGIN:VEVENT
+UID:208528@matches.app
+SUMMARY:FC Lugano - FK Crvena Zvezda
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208531@matches.app
+SUMMARY:HNK Hajduk Split - Ajax
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208536@matches.app
+SUMMARY:Panathinaikos - Borac Banja Luka
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208538@matches.app
+SUMMARY:Gent - Aarhus
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208541@matches.app
+SUMMARY:Universitatea Craiova - Getafe
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208552@matches.app
+SUMMARY:CSKA Sofia - Monaco
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208566@matches.app
+SUMMARY:KuPS - Trabzonspor
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208567@matches.app
+SUMMARY:Mjallby AIF - Inter Club d'Escaldes
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208570@matches.app
+SUMMARY:Egnatia Rrogozhinë - FC Midtjylland
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208589@matches.app
+SUMMARY:Riga - Kairat Almaty
+DTSTART:20261015T164500Z
+DTEND:20261015T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208485@matches.app
+SUMMARY:Brighton - Kauno Žalgiris
+DTSTART:20261015T190000Z
+DTEND:20261015T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208491@matches.app
+SUMMARY:SC Freiburg - FK Jablonec
+DTSTART:20261015T190000Z
+DTEND:20261015T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208499@matches.app
+SUMMARY:Heart Of Midlothian - FC Nordsjaelland
+DTSTART:20261015T190000Z
+DTEND:20261015T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208503@matches.app
+SUMMARY:Brann - Lincoln Red Imps FC
+DTSTART:20261015T190000Z
+DTEND:20261015T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208510@matches.app
+SUMMARY:FC Copenhagen - SC Braga
+DTSTART:20261015T190000Z
+DTEND:20261015T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208517@matches.app
+SUMMARY:Twente - FC Thun
+DTSTART:20261015T190000Z
+DTEND:20261015T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208521@matches.app
+SUMMARY:Atalanta - Pafos
+DTSTART:20261015T190000Z
+DTEND:20261015T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208551@matches.app
+SUMMARY:St. Truiden - FC Iberia 1999
+DTSTART:20261015T190000Z
+DTEND:20261015T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 1 · Giornata 1 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208543@matches.app
+SUMMARY:Kairat Almaty - Panathinaikos
+DTSTART:20261022T143000Z
+DTEND:20261022T163000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208508@matches.app
+SUMMARY:FC Nordsjaelland - CSKA Sofia
+DTSTART:20261022T164500Z
+DTEND:20261022T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208523@matches.app
+SUMMARY:Getafe - FC Lugano
+DTSTART:20261022T164500Z
+DTEND:20261022T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208525@matches.app
+SUMMARY:FK Crvena Zvezda - FC Copenhagen
+DTSTART:20261022T164500Z
+DTEND:20261022T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208556@matches.app
+SUMMARY:Trabzonspor - Heart Of Midlothian
+DTSTART:20261022T164500Z
+DTEND:20261022T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208561@matches.app
+SUMMARY:FK Jablonec - Brighton
+DTSTART:20261022T164500Z
+DTEND:20261022T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208575@matches.app
+SUMMARY:Inter Club d'Escaldes - Universitatea Craiova
+DTSTART:20261022T164500Z
+DTEND:20261022T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208581@matches.app
+SUMMARY:Pafos - Riga
+DTSTART:20261022T164500Z
+DTEND:20261022T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208584@matches.app
+SUMMARY:FC Iberia 1999 - Mjallby AIF
+DTSTART:20261022T164500Z
+DTEND:20261022T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208586@matches.app
+SUMMARY:Kauno Žalgiris - Brann
+DTSTART:20261022T164500Z
+DTEND:20261022T184500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208486@matches.app
+SUMMARY:Monaco - SC Freiburg
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208492@matches.app
+SUMMARY:Ajax - Atalanta
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208495@matches.app
+SUMMARY:SC Braga - Gent
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208506@matches.app
+SUMMARY:FC Midtjylland - St. Truiden
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208515@matches.app
+SUMMARY:Aarhus - Egnatia Rrogozhinë
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208547@matches.app
+SUMMARY:Lincoln Red Imps FC - Twente
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208559@matches.app
+SUMMARY:FC Thun - HNK Hajduk Split
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208577@matches.app
+SUMMARY:Borac Banja Luka - KuPS
+DTSTART:20261022T190000Z
+DTEND:20261022T210000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 2 · Giornata 2 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208504@matches.app
+SUMMARY:FC Midtjylland - Ajax
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208513@matches.app
+SUMMARY:Aarhus - SC Braga
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208519@matches.app
+SUMMARY:Atalanta - Kairat Almaty
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208527@matches.app
+SUMMARY:FK Crvena Zvezda - Inter Club d'Escaldes
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208548@matches.app
+SUMMARY:Lincoln Red Imps FC - HNK Hajduk Split
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208555@matches.app
+SUMMARY:Trabzonspor - SC Freiburg
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208558@matches.app
+SUMMARY:FC Thun - Heart Of Midlothian
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208564@matches.app
+SUMMARY:KuPS - Gent
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208568@matches.app
+SUMMARY:Mjallby AIF - Borac Banja Luka
+DTSTART:20261105T174500Z
+DTEND:20261105T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208487@matches.app
+SUMMARY:Monaco - FC Nordsjaelland
+DTSTART:20261105T200000Z
+DTEND:20261105T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208512@matches.app
+SUMMARY:FC Copenhagen - FC Iberia 1999
+DTSTART:20261105T200000Z
+DTEND:20261105T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208518@matches.app
+SUMMARY:Twente - Pafos
+DTSTART:20261105T200000Z
+DTEND:20261105T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208522@matches.app
+SUMMARY:Getafe - Brighton
+DTSTART:20261105T200000Z
+DTEND:20261105T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208530@matches.app
+SUMMARY:FC Lugano - Kauno Žalgiris
+DTSTART:20261105T200000Z
+DTEND:20261105T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208535@matches.app
+SUMMARY:Panathinaikos - CSKA Sofia
+DTSTART:20261105T200000Z
+DTEND:20261105T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208542@matches.app
+SUMMARY:Universitatea Craiova - Egnatia Rrogozhinë
+DTSTART:20261105T200000Z
+DTEND:20261105T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208550@matches.app
+SUMMARY:St. Truiden - Brann
+DTSTART:20261105T200000Z
+DTEND:20261105T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208590@matches.app
+SUMMARY:Riga - FK Jablonec
+DTSTART:20261105T200000Z
+DTEND:20261105T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 3 · Giornata 3 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208545@matches.app
+SUMMARY:Kairat Almaty - Mjallby AIF
+DTSTART:20261126T153000Z
+DTEND:20261126T173000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208582@matches.app
+SUMMARY:FC Iberia 1999 - Getafe
+DTSTART:20261126T174500Z
+DTEND:20261126T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208587@matches.app
+SUMMARY:Kauno Žalgiris - Riga
+DTSTART:20261126T174500Z
+DTEND:20261126T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208484@matches.app
+SUMMARY:Brighton - Universitatea Craiova
+DTSTART:20261126T174500Z
+DTEND:20261126T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208494@matches.app
+SUMMARY:Ajax - FC Thun
+DTSTART:20261126T174500Z
+DTEND:20261126T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208498@matches.app
+SUMMARY:Heart Of Midlothian - Monaco
+DTSTART:20261126T174500Z
+DTEND:20261126T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208502@matches.app
+SUMMARY:Brann - Aarhus
+DTSTART:20261126T174500Z
+DTEND:20261126T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208562@matches.app
+SUMMARY:FK Jablonec - FC Lugano
+DTSTART:20261126T174500Z
+DTEND:20261126T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208571@matches.app
+SUMMARY:Egnatia Rrogozhinë - Lincoln Red Imps FC
+DTSTART:20261126T174500Z
+DTEND:20261126T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208580@matches.app
+SUMMARY:Pafos - FC Midtjylland
+DTSTART:20261126T174500Z
+DTEND:20261126T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208489@matches.app
+SUMMARY:SC Freiburg - Twente
+DTSTART:20261126T200000Z
+DTEND:20261126T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208496@matches.app
+SUMMARY:SC Braga - KuPS
+DTSTART:20261126T200000Z
+DTEND:20261126T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208507@matches.app
+SUMMARY:FC Nordsjaelland - Panathinaikos
+DTSTART:20261126T200000Z
+DTEND:20261126T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208533@matches.app
+SUMMARY:HNK Hajduk Split - St. Truiden
+DTSTART:20261126T200000Z
+DTEND:20261126T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208539@matches.app
+SUMMARY:Gent - FK Crvena Zvezda
+DTSTART:20261126T200000Z
+DTEND:20261126T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208553@matches.app
+SUMMARY:CSKA Sofia - Trabzonspor
+DTSTART:20261126T200000Z
+DTEND:20261126T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208573@matches.app
+SUMMARY:Inter Club d'Escaldes - FC Copenhagen
+DTSTART:20261126T200000Z
+DTEND:20261126T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208576@matches.app
+SUMMARY:Borac Banja Luka - Atalanta
+DTSTART:20261126T200000Z
+DTEND:20261126T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 4 · Giornata 4 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208544@matches.app
+SUMMARY:Kairat Almaty - Universitatea Craiova
+DTSTART:20261210T153000Z
+DTEND:20261210T173000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208490@matches.app
+SUMMARY:SC Freiburg - Panathinaikos
+DTSTART:20261210T174500Z
+DTEND:20261210T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208501@matches.app
+SUMMARY:Brann - SC Braga
+DTSTART:20261210T174500Z
+DTEND:20261210T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208511@matches.app
+SUMMARY:FC Copenhagen - FC Lugano
+DTSTART:20261210T174500Z
+DTEND:20261210T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208524@matches.app
+SUMMARY:Getafe - Inter Club d'Escaldes
+DTSTART:20261210T174500Z
+DTEND:20261210T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208546@matches.app
+SUMMARY:Lincoln Red Imps FC - FC Midtjylland
+DTSTART:20261210T174500Z
+DTEND:20261210T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208557@matches.app
+SUMMARY:Trabzonspor - FK Jablonec
+DTSTART:20261210T174500Z
+DTEND:20261210T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208565@matches.app
+SUMMARY:KuPS - CSKA Sofia
+DTSTART:20261210T174500Z
+DTEND:20261210T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208583@matches.app
+SUMMARY:FC Iberia 1999 - FK Crvena Zvezda
+DTSTART:20261210T174500Z
+DTEND:20261210T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208588@matches.app
+SUMMARY:Riga - Atalanta
+DTSTART:20261210T174500Z
+DTEND:20261210T194500Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208483@matches.app
+SUMMARY:Brighton - Monaco
+DTSTART:20261210T200000Z
+DTEND:20261210T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208500@matches.app
+SUMMARY:Heart Of Midlothian - Borac Banja Luka
+DTSTART:20261210T200000Z
+DTEND:20261210T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208514@matches.app
+SUMMARY:Aarhus - Twente
+DTSTART:20261210T200000Z
+DTEND:20261210T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208532@matches.app
+SUMMARY:HNK Hajduk Split - FC Nordsjaelland
+DTSTART:20261210T200000Z
+DTEND:20261210T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208549@matches.app
+SUMMARY:St. Truiden - Ajax
+DTSTART:20261210T200000Z
+DTEND:20261210T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208560@matches.app
+SUMMARY:FC Thun - Gent
+DTSTART:20261210T200000Z
+DTEND:20261210T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208569@matches.app
+SUMMARY:Mjallby AIF - Pafos
+DTSTART:20261210T200000Z
+DTEND:20261210T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208572@matches.app
+SUMMARY:Egnatia Rrogozhinë - Kauno Žalgiris
+DTSTART:20261210T200000Z
+DTEND:20261210T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 5 · Giornata 5 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208488@matches.app
+SUMMARY:Monaco - Lincoln Red Imps FC
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208493@matches.app
+SUMMARY:Ajax - Getafe
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208497@matches.app
+SUMMARY:SC Braga - Egnatia Rrogozhinë
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208505@matches.app
+SUMMARY:FC Midtjylland - HNK Hajduk Split
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208509@matches.app
+SUMMARY:FC Nordsjaelland - KuPS
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208516@matches.app
+SUMMARY:Twente - Kairat Almaty
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208520@matches.app
+SUMMARY:Atalanta - Mjallby AIF
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208526@matches.app
+SUMMARY:FK Crvena Zvezda - Trabzonspor
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208529@matches.app
+SUMMARY:FC Lugano - St. Truiden
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208534@matches.app
+SUMMARY:Panathinaikos - Brighton
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208537@matches.app
+SUMMARY:Gent - Brann
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208540@matches.app
+SUMMARY:Universitatea Craiova - FC Copenhagen
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208554@matches.app
+SUMMARY:CSKA Sofia - FC Thun
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208563@matches.app
+SUMMARY:FK Jablonec - FC Iberia 1999
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208574@matches.app
+SUMMARY:Inter Club d'Escaldes - Aarhus
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208578@matches.app
+SUMMARY:Borac Banja Luka - Riga
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208579@matches.app
+SUMMARY:Pafos - Heart Of Midlothian
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+BEGIN:VEVENT
+UID:208585@matches.app
+SUMMARY:Kauno Žalgiris - SC Freiburg
+DTSTART:20261217T200000Z
+DTEND:20261217T220000Z
+DESCRIPTION:UEFA Conference League · 2026/27 · League Stage - 6 · Giornata 6 · To be played
+END:VEVENT
+END:VCALENDAR
