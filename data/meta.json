@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-10-16T11:08:39Z",
+ "built_at": "2026-10-17T00:25:03Z",
  "results_up_to": "2026-10-14",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-16T11:08:31Z"
+  "finished_at": "2026-10-17T00:24:54Z"
  },
  "models": [
   "negbin_pit_comp-noodds_2026-10-12",
@@ -45,7 +45,7 @@
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 61
+   "fixtures": 60
   },
   {
    "id": "england-league-one",
@@ -90,28 +90,28 @@
    "name": "Ligue 1",
    "country": "France",
    "tier": 1,
-   "fixtures": 9
+   "fixtures": 8
   },
   {
    "id": "france-ligue-2",
    "name": "Ligue 2",
    "country": "France",
    "tier": 2,
-   "fixtures": 9
+   "fixtures": 4
   },
   {
    "id": "germany-bundesliga",
    "name": "Bundesliga",
    "country": "Germany",
    "tier": 1,
-   "fixtures": 36
+   "fixtures": 35
   },
   {
    "id": "germany-2-bundesliga",
    "name": "2. Bundesliga",
    "country": "Germany",
    "tier": 2,
-   "fixtures": 36
+   "fixtures": 34
   },
   {
    "id": "greece-super-league",
@@ -125,21 +125,21 @@
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 50
+   "fixtures": 49
   },
   {
    "id": "italy-serie-b",
    "name": "Serie B",
    "country": "Italy",
    "tier": 2,
-   "fixtures": 50
+   "fixtures": 49
   },
   {
    "id": "netherlands-eredivisie",
    "name": "Eredivisie",
    "country": "Netherlands",
    "tier": 1,
-   "fixtures": 9
+   "fixtures": 8
   },
   {
    "id": "portugal-primeira-liga",
@@ -160,7 +160,7 @@
    "name": "Championship",
    "country": "Scotland",
    "tier": 2,
-   "fixtures": 5
+   "fixtures": 4
   },
   {
    "id": "scotland-league-one",
@@ -181,25 +181,24 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 41
+   "fixtures": 40
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 55
+   "fixtures": 54
   },
   {
    "id": "turkey-super-lig",
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 36
+   "fixtures": 35
   }
  ],
  "days": [
-  "2026-10-16",
   "2026-10-17",
   "2026-10-18",
   "2026-10-19",
@@ -226,8 +225,8 @@
   "2026-11-15"
  ],
  "counts": {
-  "fixtures": 640,
-  "with_odds": 168,
+  "fixtures": 623,
+  "with_odds": 151,
   "cold_start": 63
  },
  "record": {
