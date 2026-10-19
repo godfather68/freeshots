@@ -152,11 +152,20 @@ def fetch_fixtures(today: date) -> pd.DataFrame:
 
 def _fetch_fixtures(today: date) -> pd.DataFrame:
     """Download fixtures.csv (kept raw under data/raw) and convert supported divisions."""
-    resp = requests.get(FIXTURES_URL, headers={"User-Agent": fd.USER_AGENT}, timeout=30)
-    resp.raise_for_status()
     path = fd.RAW_DIR / "fixtures" / f"fixtures_{today:%Y-%m-%d}.csv"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(resp.content)
+    try:
+        resp = fd.http_get(FIXTURES_URL)
+        resp.raise_for_status()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(resp.content)
+    except (requests.RequestException, OSError) as exc:
+        # The season calendars still provide every fixture; only near-term odds are lost.
+        cached = sorted(p for p in path.parent.glob("fixtures_*.csv") if p.stem <= path.stem) if path.parent.exists() else []
+        if not cached:
+            log.warning("fixtures.csv unavailable (%s) and no cached copy: calendars only", exc)
+            return pd.DataFrame()
+        path = cached[-1]
+        log.warning("fixtures.csv unavailable (%s); using the cached %s", exc, path.name)
 
     raw = fd.read_raw(path)
     season = fd.current_season_start(today)

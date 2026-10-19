@@ -27,6 +27,37 @@ BASE_URL = "https://www.football-data.co.uk/mmz4281/{season}/{div}.csv"
 USER_AGENT = "shots-research/0.1 (personal research project)"
 REQUEST_DELAY_S = 1.5
 NOT_MODIFIED_DELAY_S = 0.2
+# football-data.co.uk is sometimes slow or drops connections (seen 2026-10-19: SSL EOF, 30 s+ per file).
+RETRY_DELAYS_S = (3, 10, 30)          # waits between attempts; len + 1 attempts in total
+HTTP_TIMEOUT = (15, 90)               # (connect, read) seconds
+_TRANSIENT = (requests.ConnectionError, requests.Timeout)
+
+
+def http_get(url: str, session: requests.Session | None = None, headers: dict | None = None) -> requests.Response:
+    """GET with retries on dropped connections, timeouts, 429 and 5xx. Other HTTP errors (404...)
+    are returned to the caller unchanged; the last transient error is re-raised."""
+    getter = session.get if session is not None else requests.get
+    hdrs = {"User-Agent": USER_AGENT, **(headers or {})}
+    for attempt, delay in enumerate((*RETRY_DELAYS_S, None), start=1):
+        try:
+            resp = getter(url, timeout=HTTP_TIMEOUT, headers=hdrs)
+            if resp.status_code != 429 and resp.status_code < 500:
+                return resp
+            err: Exception = requests.HTTPError(f"HTTP {resp.status_code}", response=resp)
+        except _TRANSIENT as exc:
+            err = exc
+        if delay is None:
+            raise err
+        log.warning("%s: attempt %d failed (%s); retrying in %ss", url, attempt, type(err).__name__, delay)
+        time.sleep(delay)
+    raise AssertionError("unreachable")
+
+
+# Stop calling the server for the rest of a fetch() after this many files fail in a row.
+MAX_CONSECUTIVE_FAILURES = 3
+
+# Files that could not be refreshed in the last fetch() (cached copies were used instead).
+LAST_FETCH_FAILURES: list[str] = []
 
 ROOT = Path(__file__).resolve().parents[3]
 RAW_DIR = ROOT / "data" / "raw" / SOURCE
@@ -113,6 +144,8 @@ def fetch(first_season: int = 2010, last_season: int | None = None, divisions=No
     session = requests.Session()
     session.headers["User-Agent"] = USER_AGENT
     paths = []
+    LAST_FETCH_FAILURES.clear()
+    consecutive = 0
     for start in range(first_season, last_season + 1):
         code = season_code(start)
         for div in divisions:
@@ -125,7 +158,21 @@ def fetch(first_season: int = 2010, last_season: int | None = None, divisions=No
             # Conditional GET: an unchanged file costs a 304 and no re-download.
             etag_path = path.with_suffix(".etag")
             headers = {"If-None-Match": etag_path.read_text()} if path.exists() and etag_path.exists() else {}
-            resp = session.get(url, timeout=30, headers=headers)
+            try:
+                if consecutive >= MAX_CONSECUTIVE_FAILURES:
+                    raise requests.ConnectionError("server unreachable this run (circuit breaker open)")
+                resp = http_get(url, session, headers)
+                consecutive = 0
+            except (requests.RequestException, OSError) as exc:
+                consecutive += 1
+                # Keep going with what we have: a stale current-season file is better than no run.
+                LAST_FETCH_FAILURES.append(url)
+                if path.exists():
+                    log.warning("could not refresh %s (%s); using the cached copy", url, exc)
+                    paths.append(path)
+                else:
+                    log.warning("could not download %s (%s); skipped", url, exc)
+                continue
             if resp.status_code == 304:
                 time.sleep(NOT_MODIFIED_DELAY_S)
                 paths.append(path)
