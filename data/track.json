@@ -727,31 +727,31 @@
   },
   "experimental": {
    "label": "European cups (experimental, manual results)",
-   "settled": 9,
-   "pending": 63,
+   "settled": 18,
+   "pending": 54,
    "void": 0,
    "by_n": {
     "24": {
      "selected_min_prob": 0.7,
-     "n": 7,
-     "hits": 6,
-     "hit_rate": 0.8571,
-     "mean_stated": 0.8023,
+     "n": 15,
+     "hits": 13,
+     "hit_rate": 0.8667,
+     "mean_stated": 0.8003,
      "wilson95": [
-      0.4869,
-      0.9743
+      0.6212,
+      0.9626
      ],
-     "brier": 0.1463,
-     "brier_baseline": 0.257,
+     "brier": 0.1267,
+     "brier_baseline": 0.2584,
      "reliability": [
       {
        "band": [
         0.5,
         0.6
        ],
-       "n": 1,
-       "stated": 0.554,
-       "realised": 0.0
+       "n": 2,
+       "stated": 0.573,
+       "realised": 0.5
       },
       {
        "band": [
@@ -767,17 +767,17 @@
         0.7,
         0.8
        ],
-       "n": 4,
-       "stated": 0.7517,
-       "realised": 0.75
+       "n": 7,
+       "stated": 0.7419,
+       "realised": 0.7143
       },
       {
        "band": [
         0.8,
         0.9
        ],
-       "n": 2,
-       "stated": 0.842,
+       "n": 7,
+       "stated": 0.8409,
        "realised": 1.0
       },
       {
@@ -793,9 +793,9 @@
      "by_league": [
       {
        "league": "uefa-champions-league",
-       "n": 7,
-       "hit_rate": 0.8571,
-       "stated": 0.8023
+       "n": 15,
+       "hit_rate": 0.8667,
+       "stated": 0.8003
       }
      ]
     }
@@ -813,19 +813,32 @@
        "hits": 6
       }
      }
+    },
+    {
+     "date": "2026-10-14",
+     "matches": 9,
+     "mae": 5.22,
+     "bias": -1.89,
+     "floor80_held": 0.7778,
+     "by_n": {
+      "24": {
+       "picks": 8,
+       "hits": 7
+      }
+     }
     }
    ],
    "weekly": [
     {
      "date": "2026-10-12",
-     "matches": 9,
-     "mae": 4.67,
-     "bias": -1.78,
-     "floor80_held": 0.8889,
+     "matches": 18,
+     "mae": 4.94,
+     "bias": -1.83,
+     "floor80_held": 0.8333,
      "by_n": {
       "24": {
-       "picks": 7,
-       "hits": 6
+       "picks": 15,
+       "hits": 13
       }
      }
     }
