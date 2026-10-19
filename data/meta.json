@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-10-19T00:30:34Z",
+ "built_at": "2026-10-19T04:33:15Z",
  "results_up_to": "2026-10-14",
  "last_job": {
-  "status": "partial",
-  "finished_at": "2026-10-19T00:30:28Z"
+  "status": "ok",
+  "finished_at": "2026-10-19T04:33:08Z"
  },
  "models": [
   "negbin_pit_comp-noodds_2026-10-12",
