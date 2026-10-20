@@ -99,6 +99,14 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
   `python -m shots.db manual --check`, load with `python -m shots.db manual` (also part of `update`). Edits are
   audited (`manual_result_edits`); these settle only the experimental record, never the official one. Pushing
   the CSV triggers a publish.
+- **Provisional results (football-data leagues, while football-data lags):** hand-entered ESPN team stats in
+  `results_provisional/<league id>_<YYYY-YY>.csv`; check with `python -m shots.db provisional --check`. They settle
+  predictions (shown "provisional") and are replaced automatically when football-data publishes
+  (`--agreement` audits the difference). Never used for training or features. Pushing the CSV publishes.
+- **Daily results checklist:** `.github/workflows/results-todo.yml` opens a GitHub issue "Results to enter — <date>"
+  (label `results-todo`) at noon Paris with up to 20 played, predicted, unsettled matches, ESPN schedule links
+  (never fetched by the job: ESPN terms forbid automated collection) and pre-filled CSV rows
+  (`python -m shots.results_todo`). A person or Claude, in a session, reads the pages by hand and pushes the rows.
 - Web UI (local, server-side rendered): `python -m shots.web` → http://127.0.0.1:8000. Reads the DB through
   `shots.db.repo.Repository` only (never runs a model, no SQL in routes). Access control is by entitlement,
   enforced in the repository queries. Preview config: `.claude/launch.json` (`shots-web`).

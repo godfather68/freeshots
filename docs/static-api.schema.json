@@ -128,6 +128,8 @@
         "mae": {"type": ["number", "null"], "minimum": 0},
         "bias": {"type": ["number", "null"]},
         "floor80_held": {"anyOf": [{"$ref": "#/$defs/probability"}, {"type": "null"}]},
+        "provisional": {"description": "Additive (schema 1). How many of `matches` are settled by a provisional result (not yet confirmed by football-data).",
+                        "type": "integer", "minimum": 0},
         "by_n": {
           "type": "object", "additionalProperties": false,
           "patternProperties": {"^[0-9]+$": {
@@ -146,6 +148,8 @@
         "pending": {"type": "integer", "minimum": 0},
         "void": {"description": "Additive (schema 1): picks whose match has no shots data.",
                  "type": "integer", "minimum": 0},
+        "provisional": {"description": "Additive (schema 1): how many of the settled picks are settled by a provisional result (not yet confirmed by football-data).",
+                        "type": "integer", "minimum": 0},
         "by_n": {"$ref": "#/$defs/by_n"},
         "daily": {"description": "Additive (schema 1). The 30 most recent days with at least one settled match, oldest first.",
                   "$ref": "#/$defs/accuracy_series"},
@@ -204,7 +208,10 @@
           "properties": {
             "fixtures": {"type": "integer", "minimum": 0},
             "with_odds": {"type": "integer", "minimum": 0},
-            "cold_start": {"type": "integer", "minimum": 0}
+            "cold_start": {"type": "integer", "minimum": 0},
+            "results": {"description": "Additive (schema 1): rows in results.json.", "type": "integer", "minimum": 0},
+            "provisional_results": {"description": "Additive (schema 1): rows in results.json with result_status provisional.",
+                                    "type": "integer", "minimum": 0}
           }
         },
         "record": {
@@ -291,9 +298,11 @@
               "lb": {"$ref": "#/$defs/lb"},
               "odds": {"type": "boolean"},
               "curve": {"$ref": "#/$defs/curve"},
-              "result_source": {"description": "Additive (schema 1). Where the actual counts come from: football-data (automatic) or manual (entered by hand from a public match page, for competitions without an automatic source).",
-                                "enum": ["football-data", "manual"]},
-              "source_url": {"description": "Additive (schema 1). Only with result_source manual: the page the counts were read from.",
+              "result_source": {"description": "Additive (schema 1). Where the actual counts come from: football-data (automatic), manual (entered by hand from a public match page, for competitions without an automatic source) or, for a provisional result, the provider's name (the host label of source_url, e.g. espn).",
+                                "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+              "result_status": {"description": "Additive (schema 1). provisional = entered by hand from source_url because football-data has not published the match yet; it is replaced by football-data's numbers when they arrive (then confirmed, result_source football-data). confirmed = the competition's own source (football-data, or the manual results of a competition without an automatic source).",
+                                "enum": ["provisional", "confirmed"]},
+              "source_url": {"description": "Additive (schema 1). Only with a manual or provisional result: the page the counts were read from.",
                              "type": "string", "pattern": "^https?://"},
               "experimental": {"description": "Additive (schema 1). Present (true) only for an experimental prediction (cross-border competitions); such results are never part of the official live record. Absent = an ordinary prediction.",
                                "const": true}

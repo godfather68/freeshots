@@ -32,6 +32,15 @@ def _isolated_manual_results(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(mr, "MANUAL_DIR", empty)
 
 
+@pytest.fixture(autouse=True)
+def _isolated_provisional_results(tmp_path_factory, monkeypatch):
+    """Same for results_provisional/ (real hand-entered stand-ins for football-data results). Tests that
+    check the committed files read shots.ingest.provisional_results.COMMITTED_DIR."""
+    from shots.ingest import provisional_results as pr
+
+    monkeypatch.setattr(pr, "PROVISIONAL_DIR", tmp_path_factory.mktemp("no_provisional_results"))
+
+
 @pytest.fixture(scope="session")
 def _migrated_template(tmp_path_factory):
     from shots.db import migrate

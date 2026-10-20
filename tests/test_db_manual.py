@@ -275,7 +275,7 @@ def test_export_publishes_experimental_results_and_record(seeded, tmp_path, migr
     plain = export_at(seeded, tmp_path / "plain", today)
     assert plain["track"]["records"]["experimental"] == {
         "label": "European cups (experimental, manual results)", "settled": 0, "pending": 2, "void": 0,
-        "by_n": {}, "daily": [], "weekly": []}
+        "provisional": 0, "by_n": {}, "daily": [], "weekly": []}
     write(tmp_path / "m", line(), line(day=D2, home="Viking", away="Bayern Munich", hs="9", as_="13",
                                        entered=z(KICK2 + timedelta(hours=2))))
     manual.load_manual_results(seeded, tmp_path / "m", now=LATER)
@@ -285,6 +285,7 @@ def test_export_publishes_experimental_results_and_record(seeded, tmp_path, migr
         validate(name, doc)
     res = {r["id"]: r for r in docs["results"]["results"]}
     assert res[M_EU1]["experimental"] is True and res[M_EU1]["result_source"] == "manual"
+    assert res[M_EU1]["result_status"] == "confirmed"  # the manual result is final for its competition
     assert res[M_EU1]["source_url"] == URL and res[M_EU1]["actual"] == {"total": 26, "home": 15, "away": 11}
     assert res[M_DOM]["result_source"] == "football-data" and "experimental" not in res[M_DOM]
     # domestic outputs are unchanged by the manual results
@@ -332,23 +333,25 @@ def test_accuracy_series_on_a_hand_checkable_fixture():
     def r(d, actual, expected, lb80):
         return {"date": d, "actual_total": actual, "expected_shots": expected, "lb_80": lb80}
 
-    rows = [r(mon, 30, 26.0, 22), r(mon, 20, 25.0, 21), r(tue, 24, 24.0, 20), r(next_mon, 18, None, None)]
+    rows = [r(mon, 30, 26.0, 22), r(mon, 20, 25.0, 21), r(tue, 24, 24.0, 20),
+            dict(r(next_mon, 18, None, None), result_status="provisional")]
     picks = [(mon, 24, 0.75, True), (mon, 24, 0.71, False), (mon, 24, 0.40, False), (tue, 22, 0.80, True),
              (next_mon, 24, 0.70, False)]
     daily = accuracy_series(rows, picks, [22, 24], "day", 30)
     assert daily == [
         # |30-26| = 4, |20-25| = 5 -> mae 4.5; bias ((26-30) + (25-20)) / 2 = 0.5; floor 30>=22 yes, 20>=21 no
         {"date": "2026-10-12", "matches": 2, "mae": 4.5, "bias": 0.5, "floor80_held": 0.5,
-         "by_n": {"22": {"picks": 0, "hits": 0}, "24": {"picks": 2, "hits": 1}}},
+         "by_n": {"22": {"picks": 0, "hits": 0}, "24": {"picks": 2, "hits": 1}}, "provisional": 0},
         {"date": "2026-10-13", "matches": 1, "mae": 0.0, "bias": 0.0, "floor80_held": 1.0,
-         "by_n": {"22": {"picks": 1, "hits": 1}, "24": {"picks": 0, "hits": 0}}},
+         "by_n": {"22": {"picks": 1, "hits": 1}, "24": {"picks": 0, "hits": 0}}, "provisional": 0},
         {"date": "2026-10-19", "matches": 1, "mae": None, "bias": None, "floor80_held": None,
-         "by_n": {"22": {"picks": 0, "hits": 0}, "24": {"picks": 1, "hits": 0}}},
+         "by_n": {"22": {"picks": 0, "hits": 0}, "24": {"picks": 1, "hits": 0}}, "provisional": 1},
     ]
     weekly = accuracy_series(rows, picks, [22, 24], "week", 52)
     # week of Monday 12th: |4|, |5|, |0| -> mae 3.0; bias (-4 + 5 + 0) / 3 = 0.33; floor 2 of 3
     assert weekly[0] == {"date": "2026-10-12", "matches": 3, "mae": 3.0, "bias": 0.33, "floor80_held": 0.6667,
-                         "by_n": {"22": {"picks": 1, "hits": 1}, "24": {"picks": 2, "hits": 1}}}
+                         "by_n": {"22": {"picks": 1, "hits": 1}, "24": {"picks": 2, "hits": 1}}, "provisional": 0}
+    assert weekly[1]["provisional"] == 1
     assert [w["date"] for w in weekly] == ["2026-10-12", "2026-10-19"]
     assert [p["date"] for p in accuracy_series(rows, picks, [24], "day", 2)] == ["2026-10-13", "2026-10-19"]
 
@@ -376,7 +379,7 @@ def test_migration_0006_upgrades_a_0005_database_and_roundtrips(tmp_path):
     with e.connect() as c:
         views = set(c.execute(text("SELECT name, sql FROM sqlite_master WHERE type = 'view'")).all())
     e.dispose()
-    assert migrate.upgrade(path) == "0006_manual_results"
+    assert migrate.upgrade(path, "0006_manual_results") == "0006_manual_results"
     e = make_engine(path)
     with e.connect() as c:
         assert set(c.execute(text("SELECT name, sql FROM sqlite_master WHERE type = 'view'")).all()) == views  # views untouched
@@ -389,4 +392,4 @@ def test_migration_0006_upgrades_a_0005_database_and_roundtrips(tmp_path):
     with e.connect() as c:
         assert "manual_results" not in {r[0] for r in c.execute(text("SELECT name FROM sqlite_master"))}
     e.dispose()
-    assert migrate.upgrade(path) == "0006_manual_results"
+    assert migrate.upgrade(path, "0006_manual_results") == "0006_manual_results"

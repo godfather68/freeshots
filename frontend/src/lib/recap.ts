@@ -57,6 +57,20 @@ export function recap(vs: Verdict[]): Recap {
 
 export interface DayGroup { date: string; verdicts: Verdict[]; recap: Recap }
 
+/** The result was entered by hand and has not been replaced by the official data yet. */
+export const isProvisional = (r: Pick<Result, 'result_status'>): boolean => r.result_status === 'provisional'
+
+/** 'espn' -> 'ESPN'; other provider names capitalised. */
+export function providerName(source: string | undefined): string {
+  const known: Record<string, string> = { espn: 'ESPN', fbref: 'FBref', bbc: 'BBC', sofascore: 'Sofascore', fotmob: 'FotMob' }
+  if (!source) return 'a match page'
+  return known[source] ?? source.charAt(0).toUpperCase() + source.slice(1)
+}
+
+/** Tooltip text of the Provisional tag. */
+export const provisionalNote = (r: Pick<Result, 'result_source'>): string =>
+  `Entered by hand from ${providerName(r.result_source)}; replaced by the official data when it arrives.`
+
 /** Finished matches grouped by day, newest day first; within a day, league then home team for a stable order. */
 export function byDay(results: Result[], n: number, totalStart: number): DayGroup[] {
   const days = new Map<string, Verdict[]>()

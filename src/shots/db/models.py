@@ -54,7 +54,8 @@ class Match(Base):
     """Every match we know of, played or upcoming (one row per canonical match_id).
 
     status: "played" (result row from matches.parquet, or a manual result: source "manual", migration
-    0006), "scheduled" (listed as an upcoming fixture), "unlisted" (was a fixture, no longer listed by any
+    0006, or a provisional result of a football-data competition: source "provisional", migration 0007,
+    until football-data's own result replaces it), "scheduled" (listed as an upcoming fixture), "unlisted" (was a fixture, no longer listed by any
     fixture source, e.g. postponed)."""
     __tablename__ = "matches"
     match_id: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -144,6 +145,60 @@ class ManualResultEdit(Base):
     __table_args__ = (
         CheckConstraint("action IN ('insert', 'update', 'delete')", name="ck_manual_result_edits_action"),
         Index("ix_manual_result_edits_match", "match_id", "recorded_at"),
+    )
+
+
+class ProvisionalResult(Base):
+    """Migration 0007: a result entered by hand (results_provisional/*.csv) for a match of a football-data
+    competition that football-data has not published yet. Its values are written to the `matches` row
+    (status 'played', source 'provisional') until football-data's own result replaces them (source
+    'football-data': the result is then confirmed). This row is kept: it is the provider's side of the
+    agreement audit (v_provisional_agreement). Corrections update it; provisional_result_edits records
+    every change and each confirmation. Triggers keep it off competitions without a division code."""
+    __tablename__ = "provisional_results"
+    match_id: Mapped[str] = mapped_column(ForeignKey("matches.match_id"), primary_key=True)
+    file: Mapped[str] = mapped_column(String(120))
+    home_shots: Mapped[int] = mapped_column(Integer)
+    away_shots: Mapped[int] = mapped_column(Integer)
+    home_goals: Mapped[int] = mapped_column(Integer)
+    away_goals: Mapped[int] = mapped_column(Integer)
+    home_sot: Mapped[int | None] = mapped_column(Integer)
+    away_sot: Mapped[int | None] = mapped_column(Integer)
+    source_url: Mapped[str] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(String(40))  # label of the source host, e.g. "espn"
+    entered_at: Mapped[datetime] = mapped_column(DateTime)  # UTC, as stated in the CSV
+    notes: Mapped[str | None] = mapped_column(Text)
+    prev_source: Mapped[str] = mapped_column(String(32))
+    prev_status: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        CheckConstraint("home_shots >= 0 AND away_shots >= 0 AND home_goals >= 0 AND away_goals >= 0",
+                        name="ck_provisional_results_non_negative"),
+        CheckConstraint("(home_sot IS NULL OR (home_sot >= 0 AND home_sot <= home_shots)) AND "
+                        "(away_sot IS NULL OR (away_sot >= 0 AND away_sot <= away_shots))",
+                        name="ck_provisional_results_sot"),
+    )
+
+
+class ProvisionalResultEdit(Base):
+    """Audit trail of provisional results (append-only: triggers forbid UPDATE and DELETE). action: insert |
+    update | delete (the CSV changed; changes = {column: [old, new]} of the changed columns) | confirm
+    (football-data replaced the provisional result, written by a trigger; changes = {column: [provisional,
+    football-data]} of every result column)."""
+    __tablename__ = "provisional_result_edits"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    match_id: Mapped[str] = mapped_column(ForeignKey("matches.match_id"))
+    action: Mapped[str] = mapped_column(String(8))
+    changes: Mapped[dict] = mapped_column(JSON)
+    file: Mapped[str] = mapped_column(String(120))
+    entered_at: Mapped[datetime | None] = mapped_column(DateTime)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        CheckConstraint("action IN ('insert', 'update', 'delete', 'confirm')", name="ck_provisional_result_edits_action"),
+        Index("ix_provisional_result_edits_match", "match_id", "recorded_at"),
     )
 
 

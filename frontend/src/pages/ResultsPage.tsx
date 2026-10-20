@@ -1,8 +1,8 @@
 import { useApp } from '../lib/app'
 import { dayLong } from '../lib/format'
-import { byDay, recap } from '../lib/recap'
+import { byDay, isProvisional, provisionalNote, recap } from '../lib/recap'
 import type { DayGroup, Recap, Verdict } from '../lib/recap'
-import { Badge, LeagueChip, ProbPill, Stepper } from '../components/ui'
+import { Badge, Help, LeagueChip, ProbPill, Stepper } from '../components/ui'
 
 const n1 = (x: number | null) => (x === null ? 'n/a' : x.toFixed(1))
 const plural = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`
@@ -48,6 +48,7 @@ function Row({ v, n, href, league }: { v: Verdict; n: number; href: string; leag
         {!xp && !r.odds && <span className="nodds">no odds</span>}
         {xp && <span className="tag xp">Experimental</span>}
         {r.result_source === 'manual' && <span className="tag ltd">Entered by hand</span>}
+        {isProvisional(r) && <span className="tag ltd prov" title={provisionalNote(r)}>Provisional<span className="sr">: {provisionalNote(r)}</span></span>}
         {r.source_url && /^https?:\/\//.test(r.source_url) && (
           <a className="srclink" href={r.source_url} rel="noopener noreferrer" target="_blank">Result source<span className="sr"> for {r.home} v {r.away} (opens in a new tab)</span></a>
         )}
@@ -65,10 +66,14 @@ function Row({ v, n, href, league }: { v: Verdict; n: number; href: string; leag
 function Day({ g, n, open, kind }: { g: DayGroup; n: number; open: boolean; kind: string }) {
   const { leagues, href } = useApp()
   const r = g.recap
+  const prov = g.verdicts.filter((v) => isProvisional(v.r)).length
   return (
     <section className="card rday" aria-labelledby={`d-${kind}-${g.date}`}>
       <h3 id={`d-${kind}-${g.date}`}>{dayLong(g.date)} <span className="cnt">&middot; {plural(r.matches, 'match', 'matches')}</span></h3>
       <Stats r={r} n={n} />
+      {prov > 0 && (
+        <p className="hint provnote"><span className="tag ltd prov">Provisional</span> {prov === r.matches ? (r.matches === 1 ? 'This result was' : 'All these results were') : `${prov} of ${r.matches} results were`} entered by hand and will be replaced by the official data when it arrives. <Help term="provisional" /></p>
+      )}
       {r.bias !== null && Math.abs(r.bias) >= 0.05 && (
         <p className="hint">On average {Math.abs(r.bias).toFixed(1)} {Math.abs(r.bias) === 1 ? 'shot' : 'shots'} {r.bias > 0 ? 'more' : 'fewer'} than we expected.</p>
       )}

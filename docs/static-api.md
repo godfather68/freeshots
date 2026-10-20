@@ -26,7 +26,7 @@ Rules
   "thresholds": {"total": [10, 45], "team": [3, 25], "default_total": 24, "default_team": 12},
   "leagues": [{"id": "england-premier-league", "name": "Premier League", "country": "England", "tier": 1, "fixtures": 50}],
   "days": ["2026-10-12", "2026-10-13"],
-  "counts": {"fixtures": 568, "with_odds": 0, "cold_start": 0}
+  "counts": {"fixtures": 568, "with_odds": 0, "cold_start": 0, "results": 140, "provisional_results": 12}
 }
 ```
 
@@ -182,12 +182,35 @@ the last pre-match board prediction), plus experimental ones settled by the same
 
 ### Experimental results (additive, schema 1; UEFA Champions League)
 - `result_source` (every result): `"football-data"` (automatic) or `"manual"` (typed in from a public match
-  page, for competitions without an automatic source). `source_url` (only with `"manual"`): that page.
+  page, for competitions without an automatic source), or a provider name for a provisional result (below).
+  `source_url` (only with `"manual"` or a provisional result): that page.
 - `experimental: true` (**`true` or absent**) marks a result of an experimental prediction. Such results are
   listed so visitors can compare, but they belong to `track.json` `records.experimental`, never to
   `records.live`. A manual result can be corrected later: the file then shows the corrected numbers.
 - Providers count shots slightly differently (blocked shots, headers off target); the number published is
   the one entered from `source_url`, no adjustment is applied.
+
+### Provisional results (additive, schema 1; football-data leagues)
+```json
+{"id": "…", "league": "spain-la-liga", "date": "2026-10-18", "home": "Betis", "away": "Getafe",
+ "actual": {"total": 26, "home": 15, "away": 11}, "…": "…",
+ "result_source": "espn", "result_status": "provisional",
+ "source_url": "https://www.espn.com/soccer/team-stats/_/gameId/1"}
+```
+- `result_status` (every result): `"provisional"` = entered by hand from `source_url` because football-data
+  has not published the match yet; `"confirmed"` = the competition's own source (football-data, or the manual
+  results of a competition without an automatic source). A provisional result **does** settle the
+  prediction, in `records.live` too, and is replaced by football-data's numbers automatically when they
+  arrive: the row then says `"result_source": "football-data"`, `"result_status": "confirmed"`, has no
+  `source_url`, and its `actual` (hence hit / miss and every aggregate) may change by a shot or two.
+- `result_source` of a provisional result is the provider's name (the host label of `source_url`, lowercase,
+  e.g. `"espn"`); clients should treat any value other than `"football-data"` / `"manual"` as a provider name.
+- `meta.counts.results` = rows in `results.json`, `meta.counts.provisional_results` = those with
+  `result_status: "provisional"`. In `track.json`, `records.live.provisional` / `records.experimental.
+  provisional` = how many of the record's `settled` picks rest on a provisional result, and every `daily` /
+  `weekly` point has `provisional` = how many of its `matches` do.
+- Suggested UI wording: a "Provisional" tag, "Entered by hand from ESPN; replaced by the official data when it
+  arrives."
 
 ## `data/track.json`
 ```json
@@ -243,7 +266,9 @@ The shapes above are unchanged. Details an implementer of the site needs (JSON S
   `wilson95` (no selected picks).
 - **Additive fields:** `meta.record.since` (start of the live record of the database behind this export; it
   moves forward if the database had to be rebuilt), `track.records.live.void`, `track.records.experimental`, `daily` / `weekly` on the live and experimental
-  records, result `result_source` / `source_url` / `experimental` (see "Experimental results"), and, for cross-border
+  records, result `result_source` / `source_url` / `experimental` (see "Experimental results"), result
+  `result_status`, `meta.counts.results` / `provisional_results`, record and point `provisional` (see
+  "Provisional results"), and, for cross-border
   competitions only, fixture `experimental` / `data_quality` and league `featured` (see "Experimental
   fixtures"), and fixture `explain` (see "`explain`"). `meta.counts.cold_start` includes experimental
   fixtures with a club without data.

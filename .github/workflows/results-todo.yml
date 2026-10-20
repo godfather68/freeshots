@@ -1,0 +1,134 @@
+# Daily checklist of results to enter by hand (noon Europe/Paris). Opens one GitHub issue
+# "Results to enter — <date>" (label results-todo) listing ~20 already-played matches that have a published
+# prediction but no result yet, with ESPN links, the target CSV file and pre-filled CSV rows. A person (or
+# Claude in an interactive session) reads the numbers from the pages, fills results_provisional/ or
+# results_manual/ and pushes: the push publishes (update.yml). Design: docs/platform.md, "Results to-do".
+#
+# This workflow never fetches ESPN or any third-party site (ESPN's terms forbid automated collection): the
+# script only reads our own public JSON (the `data` branch and its history) and builds links. No install,
+# no secrets: the runner's Python runs a standard-library script; gh uses GITHUB_TOKEN to manage issues.
+name: Results to enter
+
+on:
+  # Noon in Paris is 10:00 UTC in summer (CEST) and 11:00 UTC in winter (CET): both slots run, the guard
+  # keeps the one at or after 12:00 Paris time, and the issue check makes a second run a no-op.
+  schedule:
+    - cron: "0 10 * * *"
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Run date YYYY-MM-DD (default: today in Paris)"
+        type: string
+        required: false
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: shots-results-todo
+  cancel-in-progress: false
+
+env:
+  TZ: UTC
+  PYTHONUTF8: "1"
+  LABEL: results-todo
+  DATA_BRANCH: data
+
+jobs:
+  todo:
+    name: Prepare the results checklist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read  # check out main and the data branch
+      issues: write   # open the checklist, close stale ones, create the label
+    steps:
+      - name: Guard (noon Paris, one issue per day)
+        id: guard
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_DATE: ${{ github.event.inputs.date }}
+        run: |
+          hour=$(TZ=Europe/Paris date +%H)
+          today=$(TZ=Europe/Paris date +%F)
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            run_date="${INPUT_DATE:-$today}"
+            if ! printf '%s' "$run_date" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+              echo "::error::date must be YYYY-MM-DD, got: $run_date"; exit 1
+            fi
+            proceed=true
+          elif [ "$((10#$hour))" -ge 12 ]; then
+            run_date="$today"; proceed=true
+          else
+            run_date="$today"; proceed=false
+            echo "Paris time is ${hour}h: the other slot (noon Paris) runs the checklist"
+          fi
+          echo "proceed=$proceed" >> "$GITHUB_OUTPUT"
+          echo "date=$run_date" >> "$GITHUB_OUTPUT"
+
+      - name: Check out
+        if: ${{ steps.guard.outputs.proceed == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Full history: matches already played are no longer on the current board; the last board committed
+      # before each kick-off is the published prediction.
+      - name: Check out the data branch (public JSON and its history)
+        if: ${{ steps.guard.outputs.proceed == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.DATA_BRANCH }}
+          path: site-data
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        if: ${{ steps.guard.outputs.proceed == 'true' }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Build the checklist (standard library only, no network)
+        id: build
+        if: ${{ steps.guard.outputs.proceed == 'true' }}
+        env:
+          RUN_DATE: ${{ steps.guard.outputs.date }}
+        run: |
+          python src/shots/results_todo.py --date "$RUN_DATE" --data-dir site-data --repo-dir . \
+            --out "$RUNNER_TEMP/todo.md" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/todo.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open the issue (once per day, only when there is something to enter)
+        if: ${{ steps.guard.outputs.proceed == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COUNT: ${{ steps.build.outputs.count }}
+          TITLE: ${{ steps.build.outputs.title }}
+        run: |
+          gh label create "$LABEL" --color 1D76DB --force \
+            --description "Daily checklist of match results to enter by hand"
+          if [ "${COUNT:-0}" -eq 0 ]; then
+            echo "Nothing to enter: no issue"
+          elif gh issue list --label "$LABEL" --state all --limit 200 --json title --jq '.[].title' \
+               | grep -Fxq "$TITLE"; then
+            echo "Issue already exists: $TITLE"
+          else
+            gh issue create --title "$TITLE" --label "$LABEL" --body-file "$RUNNER_TEMP/todo.md"
+          fi
+
+      - name: Close checklists older than 7 days
+        if: ${{ steps.guard.outputs.proceed == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cutoff=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh issue list --label "$LABEL" --state open --limit 200 --json number,createdAt \
+            --jq ".[] | select(.createdAt < \"$cutoff\") | .number" |
+          while read -r n; do
+            gh issue close "$n" --reason "not planned" \
+              --comment "Closed automatically: older than 7 days. Matches still missing a result are listed in the newest checklist (it looks back 7 days)."
+          done

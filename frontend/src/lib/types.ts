@@ -72,9 +72,11 @@ export interface Result {
   curve: number[]
   /** Additive (optional): a competition without a results feed (Champions League). Never counted in the official record. */
   experimental?: boolean
-  /** Additive (optional): where the result came from. */
-  result_source?: 'football-data' | 'manual'
-  /** Additive (optional, manual results): link to the page the result was copied from. */
+  /** Additive (optional): where the result came from: 'football-data', 'manual', or a provider name (e.g. 'espn') for a provisional result. */
+  result_source?: string
+  /** Additive (optional): 'provisional' = entered by hand until the official data arrives (it still counts); 'confirmed' otherwise. */
+  result_status?: 'provisional' | 'confirmed'
+  /** Additive (optional, manual and provisional results): link to the page the result was copied from. */
   source_url?: string | null
 }
 export interface Results { schema: number; results: Result[] }
@@ -99,12 +101,16 @@ export interface Period {
   bias: number | null
   floor80_held: number | null
   by_n: Record<string, { picks: number; hits: number }>
+  /** Additive (optional): how many of `matches` rest on a provisional result. */
+  provisional?: number
 }
 export interface TrackRecord {
   label: string
   by_n: Record<string, TrackNEntry>
   settled?: number
   pending?: number
+  /** Additive (optional): settled picks that rest on a provisional result. */
+  provisional?: number
   daily?: Period[]
   weekly?: Period[]
 }

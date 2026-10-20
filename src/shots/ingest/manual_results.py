@@ -57,16 +57,18 @@ _SEASON = re.compile(r"^(\d{4})-(\d{2})$")
 class ManualResultsError(ValueError):
     """One or more problems in the manual results; `problems` lists them ("<file>:<line>: <what>")."""
 
+    what = "manual results"
+
     def __init__(self, problems: list[str]):
         self.problems = list(problems)
-        head = f"{len(self.problems)} problem(s) in the manual results"
+        head = f"{len(self.problems)} problem(s) in the {self.what}"
         super().__init__(head + ":\n  " + "\n  ".join(self.problems))
 
 
 @dataclass
 class ManualFile:
     path: Path
-    competition: xb.CrossBorder
+    competition: xb.CrossBorder  # or any object with a `name` (shots.ingest.provisional_results.Covered)
     season_start: int
     rows: pd.DataFrame  # one row per CSV data row; see read_file
 
@@ -138,23 +140,30 @@ def read_file(path: Path) -> ManualFile:
     rows columns: line, date (datetime.date), home, away (as entered), home_team, away_team (normalised),
     match_id, home_shots, away_shots, home_sot, away_sot (None if empty), home_goals, away_goals,
     source_url, entered_at (naive UTC), notes (None if empty)."""
+    return parse_file(path, competition_for, ManualResultsError)
+
+
+def parse_file(path: Path, competition_for, error: type[ManualResultsError], check_source=None) -> ManualFile:
+    """read_file with a pluggable file-name rule (`competition_for(path) -> (competition, season start)`,
+    ValueError if the name is not acceptable), error class and an optional extra check of the source URL
+    (`check_source(url) -> problem text or None`). Shared with shots.ingest.provisional_results."""
     path = Path(path)
     try:
         comp, season = competition_for(path)
     except ValueError as exc:
-        raise ManualResultsError([str(exc)]) from None
+        raise error([str(exc)]) from None
     problems: list[str] = []
     with path.open(encoding="utf-8-sig", newline="") as f:
         reader = csv.reader(f)
         header = next(reader, None)
         if header is None:
-            raise ManualResultsError([f"{path.name}: empty file (the header line is required)"])
+            raise error([f"{path.name}: empty file (the header line is required)"])
         header = [h.strip() for h in header]
         missing = [c for c in COLUMNS if c not in header]
         unknown = [c for c in header if c not in COLUMNS]
         dup = sorted({c for c in header if header.count(c) > 1})
         if missing or unknown or dup:
-            raise ManualResultsError([f"{path.name}:1: header must have the columns {', '.join(COLUMNS)}"
+            raise error([f"{path.name}:1: header must have the columns {', '.join(COLUMNS)}"
                                       + (f"; missing {missing}" if missing else "")
                                       + (f"; unknown {unknown}" if unknown else "")
                                       + (f"; repeated {dup}" if dup else "")])
@@ -194,6 +203,8 @@ def read_file(path: Path) -> ManualFile:
             vals[f"{side}_sot"] = sot
         if not _URL.match(r["source"]):
             problems.append(f"{where}: source must be the http(s) URL the numbers were read from, got {r['source']!r}")
+        elif check_source is not None and (bad := check_source(r["source"])):
+            problems.append(f"{where}: {bad}")
         entered = parse_utc(r["entered_at"])
         if entered is None:
             problems.append(f"{where}: entered_at must be an ISO 8601 UTC time such as 2026-10-14T21:05:00Z, "
@@ -221,7 +232,7 @@ def read_file(path: Path) -> ManualFile:
             if other != r["line"]:
                 problems.append(f"{where}: {team} already plays on {r['date']} (line {other})")
     if problems:
-        raise ManualResultsError(problems)
+        raise error(problems)
     cols = ["line", "date", "home", "away", "home_team", "away_team", "match_id", "home_shots", "away_shots",
             "home_sot", "away_sot", "home_goals", "away_goals", "source_url", "entered_at", "notes"]
     return ManualFile(path=path, competition=comp, season_start=season,

@@ -6,6 +6,8 @@
     import_picks_file / import_picks_dir          one picks run per scan CSV in reports/picks/
     import_backfill(engine, backfill_df)          the out-of-sample season replay as a run
     sync_manual_results(engine)                   hand-entered results (results_manual/*.csv; shots.db.manual)
+    sync_provisional_results(engine)              hand-entered stand-ins for football-data results not yet
+                                                  published (results_provisional/*.csv; shots.db.provisional)
     sync_all(engine)                              all of the above from the default file locations
 
 Predictions are only ever inserted (append-only, enforced by DB triggers). Outcomes are not copied:
@@ -710,7 +712,8 @@ def incremental_since(engine: Engine, days: int = 400) -> date | None:
     """Start date for an incremental results upsert: `days` before the latest played match in the DB
     (covers the current and previous season, which football-data may still correct). None = empty DB."""
     with session_scope(engine) as s:
-        last = s.scalar(select(func.max(Match.date)).where(Match.status == "played", Match.source != "manual"))
+        last = s.scalar(select(func.max(Match.date)).where(Match.status == "played",
+                                                           Match.source.not_in(("manual", "provisional"))))
     return None if last is None else last - pd.Timedelta(days=days).to_pytimedelta()
 
 
@@ -733,6 +736,16 @@ def sync_manual_results(engine: Engine, directory: Path | None = None) -> dict:
     return load_manual_results(engine, directory)
 
 
+def sync_provisional_results(engine: Engine, directory: Path | None = None) -> dict:
+    """Provisional results of football-data competitions (shots.db.provisional.load_provisional_results).
+    Run after the football-data results load (sync_results), so a match football-data has just published
+    is already confirmed and is left alone. Raises shots.ingest.provisional_results.ProvisionalResultsError
+    listing every problem (files without problems are still loaded)."""
+    from shots.db.provisional import load_provisional_results
+
+    return load_provisional_results(engine, directory)
+
+
 def sync_predictions(engine: Engine, backfill: bool = True) -> dict:
     """Picks CSVs (one run per scan file) + the season backfill, then outcome counts. Outcomes are
     views over current results, so 'settling' needs no writes: this only reports them."""
@@ -753,6 +766,7 @@ def sync_all(target=None, today: date | None = None, full: bool = False) -> dict
         migrate.upgrade(engine)
         out = sync_results(engine, today, full)
         out["manual"] = sync_manual_results(engine)
+        out["provisional"] = sync_provisional_results(engine)
         out["board"] = import_board_file(engine)
         out.update(sync_predictions(engine))
         return out

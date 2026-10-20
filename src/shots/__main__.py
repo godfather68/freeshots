@@ -2,7 +2,8 @@
 
 Usage:
     python -m shots update            # results -> calendars -> picks -> UI board -> track record -> database
-                                      # (incl. manual results of competitions without a source)
+                                      # (incl. manual results of competitions without a source
+                                      # and provisional results football-data has not published yet)
     python -m shots update --days 14  # board window (default 30 days)
     python -m shots update --export-dir site/data   # then write the static JSON export (docs/static-api.md)
 
@@ -90,6 +91,8 @@ def update(days: int = 30, shots: int = 24, min_prob: float = 0.70, export_dir: 
         ("db", "load results and fixtures into the database", db_step("db", dbload.sync_results)),
         ("db-manual", "load hand-entered results (results_manual/*.csv)",
          db_step("db-manual", dbload.sync_manual_results)),
+        ("db-provisional", "load provisional results of football-data leagues (results_provisional/*.csv)",
+         db_step("db-provisional", dbload.sync_provisional_results)),
         ("db-board", "record the board as a prediction run", db_step("db-board", dbload.import_board_file)),
         ("db-picks", "record picks scans and the backfill; outcomes", db_step("db-picks", dbload.sync_predictions)),
     ]

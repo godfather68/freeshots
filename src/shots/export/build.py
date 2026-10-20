@@ -174,7 +174,9 @@ def build_board(repo: Repository, today: date) -> tuple[dict, dict]:
 
 def build_results(repo: Repository, today: date, days: int = RESULT_DAYS) -> tuple[dict, list[dict]]:
     """-> (results.json document, the repository rows). Ordinary predictions by the official rule, plus
-    experimental ones (cross-border competitions settled by manual results) flagged `experimental`."""
+    experimental ones (cross-border competitions settled by manual results) flagged `experimental`. Every
+    row has result_status: "provisional" (settled by a hand-entered stand-in football-data has not
+    published yet; result_source = the provider, source_url = its page) or "confirmed"."""
     rows = repo.settled_results(today - timedelta(days=days), today, FULL_ACCESS, experimental=None)
     results = []
     for r in rows:
@@ -191,8 +193,9 @@ def build_results(repo: Repository, today: date, days: int = RESULT_DAYS) -> tup
             "odds": bool(r["odds"]),
             "curve": _curve(r["total_curve"], r["curve_n_min"], r["curve_n_max"], f"result {r['match_id']}"),
             "result_source": r["result_source"],  # additive: where the actual counts come from
+            "result_status": r["result_status"],  # additive: provisional (hand-entered stand-in) | confirmed
         })
-        if r["result_source"] == "manual":
+        if r["source_url"] is not None:  # manual and provisional results
             results[-1]["source_url"] = r["source_url"]
         if r["experimental"]:  # additive; absent for ordinary predictions
             results[-1]["experimental"] = True
@@ -251,7 +254,8 @@ def accuracy_point(key: date, rows: list[dict], picks: list[tuple[int, float, bo
     floor80_held = share of matches with actual >= lb 80 (None when no row has the value).
     picks: (n, p, hit) of the group's settled picks of the record (v_official_picks / v_experimental_picks),
     so by_n uses the record's own pick definition (p >= min_prob) and has exactly the record's
-    thresholds `ns` (0 / 0 for a threshold without picks in the group)."""
+    thresholds `ns` (0 / 0 for a threshold without picks in the group).
+    provisional = how many of the group's matches (rows) are settled by a provisional result."""
     exp = [(int(r["actual_total"]), float(r["expected_shots"])) for r in rows if r["expected_shots"] is not None]
     floor = [(int(r["actual_total"]), float(r["lb_80"])) for r in rows if r["lb_80"] is not None]
     by_n = {str(n): {"picks": 0, "hits": 0} for n in ns}
@@ -266,6 +270,7 @@ def accuracy_point(key: date, rows: list[dict], picks: list[tuple[int, float, bo
         "bias": _num(sum(e - a for a, e in exp) / len(exp), 2) if exp else None,
         "floor80_held": _num(sum(a >= lb for a, lb in floor) / len(floor), 4) if floor else None,
         "by_n": by_n,
+        "provisional": sum(1 for r in rows if r.get("result_status") == "provisional"),
     }
 
 
@@ -301,7 +306,10 @@ def _picks_record(repo: Repository, source: str, label: str, today: date, experi
     picks = [(d.date(), int(n), float(p), bool(h)) for d, n, p, h in zip(sp["date"], sp["n"], sp["p"], sp["hit"])]
     ns = sorted(int(n) for n in by_n)
     rec = {"label": label, "settled": int(counts.get("settled", 0)), "pending": int(counts.get("pending", 0)),
-           "void": int(counts.get("void", 0)), "by_n": by_n,
+           "void": int(counts.get("void", 0)),
+           # settled picks whose result is provisional (football-data has not confirmed it yet)
+           "provisional": int(settled["provisional"].sum()) if len(settled) else 0,
+           "by_n": by_n,
            "daily": accuracy_series(rows, picks, ns, "day", DAILY_POINTS, min_prob),
            "weekly": accuracy_series(rows, picks, ns, "week", WEEKLY_POINTS, min_prob)}
     return rec, set(settled.loc[settled["p"] >= min_prob, "competition"])
@@ -332,9 +340,11 @@ def build_track(repo: Repository, min_prob: float = SELECTED_MIN_PROB, today: da
 
 # ----------------------------------------------------------------------------- meta
 
-def build_meta(repo: Repository, built_at: datetime, board_src: dict, extra_leagues: set[str]) -> dict:
+def build_meta(repo: Repository, built_at: datetime, board_src: dict, extra_leagues: set[str],
+               result_rows: list[dict] | None = None) -> dict:
     """meta.json. `leagues` lists every league the other files refer to (fixtures = 0 when a league
-    only appears in results or the track record), sorted by country, tier, name."""
+    only appears in results or the track record), sorted by country, tier, name. counts.results /
+    counts.provisional_results: results.json rows and how many of them are provisional."""
     bm = repo.board_meta() or {}
     rows = board_src["rows"]
     comps = repo.competitions()
@@ -365,7 +375,9 @@ def build_meta(repo: Repository, built_at: datetime, board_src: dict, extra_leag
         "leagues": leagues,
         "days": sorted({r["date"].isoformat() for r in rows}),
         "counts": {"fixtures": len(rows), "with_odds": sum(1 for r in rows if r["odds"]),
-                   "cold_start": sum(1 for r in rows if r["cold_start"])},
+                   "cold_start": sum(1 for r in rows if r["cold_start"]),
+                   "results": len(result_rows or []),
+                   "provisional_results": sum(1 for r in result_rows or [] if r.get("result_status") == "provisional")},
         "record": {"since": iso_z(repo.record_since())},
     }
 
@@ -384,5 +396,5 @@ def build_all(repo: Repository, built_at: datetime | None = None, today: date | 
     results, result_rows = build_results(repo, today)
     track, used = build_track(repo, today=today)
     used |= {r["competition"] for r in result_rows}
-    meta = build_meta(repo, built_at, board_src, used)
+    meta = build_meta(repo, built_at, board_src, used, result_rows)
     return {"meta": meta, "board": board, "results": results, "track": track}

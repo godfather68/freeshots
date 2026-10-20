@@ -158,7 +158,8 @@ def test_export_follows_the_contract_and_the_json_schema(seeded, tmp_path):
     assert meta["thresholds"] == {"total": [board_mod.N_MIN, board_mod.N_MAX], "team": [3, 25],
                                   "default_total": DEFAULT_TOTAL, "default_team": DEFAULT_TEAM}
     assert (DEFAULT_TOTAL, DEFAULT_TEAM) == (flt.N_DEFAULT, flt.TN_DEFAULT)  # same defaults as the server-rendered app
-    assert meta["counts"] == {"fixtures": 3, "with_odds": 1, "cold_start": 1} and meta["days"] == [str(D5)]
+    assert meta["counts"] == {"fixtures": 3, "with_odds": 1, "cold_start": 1, "results": 2,
+                              "provisional_results": 0} and meta["days"] == [str(D5)]
     assert meta["last_job"] is None and meta["record"]["since"].endswith("Z")
     assert meta["leagues"] == [
         {"id": "england-premier-league", "name": "Premier League", "country": "England", "tier": 1, "fixtures": 1},
@@ -191,8 +192,8 @@ def test_results_use_the_official_rule(seeded, tmp_path):
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", m1["predicted_at"])
     assert abs(datetime.fromisoformat(m1["predicted_at"][:-1]) - NOW) < timedelta(minutes=10)  # the insert time
     assert list(m1) == ["id", "league", "date", "home", "away", "actual", "predicted_at", "expected", "lb", "odds", "curve",
-                        "result_source"]
-    assert m1["result_source"] == "football-data" and "source_url" not in m1 and "experimental" not in m1
+                        "result_source", "result_status"]
+    assert m1["result_source"] == "football-data" and m1["result_status"] == "confirmed" and "source_url" not in m1 and "experimental" not in m1
     late = D1 + timedelta(days=31)  # M1 is now older than 30 days, M2 exactly 30
     run_export(seeded, tmp_path / "late", today=late)
     assert [r["id"] for r in read(tmp_path / "late")["results"]["results"]] == [M2]
@@ -215,7 +216,7 @@ def test_no_odds_values_or_source_columns_are_published(seeded, tmp_path):
                "live", "label", "by_n", "selected_min_prob", "n", "hits", "hit_rate", "mean_stated", "wilson95", "brier",
                "brier_baseline", "reliability", "band", "stated", "realised", "by_league", "settled", "pending", "void",
                "22", "24", "result_source", "experimental", "daily", "weekly", "matches", "mae", "bias",
-               "floor80_held", "picks"}
+               "floor80_held", "picks", "result_status", "provisional", "provisional_results"}
 
     def keys(obj):
         if isinstance(obj, dict):

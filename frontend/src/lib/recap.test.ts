@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { byDay, recap, verdict, weeklyPoints, wilson } from './recap'
+import { byDay, isProvisional, providerName, provisionalNote, recap, verdict, weeklyPoints, wilson } from './recap'
 import { WEEKLY, results } from '../test-fixtures'
 import type { Result } from './types'
 
@@ -33,7 +33,17 @@ describe('verdict and recap', () => {
     const xp = results.results.filter((r) => r.experimental === true)
     expect(xp.length).toBeGreaterThan(0)
     expect(xp.every((r) => r.result_source === 'manual' && !!r.source_url)).toBe(true)
-    expect(results.results.filter((r) => r.experimental !== true).every((r) => r.result_source === undefined)).toBe(true)
+    const league = results.results.filter((r) => r.experimental !== true)
+    expect(league.filter((r) => r.result_status !== 'provisional').every((r) => r.result_source === undefined)).toBe(true)
+    expect(league.filter((r) => r.result_status === 'provisional').map((r) => r.result_source)).toEqual(['espn'])
+  })
+  it('names the provider of a provisional result', () => {
+    expect(isProvisional({ result_status: 'provisional' })).toBe(true)
+    expect(isProvisional({ result_status: 'confirmed' })).toBe(false)
+    expect(isProvisional({})).toBe(false)
+    expect(provisionalNote({ result_source: 'espn' })).toBe('Entered by hand from ESPN; replaced by the official data when it arrives.')
+    expect(providerName('whoscored')).toBe('Whoscored')
+    expect(providerName(undefined)).toBe('a match page')
   })
 })
 

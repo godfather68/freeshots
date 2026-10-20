@@ -20,7 +20,7 @@ Code: `src/shots/db/` (`engine.py`, `models.py`, `migrate.py`, `load.py`, `repo.
 Every connection: `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=10000`, `synchronous=NORMAL`,
 `cache_size=64MB`. WAL lets the web app read while `shots update` writes.
 
-## Schema (revisions `0001_initial`, `0002_pre_match`, `0003_run_integrity`, `0004_experimental`, `0005_explain`, `0006_manual_results`)
+## Schema (revisions `0001_initial`, `0002_pre_match`, `0003_run_integrity`, `0004_experimental`, `0005_explain`, `0006_manual_results`, `0007_provisional_results`)
 
 Timestamps named `*_at` are **UTC** (naive). `matches.date` is the local match date and
 `kickoff_local` the local "HH:MM", exactly as in the canonical schema. Board `meta.built_at` (and picks
@@ -35,7 +35,8 @@ Timestamps named `*_at` are **UTC** (naive). `matches.date` is the local match d
 | `matches` | `match_id` | **one table for played and upcoming matches** (same canonical key; see below). Canonical columns + `kickoff_local`, `kickoff_utc` (calendar fixtures), `round`, `status`, `search_key` |
 
 `matches.status`: `played` (row from `matches.parquet`, or a manual result with `source = 'manual'`, see
-"Manual results"), `scheduled` (listed by a fixture
+"Manual results", or a provisional result with `source = 'provisional'` until football-data publishes the
+match, see "Provisional results"), `scheduled` (listed by a fixture
 source), `unlisted` (was scheduled, no fixture source lists it any more: postponed/moved; set back to
 `scheduled` if it reappears).
 
@@ -222,11 +223,84 @@ are settled from a committed, human-edited CSV per competition and season:
   `{files, rows, inserted, updated, deleted, unchanged, fingerprint}`.
 - **Worker**: reason `manual-results` = the files' fingerprint differs from `counts["db-manual"].fingerprint`
   of the last `ok` update (without one: when a file holds a data row), so a pushed CSV is picked up by the
-  next scheduled slot. (`results_manual/` is not in the workflow's push paths: a push alone does not start
-  a run; dispatch the workflow by hand to publish at once.)
+  next scheduled slot; `results_manual/**` is also in the workflow's push paths, so a push publishes at once.
 - **Export**: `results.json` lists settled experimental fixtures with `experimental: true`, every result has
   `result_source` (`football-data` | `manual`) and manual ones `source_url`; `track.json` has
   `records.experimental` and `daily` / `weekly` accuracy series (`docs/static-api.md`).
+
+## Provisional results (migration `0007_provisional_results`)
+
+football-data.co.uk sometimes stops publishing (no results 15-19 Oct 2026, ~170 predicted matches unsettled).
+Matches of the competitions it covers may then be settled from a committed, human-edited CSV per competition
+and season, **only until football-data publishes them**: `results_provisional/<league id>_<YYYY-YY>.csv`,
+league id = slug of the canonical competition name (`england-premier-league_2026-27.csv`,
+`germany-2-bundesliga_2026-27.csv`; the static export's league id).
+
+- **Columns and checks**: exactly those of manual results (`shots.ingest.provisional_results.read_file` reuses
+  `manual_results.parse_file`), except the file prefix must be a football-data competition
+  (`shots.ingest.football_data.DIVISIONS`; a cross-border prefix is refused with a pointer to
+  `results_manual/`) and the `source` URL must not be football-data itself. `shots.db.provisional` resolves
+  rows like manual ones (closest candidates, swapped teams, season, finished before `entered_at`, not in the
+  future), but requires the competition to HAVE a division code. Any problem rejects that file and fails the
+  update step `db-provisional`.
+- **Storage**: like manual results, the values go to the `matches` row (status `played`, `source =
+  'provisional'`), so `v_prediction_outcomes` settles every prediction of the match, **the official live record
+  included** (these are the very matches the record is about). `provisional_results` keeps the entered values,
+  `source_url`, `provider` (host label: `www.espn.com` -> `espn`), `entered_at`, `notes`, `file`,
+  `prev_source` / `prev_status`. Corrections update it; a removed row (or a removed file) restores a match that
+  is still provisional. `provisional_result_edits` is the append-only audit (insert / update / delete as for
+  manual results, plus **confirm**, see below).
+- **football-data supersedes automatically**: the regular results load (`load.upsert_matches`, step `db`,
+  which runs before `db-provisional`) overwrites a played row whenever anything differs, `source` included, so
+  football-data's numbers replace the provisional ones the moment its CSV has the match; nothing
+  provisional-specific runs. A trigger (`trg_matches_provisional_confirmed`) then appends a `confirm` audit
+  row with `changes = {column: [provisional, football-data]}` for all six result columns. From then on the
+  loader never writes that match again (it still records / corrects the provisional row; removing it leaves
+  the confirmed match alone). Outcomes are views, so settlement follows each step. `result_status` is derived,
+  never stored: `provisional` while `matches.source = 'provisional'`, else `confirmed`.
+- **Provider agreement**: view `v_provisional_agreement` (per provisional row: `result_status` provisional |
+  confirmed | unsettled, `prov_*` and `fd_*` shots / sot / goals, `diff_home_shots`, `diff_away_shots`,
+  `diff_total` = football-data minus provider, `goals_agree`); `python -m shots.db provisional --agreement`
+  prints it with a summary (`exact_total`, `mean_abs_diff_total`, `mean_diff_total`, `goals_agree`).
+- **Guards (triggers)**: `matches.source = 'provisional'` only in a competition with a division code, never on
+  INSERT (it only settles a fixture we already have), and never for a match already `played` from
+  football-data; `provisional_results` rows only for matches of such competitions. 0006's guards are
+  unchanged: `manual` stays reserved for competitions without a code.
+- **Never in the modelling pipeline**: features, EKF ratings, league levels and the models read
+  `matches.parquet`, built from football-data only; no modelling module imports the provisional code or the
+  DB results (tested: `tests/test_db_provisional.py`, features and board byte-identical with provisional rows
+  loaded). `Repository.base_rates` (Brier baseline) and `load.incremental_since` ignore provisional rows.
+- **Commands**: `python -m shots.db provisional --check` (validate; list `line -> match_id, date, home, away,
+  kickoff_utc, total, provider, status` (provisional | confirmed); exit 1 with every problem; writes
+  nothing; works on a not-yet-migrated DB), `python -m shots.db provisional` (load), `--agreement`, and the
+  update step `db-provisional` (after `db-manual`). Loader counts: `{files, rows, inserted, updated, deleted,
+  unchanged, confirmed, fingerprint}`.
+- **Worker / CI**: reason `provisional-results` (fingerprint vs `counts["db-provisional"].fingerprint`, as
+  for manual results); `results_provisional/**` is in `update.yml`'s push paths and
+  `shots.worker.ci.PIPELINE_PATHS`, so pushing a CSV publishes.
+- **Export** (additive, schema 1): every `results.json` row has `result_status`; provisional rows have
+  `result_source` = the provider (`espn`) and `source_url`; once confirmed, `football-data` and no URL.
+  `meta.counts.results` / `.provisional_results`; `track.json` `records.live|experimental.provisional`
+  (settled picks on a provisional result) and `daily` / `weekly` points `provisional` (matches).
+
+### Results to-do (daily checklist issue, `.github/workflows/results-todo.yml`)
+- Every day at noon Europe/Paris (crons 10:00 and 11:00 UTC; a guard keeps the slot at or after 12:00 Paris,
+  manual dispatch takes an optional date) the workflow opens one issue "Results to enter — <date>" (label
+  `results-todo`, created if missing) with up to 20 already-played matches that have a published prediction
+  but no result yet. A person, or Claude in an interactive session, opens the ESPN links, types the numbers
+  into `results_provisional/` (football-data leagues) or `results_manual/` (UEFA cups) and pushes: the push
+  publishes (`update.yml`). No issue when nothing is missing; one per date (an existing title is skipped); open
+  checklists older than 7 days are closed with a comment.
+- **Nothing is fetched**: ESPN's terms forbid automated collection. `src/shots/results_todo.py` (standard
+  library, no network module; `python -m shots.results_todo [--date] [--limit 20] [--data-dir] [--out]`) only
+  reads our public JSON from a checkout of the `data` branch **with its history** (played matches have left
+  the current board; the last `board.json` committed before kick-off is the published prediction) and builds
+  links: `https://www.espn.com/soccer/schedule/_/date/YYYYMMDD/league/<slug>` (slugs:
+  `src/shots/ingest/espn_leagues.csv`; unknown league = no link), then the match's team-stats page.
+- Selection: match date in the 7 days before the run date, no row in `results.json`, no row already in the
+  committed CSVs; official picks (P(24+) >= 0.70) first, then experimental cup picks, then the rest, by P(24+)
+  then newest; leagues interleaved round-robin. The issue carries a pre-filled CSV block per target file in
+  the manual-results column order, with our team names. Tests: `tests/test_results_todo.py`.
 
 ## Repository API (`shots.db.repo.Repository`)
 
@@ -281,6 +355,7 @@ The web app takes `create_app(db=None, today=None, entitlements=None)`, where `e
 **db** (`sync_results`: migrate, upsert results of the last ~400 days (all on an empty DB) and the
 upcoming fixtures from `fixtures.parquet` + the latest `data/raw/football-data/fixtures/fixtures_*.csv`) ->
 **db-manual** (`sync_manual_results`: `results_manual/*.csv`, see "Manual results") ->
+**db-provisional** (`sync_provisional_results`: `results_provisional/*.csv`, see "Provisional results") ->
 **db-board** (`import_board_file`: the fresh board as a `board` run) -> **db-picks** (`sync_predictions`:
 every picks CSV not yet imported as a `picks` run, the backfill as a `backfill` run, outcome counts).
 Each step runs even if an earlier one failed; the run is recorded in `job_runs`.

@@ -7,6 +7,10 @@
     status               counts and freshness of what the app shows
     manual [--check]     load hand-entered results (results_manual/*.csv); --check validates and lists
                          the match each row resolves to without writing anything (exit 1 on any problem)
+    provisional [--check | --agreement]
+                         load provisional results of football-data leagues (results_provisional/*.csv);
+                         --check validates and lists each row's match and status (provisional | confirmed)
+                         without writing; --agreement prints provider vs football-data for every row
 
 The database is data/shots.db; set SHOTS_DB to use another file.
 """
@@ -34,6 +38,11 @@ def main(argv=None) -> None:
     man = sub.add_parser("manual", help="load (or --check) the manual results in results_manual/")
     man.add_argument("--check", action="store_true", help="validate and resolve only; write nothing")
     man.add_argument("--dir", default=None, help="directory of the CSV files (default results_manual/)")
+    prov = sub.add_parser("provisional", help="load (or --check) the provisional results in results_provisional/")
+    mode = prov.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="validate and resolve only; write nothing")
+    mode.add_argument("--agreement", action="store_true", help="provider vs football-data, per row and summary")
+    prov.add_argument("--dir", default=None, help="directory of the CSV files (default results_provisional/)")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 
@@ -54,9 +63,32 @@ def main(argv=None) -> None:
         try:
             if not args.check:
                 migrate.upgrade(engine)
-            fn =manual.check_manual_results if args.check else manual.load_manual_results
+            fn = manual.check_manual_results if args.check else manual.load_manual_results
             print(json.dumps(fn(engine, args.dir), indent=2, default=str))
         except ManualResultsError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+        finally:
+            engine.dispose()
+    elif args.command == "provisional":
+        from shots.db import provisional
+        from shots.ingest.manual_results import ManualResultsError
+
+        if not db_path().exists():
+            sys.exit(f"{db_path()} does not exist; run `python -m shots.db import` first")
+        engine = make_engine()
+        try:
+            if args.agreement:
+                if not migrate.is_current(engine):
+                    sys.exit(f"{db_path()} is not at the latest schema; run `python -m shots.db upgrade` first")
+                out = provisional.agreement(engine)
+            elif args.check:
+                out = provisional.check_provisional_results(engine, args.dir)
+            else:
+                migrate.upgrade(engine)
+                out = provisional.load_provisional_results(engine, args.dir)
+            print(json.dumps(out, indent=2, default=str))
+        except ManualResultsError as exc:  # ProvisionalResultsError is one
             print(str(exc), file=sys.stderr)
             sys.exit(1)
         finally:

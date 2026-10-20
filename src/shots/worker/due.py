@@ -20,6 +20,8 @@ otherwise only when something is due since the last successful update started (`
   manual-results  the hand-entered results (results_manual/*.csv) differ from those the last successful
              update loaded (its counts["db-manual"].fingerprint); without such a record, only when a file
              holds a data row
+  provisional-results  the same for the provisional results of football-data leagues
+             (results_provisional/*.csv; counts["db-provisional"].fingerprint)
 Only `ok` updates count as successful: after a partial or failed update every cycle retries.
 
 `min_gap` (default 0 = off; SHOTS_WORKER_MIN_GAP_MINUTES) is a floor between two update attempts of any
@@ -197,11 +199,12 @@ def recorded_calendars(engine: Engine) -> str | None:
     return None
 
 
-def recorded_manual(engine: Engine) -> str | None:
-    """Fingerprint of the manual results loaded by the last successful update, or None."""
+def recorded_manual(engine: Engine, step_name: str = "db-manual") -> str | None:
+    """Fingerprint of the manual (step_name "db-manual") or provisional ("db-provisional") results loaded
+    by the last successful update, or None."""
     last_ok = jobs.last(engine, "update", "ok")
     counts = (last_ok or {}).get("counts") or {}
-    step = counts.get("db-manual") if isinstance(counts, dict) else None
+    step = counts.get(step_name) if isinstance(counts, dict) else None
     return str(step["fingerprint"]) if isinstance(step, dict) and step.get("fingerprint") else None
 
 
@@ -216,11 +219,22 @@ def manual_results_changed(engine: Engine, manual_dir: Path | None = None) -> bo
         return False
 
 
+def provisional_results_changed(engine: Engine, provisional_dir: Path | None = None) -> bool:
+    from shots.ingest import provisional_results as pr
+
+    try:
+        current = pr.fingerprint(provisional_dir)
+        recorded = recorded_manual(engine, "db-provisional")
+        return current != recorded and (recorded is not None or pr.has_rows(provisional_dir))
+    except OSError:
+        return False
+
+
 # ----------------------------------------------------------------------------- decision
 
 def due_work(engine: Engine, since: datetime, now: datetime, tz: tzinfo | None = None,
              cal_dir: Path | None = None, odds_tz: tzinfo | None = None,
-             manual_dir: Path | None = None) -> list[Reason]:
+             manual_dir: Path | None = None, provisional_dir: Path | None = None) -> list[Reason]:
     """Everything that became due between `since` and `now` (naive UTC). `tz` is the zone of the day
     boundary; `odds_tz` the zone of the odds publication hour (default: SHOTS_ODDS_TZ, else `tz`)."""
     odds_tz = odds_tz or env_odds_tz() or tz
@@ -248,13 +262,16 @@ def due_work(engine: Engine, since: datetime, now: datetime, tz: tzinfo | None =
         out.append(Reason("calendars", "the season calendars changed since the last worker update"))
     if manual_results_changed(engine, manual_dir):
         out.append(Reason("manual-results", "the manual results (results_manual/) changed since the last update"))
+    if provisional_results_changed(engine, provisional_dir):
+        out.append(Reason("provisional-results",
+                          "the provisional results (results_provisional/) changed since the last update"))
     return out
 
 
 def decide(engine: Engine, now: datetime | None = None, min_interval: timedelta = DEFAULT_MIN_INTERVAL,
            force: bool = False, tz: tzinfo | None = None, cal_dir: Path | None = None,
            min_gap: timedelta = DEFAULT_MIN_GAP, odds_tz: tzinfo | None = None,
-           manual_dir: Path | None = None) -> Decision:
+           manual_dir: Path | None = None, provisional_dir: Path | None = None) -> Decision:
     now = now or jobs.utcnow()
     last_ok = jobs.last(engine, "update", "ok")
     d = Decision(run=True, last_ok=last_ok, now=now)
@@ -280,7 +297,7 @@ def decide(engine: Engine, now: datetime | None = None, min_interval: timedelta 
         d.reasons.append(Reason("interval", f"last successful update {age.total_seconds() / 3600:.1f} h ago "
                                             f"(minimum interval {min_interval.total_seconds() / 3600:g} h)"))
         return d
-    d.reasons = due_work(engine, since, now, tz, cal_dir, odds_tz, manual_dir)
+    d.reasons = due_work(engine, since, now, tz, cal_dir, odds_tz, manual_dir, provisional_dir)
     d.run = bool(d.reasons)
     if not d.run:
         d.reasons = [Reason("fresh", f"last successful update {age.total_seconds() / 60:.0f} min ago and "

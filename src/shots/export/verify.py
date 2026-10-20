@@ -13,10 +13,11 @@ difference. Checks:
              odds_used flag equals the fixture's; it equals the explanation stored with the prediction
   board      the fixtures are exactly the latest board run's upcoming rows, value for value, in order
   results    exactly the settled matches of the last 30 days with their last pre-match board prediction
-             (ordinary and experimental), the experimental flag, result_source and the manual source_url
-  track      live / experimental counts and per-N selected picks / hits equal v_official_picks /
-             v_experimental_picks and the backfill run; the daily / weekly accuracy series recomputed
-             from the same per-match predictions as results.json
+             (ordinary and experimental), the experimental flag, result_source, result_status and the
+             source_url of manual / provisional results
+  track      live / experimental counts (provisional included) and per-N selected picks / hits equal
+             v_official_picks / v_experimental_picks and the backfill run; the daily / weekly accuracy series
+             recomputed from the same per-match predictions as results.json
   meta       thresholds, counts, days, leagues, models, last_job consistent with the above
 
 Exit code 0 = all good, 1 = differences (listed), 2 = cannot run.
@@ -63,6 +64,16 @@ def same(a, b) -> bool:
     if a is None or b is None:
         return a is None and b is None
     return abs(float(a) - float(b)) < 1e-9
+
+
+def provider_label(url: str | None) -> str | None:
+    """'https://www.espn.com/soccer/...' -> 'espn': the host without 'www.' / 'm.', its first label."""
+    from urllib.parse import urlsplit
+
+    host = (urlsplit(url or "").hostname or "").lower()
+    host = re.sub(r"^(www|m)\.", "", host)
+    label = host.split(".")[0] if host else ""
+    return label if re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", label) else None
 
 
 def utc_z(ts: str | None) -> str | None:
@@ -256,12 +267,14 @@ class Checker:
         rows = self.q("""
             SELECT p.match_id, p.created_at, p.median, p.lb_70, p.lb_80, p.lb_90, p.odds_available, p.total_curve,
                    p.experimental, r.id AS run_id, r.built_at, r.curve_n_min, o.date, o.competition, o.actual_total,
-                   o.actual_home, o.actual_away, m.home_team, m.away_team, mr.source_url, mr.match_id AS manual_id
+                   o.actual_home, o.actual_away, m.home_team, m.away_team, mr.source_url, mr.match_id AS manual_id,
+                   m.source AS match_source, pv.source_url AS prov_url
             FROM v_prediction_outcomes o
             JOIN predictions p ON p.id = o.prediction_id
             JOIN prediction_runs r ON r.id = p.run_id
             JOIN matches m ON m.match_id = p.match_id
             LEFT JOIN manual_results mr ON mr.match_id = m.match_id
+            LEFT JOIN provisional_results pv ON pv.match_id = m.match_id
             WHERE o.kind = 'board' AND r.status = 'complete' AND o.pre_match = 1 AND o.status = 'settled'
               AND o.date <= ?""", self.today.isoformat())
         best: dict[str, sqlite3.Row] = {}
@@ -297,9 +310,15 @@ class Checker:
             if x.get("experimental", False) is not bool(r["experimental"]) or x.get("experimental") is False:
                 self.fail(f"results: {mid}.experimental = {x.get('experimental')!r}, database has {bool(r['experimental'])}")
             manual = r["manual_id"] is not None
-            if x.get("result_source") != ("manual" if manual else "football-data"):
+            provisional = r["match_source"] == "provisional"
+            want_source = (provider_label(r["prov_url"]) or "provisional") if provisional else (
+                "manual" if manual else "football-data")
+            want_url = r["prov_url"] if provisional else (r["source_url"] if manual else None)
+            if x.get("result_source") != want_source:
                 self.fail(f"results: {mid}.result_source = {x.get('result_source')!r} differs from the database")
-            if x.get("source_url") != (r["source_url"] if manual else None) or ("source_url" in x and not manual):
+            if x.get("result_status") != ("provisional" if provisional else "confirmed"):
+                self.fail(f"results: {mid}.result_status = {x.get('result_status')!r} differs from the database")
+            if x.get("source_url") != want_url or ("source_url" in x and want_url is None):
                 self.fail(f"results: {mid}.source_url differs from the database")
             if x["actual"]["home"] + x["actual"]["away"] != x["actual"]["total"]:
                 self.fail(f"results: {mid} home + away != total")
@@ -357,7 +376,8 @@ class Checker:
                 want.append({"date": key, "matches": len(g),
                              "mae": round(sum(abs(a - e) for a, e in errs) / len(errs), 2) if errs else None,
                              "bias": round(sum(e - a for a, e in errs) / len(errs), 2) if errs else None,
-                             "floor80_held": round(sum(floor) / len(floor), 4) if floor else None, "by_n": by_n})
+                             "floor80_held": round(sum(floor) / len(floor), 4) if floor else None, "by_n": by_n,
+                             "provisional": sum(1 for r in g if r["match_source"] == "provisional")})
             got = block.get(period)
             if got is None:
                 self.fail(f"track: {name}.{period} is missing")
@@ -367,8 +387,8 @@ class Checker:
                           f"{[x['date'] for x in want][-5:]}")
                 continue
             for g_, w in zip(got, want):
-                for k in ("matches", "by_n"):
-                    if g_[k] != w[k]:
+                for k in ("matches", "by_n", "provisional"):
+                    if g_.get(k) != w[k]:
                         self.fail(f"track: {name}.{period} {w['date']}.{k} = {g_[k]!r}, database gives {w[k]!r}")
                 for k in ("mae", "bias", "floor80_held"):
                     if not same(g_[k], w[k]):
@@ -379,8 +399,10 @@ class Checker:
         if block is None:
             self.fail(f"track: records.{name} is missing")
             return
-        rows = self.q(f"SELECT n, p, status, hit FROM {view}")
+        rows = self.q(f"SELECT v.n, v.p, v.status, v.hit, m.source = 'provisional' AS prov FROM {view} v "
+                      "LEFT JOIN matches m ON m.match_id = v.match_id")
         counts = {s: sum(1 for r in rows if r["status"] == s) for s in ("settled", "pending", "void")}
+        counts["provisional"] = sum(1 for r in rows if r["status"] == "settled" and r["prov"])
         for s, k in counts.items():
             if block.get(s, 0) != k:
                 self.fail(f"track: {name}.{s} = {block.get(s)}, {view} has {k}")
@@ -421,10 +443,12 @@ class Checker:
                 self.fail("meta: models differ from the board run")
             if meta["results_up_to"] != (str(run["results_up_to"])[:10] if run["results_up_to"] else None):
                 self.fail("meta: results_up_to differs from the board run")
+        results = self.docs["results"]["results"]
         counts = {"fixtures": len(fixtures), "with_odds": sum(f["odds"] for f in fixtures),
-                  "cold_start": sum(f["cold_start"] for f in fixtures)}
+                  "cold_start": sum(f["cold_start"] for f in fixtures), "results": len(results),
+                  "provisional_results": sum(1 for x in results if x.get("result_status") == "provisional")}
         if meta["counts"] != counts:
-            self.fail(f"meta: counts {meta['counts']} != board.json {counts}")
+            self.fail(f"meta: counts {meta['counts']} != board.json / results.json {counts}")
         if meta["days"] != sorted({f["date"] for f in fixtures}):
             self.fail("meta: days differ from board.json")
         if any(f["date"] < self.today.isoformat() for f in fixtures):

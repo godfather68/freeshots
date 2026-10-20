@@ -470,7 +470,24 @@ describe('results page', () => {
     expect(xp).toHaveTextContent('Entered by hand')
     const official = document.querySelector('section.rgroup:not(.xp)')!
     expect(official.querySelectorAll('li.rrow')).toHaveLength(dRows.length)
-    expect(official.textContent).not.toMatch(/Entered by hand/)
+    expect([...official.querySelectorAll('.tag')].map((t) => t.textContent)).not.toContain('Entered by hand') // the manual-results tag
+  })
+
+  it('tags a provisional league result and explains it on the row and in the day recap', async () => {
+    await mount('#/results')
+    const official = document.querySelector('section.rgroup:not(.xp)')!
+    const tags = official.querySelectorAll('li.rrow .tag.prov')
+    expect(tags).toHaveLength(1)
+    expect(tags[0]).toHaveTextContent('Provisional')
+    expect(tags[0]).toHaveAttribute('title', 'Entered by hand from ESPN; replaced by the official data when it arrives.')
+    const row = tags[0].closest('li.rrow')!
+    expect(row.querySelector('a.srclink')).toHaveAttribute('href', expect.stringContaining('https://www.espn.com/'))
+    const day = row.closest('section.rday')!
+    const n = day.querySelectorAll('li.rrow').length
+    expect(day.querySelector('.provnote')).toHaveTextContent(n === 1 ? /This result was entered by hand/ : new RegExp(`1 of ${n} results were entered by hand`))
+    expect(day.querySelector('.provnote details.term')).toHaveTextContent(/Provisional result/)
+    expect(document.querySelectorAll('section.rday .provnote')).toHaveLength(1)
+    expect(document.querySelector('section.rgroup.xp')!.querySelector('.tag.prov')).toBeNull()
   })
 
   it('empty states explain when data will appear', async () => {

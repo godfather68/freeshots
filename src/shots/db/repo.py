@@ -38,6 +38,7 @@ log = logging.getLogger(__name__)
 TOP5 = ("England Premier League", "Spain La Liga", "Italy Serie A", "Germany Bundesliga", "France Ligue 1")
 WHEN_DAYS = {"today": 0, "3d": 3, "7d": 7, "30d": 30}
 EPS = 1e-9
+PROVISIONAL = "provisional"  # matches.source of a provisionally settled match (migration 0007)
 TEAM_KEYS = ("home_mean", "home_median", "home_lb_70", "home_lb_80", "home_lb_90",
              "away_mean", "away_median", "away_lb_70", "away_lb_80", "away_lb_90")
 
@@ -269,24 +270,28 @@ class Repository:
         files (after-the-fact re-runs, never official). source 'experimental': the same rule for
         experimental predictions (v_experimental_picks; settled by manual results, never official).
         source 'backfill': the latest backfill run, same columns (status always settled or void). date is
-        datetime64; hit is boolean (NA unless settled)."""
-        cols = ["match_id", "date", "competition", "n", "p", "status", "actual", "hit", "scan_ts", "source"]
+        datetime64; hit is boolean (NA unless settled); provisional (bool) = the match is settled by a
+        provisional result football-data has not confirmed yet (migration 0007)."""
+        cols = ["match_id", "date", "competition", "n", "p", "status", "actual", "hit", "scan_ts", "source",
+                "provisional"]
         path = self._file()
         if path is not None and not path.exists():  # never create the DB file from a read
-            return pd.DataFrame(columns=cols).astype({"n": int, "p": float})
+            return pd.DataFrame(columns=cols).astype({"n": int, "p": float, "provisional": bool})
         if source in ("live", "replay", "experimental"):
             view = {"live": "v_official_picks", "replay": "v_replay_picks", "experimental": "v_experimental_picks"}[source]
-            sql = text("SELECT match_id, date, competition, n, p, status, actual_total AS actual, hit, scan_ts, source "
-                       f"FROM {view} ORDER BY date, n, match_id")
+            sql = text("SELECT v.match_id, v.date, v.competition, v.n, v.p, v.status, v.actual_total AS actual, v.hit, "
+                       f"v.scan_ts, v.source, COALESCE(m.source = '{PROVISIONAL}', 0) AS provisional "
+                       f"FROM {view} v LEFT JOIN matches m ON m.match_id = v.match_id ORDER BY v.date, v.n, v.match_id")
             params = {}
         else:
             run = self._latest_run("backfill")
             if run is None:
-                return pd.DataFrame(columns=cols)
+                return pd.DataFrame(columns=cols).astype({"provisional": bool})
             sql = text("SELECT pt.match_id, o.date, o.competition, pt.n, pt.p, o.status, o.actual_total AS actual, "
                        "CASE WHEN o.status = 'settled' THEN o.actual_total >= pt.n END AS hit, "
-                       "NULL AS scan_ts, 'backfill' AS source "
+                       f"NULL AS scan_ts, 'backfill' AS source, COALESCE(m.source = '{PROVISIONAL}', 0) AS provisional "
                        "FROM v_prediction_points pt JOIN v_prediction_outcomes o ON o.prediction_id = pt.prediction_id "
+                       "LEFT JOIN matches m ON m.match_id = pt.match_id "
                        "WHERE pt.run_id = :run ORDER BY o.date, pt.n, pt.match_id")
             params = {"run": run["id"]}
         with self.engine.connect() as c:
@@ -298,6 +303,7 @@ class Repository:
         df["p"] = df["p"].astype(float)
         df["actual"] = pd.array(df["actual"], dtype="Int64")
         df["hit"] = pd.array([None if pd.isna(h) else bool(h) for h in df["hit"]], dtype="boolean")
+        df["provisional"] = df["provisional"].fillna(0).astype(bool)
         return df
 
     def track_summary(self, source: str, n: int, min_prob: float, ent: Entitlements = FULL_ACCESS) -> dict:
@@ -365,7 +371,10 @@ class Repository:
         competition, country, tier, home_team, away_team, actual_total/home/away, predicted_at (the
         prediction's insert time, DB clock, UTC), expected_shots, lb_70/80/90, odds (bool),
         total_curve, curve_n_min, curve_n_max, experimental (always False here), result_source
-        ("football-data" | "manual"), source_url (manual results only, else None).
+        ("football-data" | "manual" | the provider label of a provisional result, e.g. "espn"),
+        result_status ("provisional": settled by a hand-entered stand-in that football-data has not
+        confirmed yet; "confirmed": the competition's own source), source_url (manual and provisional
+        results only, else None).
         Experimental predictions are excluded: see settled_results."""
         return self.settled_results(since, until, ent, experimental=False)
 
@@ -382,12 +391,13 @@ class Repository:
         sql = text(f"""
             SELECT match_id, date, competition, country, tier, home_team, away_team, actual_total, actual_home,
                    actual_away, predicted_at, expected_shots, lb_70, lb_80, lb_90, odds, total_curve,
-                   curve_n_min, curve_n_max, experimental, manual, source_url
+                   curve_n_min, curve_n_max, experimental, manual, source_url, provisional, prov_url, provider
             FROM (SELECT p.match_id, o.date, o.competition, c.country, c.tier, m.home_team, m.away_team,
                          o.actual_total, o.actual_home, o.actual_away, p.created_at AS predicted_at,
                          p.median AS expected_shots, p.lb_70, p.lb_80, p.lb_90, p.odds_available AS odds,
                          p.total_curve, r.curve_n_min, r.curve_n_max, o.experimental,
                          mr.match_id IS NOT NULL AS manual, mr.source_url,
+                         m.source = '{PROVISIONAL}' AS provisional, pr.source_url AS prov_url, pr.provider,
                          ROW_NUMBER() OVER (PARTITION BY p.match_id ORDER BY r.built_at DESC, r.id DESC) AS rn
                   FROM predictions p
                   JOIN prediction_runs r ON r.id = p.run_id
@@ -395,6 +405,7 @@ class Repository:
                   JOIN matches m ON m.match_id = p.match_id
                   JOIN competitions c ON c.id = m.competition_id
                   LEFT JOIN manual_results mr ON mr.match_id = m.match_id
+                  LEFT JOIN provisional_results pr ON pr.match_id = m.match_id
                   WHERE r.kind = 'board' AND r.status = 'complete' AND o.pre_match = 1 AND o.status = 'settled'
                     AND o.experimental IN ({flags})
                     AND m.date >= :since AND m.date <= :until)
@@ -412,7 +423,15 @@ class Repository:
             r["total_curve"] = _json_list(r["total_curve"])
             r["odds"] = None if r["odds"] is None else bool(r["odds"])
             r["experimental"] = bool(r["experimental"])
-            r["result_source"] = "manual" if r.pop("manual") else "football-data"
+            manual, provisional = bool(r.pop("manual")), bool(r.pop("provisional"))
+            prov_url, provider = r.pop("prov_url"), r.pop("provider")
+            if provisional:  # a stand-in until football-data publishes the match (migration 0007)
+                r["result_source"], r["source_url"] = provider or PROVISIONAL, prov_url
+            else:
+                r["result_source"] = "manual" if manual else "football-data"
+                if not manual:
+                    r["source_url"] = None
+            r["result_status"] = "provisional" if provisional else "confirmed"
             out.append(r)
         return out
 
@@ -421,11 +440,12 @@ class Repository:
         data) dated before `before` that reached at least n total shots; and the overall share (None
         without history). Same definition as shots.predict.track.base_rates, from the DB's results.
         The overall share counts automatic-source results only, so manual results (experimental
-        competitions) never move a domestic baseline; they only form their own competition's share."""
+        competitions) never move a domestic baseline; they only form their own competition's share. Provisional results (stand-ins for
+        football-data results not published yet) are left out entirely: baselines use confirmed data only."""
         sql = text("SELECT c.name, sum(m.home_shots + m.away_shots >= :n), count(*), m.source = 'manual' "
                    "FROM matches m JOIN competitions c ON c.id = m.competition_id "
                    "WHERE m.status = 'played' AND m.home_shots IS NOT NULL AND m.away_shots IS NOT NULL "
-                   "AND m.date < :before GROUP BY c.name, m.source = 'manual'")
+                   f"AND m.source != '{PROVISIONAL}' AND m.date < :before GROUP BY c.name, m.source = 'manual'")
         with self.engine.connect() as c:
             rows = c.execute(sql, {"n": int(n), "before": before.isoformat()}).all()
         per: dict[str, list[int]] = {}
@@ -461,7 +481,8 @@ class Repository:
     # ------------------------------------------------------------------ status
 
     def data_status(self, today: date | None = None) -> dict:
-        """Counts and freshness: {revision, matches_played, latest_result, upcoming_fixtures, competitions,
+        """Counts and freshness: {revision, matches_played, latest_result, upcoming_fixtures,
+        provisional_results (matches settled by a result football-data has not confirmed yet), competitions,
         teams, runs: {kind: {count, latest_built_at}}, predictions, latest_board_run, last_job}."""
         from shots.db import migrate
 
@@ -474,9 +495,10 @@ class Repository:
             preds = c.execute(select(func.count()).select_from(Prediction)).scalar_one()
             comps = c.execute(select(func.count()).select_from(Competition)).scalar_one()
             teams = c.execute(text("SELECT count(*) FROM teams")).scalar_one()
+            provisional = c.execute(select(func.count()).where(Match.source == PROVISIONAL)).scalar_one()
             job = c.execute(select(JobRun).order_by(JobRun.started_at.desc(), JobRun.id.desc()).limit(1)).mappings().first()
         board = self._latest_run("board")
         return {"revision": migrate.current(self.engine), "matches_played": int(played[0]), "latest_result": played[1],
-                "upcoming_fixtures": int(upcoming), "competitions": int(comps), "teams": int(teams), "runs": runs,
+                "upcoming_fixtures": int(upcoming), "provisional_results": int(provisional), "competitions": int(comps), "teams": int(teams), "runs": runs,
                 "predictions": int(preds), "latest_board_run": board["id"] if board else None,
                 "last_job": dict(job) if job else None}

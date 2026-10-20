@@ -186,6 +186,9 @@ function buildResults(): Result[] {
       })
     }
   }
+  // One league result entered by hand while football-data had not published it yet (provisional).
+  const prov = out.find((r) => r.date === '2026-10-11')!
+  Object.assign(prov, { result_source: 'espn', result_status: 'provisional', source_url: 'https://www.espn.com/soccer/team-stats/_/gameId/1' })
   out.push(...buildEuropeanResults())
   return out
 }
