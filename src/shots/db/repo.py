@@ -435,6 +435,43 @@ class Repository:
             out.append(r)
         return out
 
+    def awaiting_results(self, ent: Entitlements = FULL_ACCESS, since_days: int = 30) -> dict:
+        """Matches with a pre-match board prediction that had finished by the latest board run (lock moment
+        + 2.5 h before its built_at) but have no settled result yet, within `since_days` of that run:
+        {"official": n, "experimental": n, "oldest": date | None}. Measured against the board run, not the
+        clock, so the same database state always gives the same numbers."""
+        empty = {"official": 0, "experimental": 0, "oldest": None}
+        run = self._latest_run("board")
+        if run is None:
+            return empty
+        built = pd.Timestamp(run["built_at"])
+        if built.tzinfo is not None:
+            built = built.tz_convert("UTC").tz_localize(None)
+        sql = text("""
+            SELECT c.name AS competition, o.experimental, count(DISTINCT p.match_id) AS n, min(m.date) AS oldest
+            FROM predictions p
+            JOIN prediction_runs r ON r.id = p.run_id
+            JOIN v_prediction_outcomes o ON o.prediction_id = p.id
+            JOIN matches m ON m.match_id = p.match_id
+            JOIN competitions c ON c.id = m.competition_id
+            WHERE r.kind = 'board' AND r.status = 'complete' AND o.pre_match = 1 AND o.status = 'pending'
+              AND julianday(COALESCE(m.kickoff_utc, datetime(m.date, '+36 hours'))) + 2.5 / 24.0 < julianday(:built)
+              AND m.date >= :since
+            GROUP BY c.name, o.experimental""")
+        params = {"built": built.strftime("%Y-%m-%d %H:%M:%S"),
+                  "since": (built.date() - timedelta(days=since_days)).isoformat()}
+        with self.engine.connect() as c:
+            rows = c.execute(sql, params).mappings().all()
+        out = dict(empty)
+        oldest = []
+        for r in rows:
+            if not ent.league_allowed(r["competition"]):
+                continue
+            out["experimental" if r["experimental"] else "official"] += int(r["n"])
+            oldest.append(date.fromisoformat(str(r["oldest"])[:10]))
+        out["oldest"] = min(oldest) if oldest else None
+        return out
+
     def base_rates(self, n: int, before: date) -> tuple[dict[str, float], float | None]:
         """Naive baseline of the track record: per competition, the share of played matches (with shots
         data) dated before `before` that reached at least n total shots; and the overall share (None

@@ -379,7 +379,14 @@ def build_meta(repo: Repository, built_at: datetime, board_src: dict, extra_leag
                    "results": len(result_rows or []),
                    "provisional_results": sum(1 for r in result_rows or [] if r.get("result_status") == "provisional")},
         "record": {"since": iso_z(repo.record_since())},
+        "awaiting_results": _awaiting(repo),
     }
+
+
+def _awaiting(repo: Repository) -> dict:
+    a = repo.awaiting_results()
+    return {"official": a["official"], "experimental": a["experimental"],
+            "oldest": a["oldest"].isoformat() if a["oldest"] else None}
 
 
 def build_all(repo: Repository, built_at: datetime | None = None, today: date | None = None) -> dict[str, dict]:

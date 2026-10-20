@@ -10,6 +10,8 @@ export interface Meta {
   leagues: League[]
   days: string[]
   counts: { fixtures: number; with_odds: number; cold_start: number }
+  /** Additive (optional): finished matches with a prediction still waiting for their result. */
+  awaiting_results?: { official: number; experimental: number; oldest: string | null }
 }
 export interface TeamCurve { mean: number; median: number; lb80: number; curve: number[] }
 export type DataQuality = 'full' | 'partial' | 'none'

@@ -10,6 +10,8 @@ export const SMALL_SAMPLE = 10
 
 export interface Verdict {
   r: Result
+  /** The shots threshold this verdict was judged at. */
+  n: number
   /** Published chance of n+ shots, or null when n is outside the published range. */
   p: number | null
   /** The match reached n+ shots. */
@@ -25,7 +27,7 @@ export interface Verdict {
 export function verdict(r: Result, n: number, totalStart: number): Verdict {
   const p = probAt(r.curve, totalStart, n)
   return {
-    r, p, hit: isHit(r.actual.total, n), call: p !== null && p >= CALL_BAR,
+    r, n, p, hit: isHit(r.actual.total, n), call: p !== null && p >= CALL_BAR,
     floorHeld: r.actual.total >= r.lb['80'], error: r.actual.total - r.expected,
   }
 }
@@ -34,6 +36,8 @@ export interface Recap {
   matches: number
   calls: number
   callHits: number
+  /** 70%+ calls that missed by at most NEAR_MISS shots. */
+  callNear: number
   reached: number
   floorHeld: number
   /** Mean of |actual - expected| in shots; null for an empty set. */
@@ -48,11 +52,32 @@ export function recap(vs: Verdict[]): Recap {
     matches: vs.length,
     calls: calls.length,
     callHits: calls.filter((v) => v.hit).length,
+    callNear: calls.filter((v) => !v.hit && v.n - v.r.actual.total <= NEAR_MISS).length,
     reached: vs.filter((v) => v.hit).length,
     floorHeld: vs.filter((v) => v.floorHeld).length,
     mae: vs.length ? vs.reduce((a, v) => a + Math.abs(v.error), 0) / vs.length : null,
     bias: vs.length ? vs.reduce((a, v) => a + v.error, 0) / vs.length : null,
   }
+}
+
+export interface ResultFilter { outcome: 'all' | 'hit' | 'miss' | 'near' | 'floor'; calls: boolean; league: string }
+
+/** A miss this close to the threshold (in shots) counts as a near miss. */
+export const NEAR_MISS = 2
+
+/** Shots short of n (0 for a hit). */
+export const shortBy = (v: Verdict): number => (v.hit ? 0 : v.n - v.r.actual.total)
+export const isNearMiss = (v: Verdict): boolean => !v.hit && shortBy(v) <= NEAR_MISS
+
+/** Results page filter: hit / miss / near miss at n+, '80% sure' floor broken, 70%+ calls only, one league. */
+export function keepVerdict(v: Verdict, f: ResultFilter): boolean {
+  if (f.calls && !v.call) return false
+  if (f.league && v.r.league !== f.league) return false
+  if (f.outcome === 'hit') return v.hit
+  if (f.outcome === 'miss') return !v.hit
+  if (f.outcome === 'near') return isNearMiss(v)
+  if (f.outcome === 'floor') return !v.floorHeld
+  return true
 }
 
 export interface DayGroup { date: string; verdicts: Verdict[]; recap: Recap }

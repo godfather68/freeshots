@@ -98,6 +98,10 @@ b, strong { font-weight: 700; }
 .statusbar.stale .dot { background: var(--warn); border-radius: 2px; transform: rotate(45deg); box-shadow: none; }
 .statusbar.failed .dot { background: var(--bad); border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); box-shadow: none; }
 .statusbar.stale :focus-visible, .statusbar.failed :focus-visible { outline-color: var(--focus); }
+.pending { background: var(--warn-bg); color: var(--fg); border-top: 1px solid var(--bd); font-size: .85rem; }
+.pending p { margin-block: 0; padding: .4rem 0; }
+.pending a { color: inherit; font-weight: 700; }
+.pending :focus-visible { outline-color: var(--focus); }
 main { padding-block: 1rem 2.5rem; min-height: 60vh; }
 .foot { border-top: 1px solid var(--bd); color: var(--mut); font-size: .84rem; padding-block: 1rem 2rem; background: var(--surface-2); }
 .foot p { margin: .3em 0; max-width: 80ch; }
@@ -489,6 +493,12 @@ tr.cur { background: var(--sel); }
 .gloss dt { font-weight: 800; } .gloss dd { margin: .15rem 0 0; color: var(--mut); }
 .fullpanel { padding: 0; border: 0; box-shadow: none; background: none; }
 .trackctl { max-width: 26rem; margin-bottom: .7rem; }
+.trackctl.rfilter { max-width: 40rem; }
+.rfilter .chips { padding: .6rem 0 .2rem; display: flex; flex-wrap: wrap; gap: .35rem; }
+.rfilter .controls { padding: .4rem 0 0; border-bottom: 0; align-items: end; }
+.rfilter .controls .sel.chk { display: flex; align-items: center; gap: .4rem; min-height: 2.75rem; }
+.rfilter .controls .chip { justify-self: start; }
+.rfilter .hint { margin: .4rem 0 0; min-height: 1em; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .7rem; margin: .8rem 0; }
 .stats > div { background: var(--surface); border: 1px solid var(--bd); border-top: .25rem solid var(--grass); border-radius: var(--r2); padding: .6rem .9rem; display: flex; flex-direction: column; box-shadow: var(--sh1); }
 .stats > div:nth-child(2) { border-top-color: var(--gold); } .stats > div:nth-child(3) { border-top-color: var(--ink-2); } .stats > div:nth-child(4) { border-top-color: var(--lo-fill); }
@@ -571,6 +581,15 @@ table.checks td, table.checks th { font-variant-numeric: tabular-nums; }
 .rcstats dd { margin: .1rem 0 0; font-size: .95rem; }
 .rcstats dd b { font-size: 1.5rem; font-stretch: 82%; font-weight: 800; line-height: 1.1; }
 .rcstats .none { color: var(--mut); }
+.rcstats .near, .rstats .short { color: var(--mut); font-size: .8rem; font-weight: 600; }
+.rstats .short.near { color: var(--warn); }
+.rleagues { margin: .8rem 0; }
+.rleagues > summary { cursor: pointer; font-weight: 700; min-height: 2.5rem; display: flex; align-items: center; }
+.rleagues .tablewrap { max-height: 24rem; }
+.rleagues td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rleagues .cnt, .rleagues .none { color: var(--mut); font-weight: 400; font-size: .8rem; }
+.linkish { background: none; border: 0; padding: .2rem 0; min-height: 2.25rem; color: var(--grass); font: inherit; font-weight: 700; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: .15em; }
+.linkish[aria-pressed="true"] { color: var(--fg); text-decoration-thickness: .15em; }
 .rmatches { margin-top: .5rem; }
 .rmatches > summary { cursor: pointer; font-weight: 700; min-height: 2.5rem; display: flex; align-items: center; }
 .rlist { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); gap: .6rem; }

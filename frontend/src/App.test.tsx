@@ -509,6 +509,76 @@ describe('results page', () => {
     expect(link.querySelector('.resx')!.textContent).toMatch(/expected \d+ . floor \d+ [✓✗]/)
   })
 
+  it('filters results by hit / miss, 70%+ calls and league, in the link', async () => {
+    await mount('#/results')
+    await screen.findByRole('heading', { level: 1, name: 'Results' })
+    const rows = () => [...document.querySelectorAll('li.rrow dl.rstats > div:last-child .res')].map((e) => e.textContent!)
+    const total = rows().length
+    await userEvent.click(screen.getByRole('button', { name: /^Hits \(24\+\)/ }))
+    expect(hash()).toContain('rf=hit')
+    expect(rows().every((t) => /Hit/.test(t))).toBe(true)
+    await userEvent.click(screen.getByRole('button', { name: /^Misses \(under 24\)/ }))
+    expect(rows().every((t) => /Miss/.test(t))).toBe(true)
+    const misses = rows().length
+    await userEvent.click(screen.getByRole('button', { name: /^Hits/ }))
+    expect(rows().length + misses).toBe(total)
+    await userEvent.click(screen.getByRole('checkbox', { name: '70%+ calls only' }))
+    expect(hash()).toContain('rc=1')
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(rows().length).toBe(total)
+    expect(hash()).not.toMatch(/rf=|rc=/)
+  })
+
+  it('says how many shots short each miss was and filters near misses', async () => {
+    await mount('#/results?n=30')
+    await screen.findByRole('heading', { level: 1, name: 'Results' })
+    for (const row of document.querySelectorAll('li.rrow')) {
+      const total = Number(row.querySelector('.ractual b')!.textContent)
+      const short = row.querySelector('.short')
+      expect(short === null).toBe(total >= 30)
+      if (short) expect(short.textContent!.trim()).toBe(`${30 - total} short`)
+    }
+    await userEvent.click(screen.getByRole('button', { name: /^Near misses \(1–2 short\)/ }))
+    expect(hash()).toContain('rf=near')
+    const totals = [...document.querySelectorAll('li.rrow .ractual b')].map((b) => Number(b.textContent))
+    expect(totals.every((t) => t >= 28 && t < 30)).toBe(true)
+  })
+
+  it('has a per-league table whose names filter the list', async () => {
+    await mount('#/results')
+    await screen.findByRole('heading', { level: 1, name: 'Results' })
+    const official = document.querySelector('section.rgroup:not(.xp)')!
+    const table = official.querySelector('.rleagues table')!
+    expect(table).toBeTruthy()
+    const leaguesIn = new Set(dRows.map((r) => r.league))
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(leaguesIn.size)
+    const btn = table.querySelector('tbody th button') as HTMLButtonElement
+    await userEvent.click(btn)
+    expect(hash()).toMatch(/lg=/)
+    const lg = new URLSearchParams(hash().split('?')[1]).get('lg')!
+    expect(official.querySelectorAll('li.rrow').length).toBe(dRows.filter((r) => r.league === lg).length)
+    expect(btn).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('explains a results backlog with a banner, and stays quiet for a normal lag', async () => {
+    const late = { ...dataset, meta: { ...dataset.meta, awaiting_results: { official: 12, experimental: 1, oldest: '2026-10-05' } } }
+    await mount('#/', () => Promise.resolve(late))
+    const note = await screen.findByRole('note', { name: 'Results pending' })
+    expect(note).toHaveTextContent(/13 finished matches are waiting for their result/)
+    expect(within(note).getByRole('link', { name: 'See results' })).toHaveAttribute('href', '#/results')
+    document.body.innerHTML = ''
+    const fresh = { ...dataset, meta: { ...dataset.meta, awaiting_results: { official: 12, experimental: 0, oldest: '2026-10-11' } } }
+    await mount('#/', () => Promise.resolve(fresh))
+    await screen.findByRole('navigation', { name: 'Main' })
+    expect(screen.queryByText(/waiting for their result/)).toBeNull()
+  })
+
+  it('shows an empty state when no result fits the filters', async () => {
+    await mount('#/results?n=45&rf=hit')
+    expect(await screen.findAllByText('No match fits these filters')).not.toHaveLength(0)
+    expect(document.querySelectorAll('li.rrow')).toHaveLength(0)
+  })
+
   it('navigation has a Results item', async () => {
     await mount('#/results')
     expect(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'Results' })).toHaveAttribute('aria-current', 'page')

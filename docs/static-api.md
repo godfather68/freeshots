@@ -26,9 +26,13 @@ Rules
   "thresholds": {"total": [10, 45], "team": [3, 25], "default_total": 24, "default_team": 12},
   "leagues": [{"id": "england-premier-league", "name": "Premier League", "country": "England", "tier": 1, "fixtures": 50}],
   "days": ["2026-10-12", "2026-10-13"],
-  "counts": {"fixtures": 568, "with_odds": 0, "cold_start": 0, "results": 140, "provisional_results": 12}
+  "counts": {"fixtures": 568, "with_odds": 0, "cold_start": 0, "results": 140, "provisional_results": 12},
+  "awaiting_results": {"official": 169, "experimental": 0, "oldest": "2026-10-15"}
 }
 ```
+- `awaiting_results` (additive): matches with a pre-match prediction that had finished (lock moment + 2.5 h)
+  by the latest board run's `built_at`, dated within 30 days of it, with no result yet. Measured against
+  the board run, not the clock, so files stay deterministic. The site shows a "results pending" banner.
 
 ## `data/board.json` (upcoming fixtures, sorted by kickoff then league then home)
 ```json

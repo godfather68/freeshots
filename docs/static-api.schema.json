@@ -218,6 +218,15 @@
           "description": "Additive (schema 1). since = insert time of the earliest pre-match prediction in the database behind this export; it moves forward if that database had to be rebuilt (the live record then restarts).",
           "type": "object", "additionalProperties": false, "required": ["since"],
           "properties": {"since": {"anyOf": [{"$ref": "#/$defs/utc"}, {"type": "null"}]}}
+        },
+        "awaiting_results": {
+          "description": "Additive (schema 1). Matches with a pre-match prediction that had finished by the latest board run but have no result yet (last 30 days), official and experimental apart; oldest = the earliest such match date.",
+          "type": "object", "additionalProperties": false, "required": ["official", "experimental", "oldest"],
+          "properties": {
+            "official": {"type": "integer", "minimum": 0},
+            "experimental": {"type": "integer", "minimum": 0},
+            "oldest": {"anyOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]}
+          }
         }
       }
     },

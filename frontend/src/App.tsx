@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppProvider, go, useApp, useRoute } from './lib/app'
 import { DataError, loadDataset } from './lib/data'
-import { freshness } from './lib/format'
+import { dayLong, freshness } from './lib/format'
 import { stampIn } from './lib/time'
 import type { Dataset } from './lib/types'
 import { guideStore } from './lib/storage'
@@ -33,6 +33,29 @@ function Freshness({ now }: { now?: number }) {
         {f.level !== 'ok' && (
           <span className="why"><span className="sr">Warning: </span>{f.reasons.join(' ')}</span>
         )}
+      </p>
+    </div>
+  )
+}
+
+/** Results usually lag a day or two; past PENDING_DAYS the gap is explained so the site does not look abandoned. */
+const PENDING_DAYS = 3
+
+function PendingResults({ onResults }: { onResults: boolean }) {
+  const { ds } = useApp()
+  const a = ds.meta.awaiting_results
+  if (!a || !a.oldest) return null
+  const waiting = a.official + a.experimental
+  const lagDays = (Date.parse(ds.meta.built_at.slice(0, 10)) - Date.parse(a.oldest)) / 86_400_000
+  if (waiting === 0 || lagDays < PENDING_DAYS) return null
+  const prov = ds.results?.results.filter((r) => r.result_status === 'provisional').length ?? 0
+  return (
+    <div className="pending" role="note" aria-label="Results pending">
+      <p className="wrap">
+        <b>{waiting} finished {waiting === 1 ? 'match is' : 'matches are'} waiting for {waiting === 1 ? 'its' : 'their'} result</b>
+        {ds.meta.results_up_to && <> (official data is in up to {dayLong(ds.meta.results_up_to)})</>}.
+        {' '}Our results source publishes about twice a week and is running late; {prov > 0 ? `${prov} results were entered by hand meanwhile and are marked provisional.` : 'we enter some by hand meanwhile, marked provisional.'}
+        {!onResults && <> <a href="#/results">See results</a></>}
       </p>
     </div>
   )
@@ -82,6 +105,7 @@ function Shell({ now }: { now?: number }) {
           <button type="button" className="quiet guidebtn" onClick={openGuide}>Quick guide</button>
         </div>
         <Freshness now={now} />
+        <PendingResults onResults={here === 'results'} />
       </header>
       <main id="main" ref={main} tabIndex={-1}>
         <div className="wrap">

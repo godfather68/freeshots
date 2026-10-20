@@ -216,7 +216,8 @@ def test_no_odds_values_or_source_columns_are_published(seeded, tmp_path):
                "live", "label", "by_n", "selected_min_prob", "n", "hits", "hit_rate", "mean_stated", "wilson95", "brier",
                "brier_baseline", "reliability", "band", "stated", "realised", "by_league", "settled", "pending", "void",
                "22", "24", "result_source", "experimental", "daily", "weekly", "matches", "mae", "bias",
-               "floor80_held", "picks", "result_status", "provisional", "provisional_results"}
+               "floor80_held", "picks", "result_status", "provisional", "provisional_results",
+               "awaiting_results", "official", "oldest"}
 
     def keys(obj):
         if isinstance(obj, dict):
@@ -459,3 +460,25 @@ def test_cli_passes_the_export_dir(monkeypatch, tmp_path):
     with pytest.raises(SystemExit):
         cli.main(["update", "--export-dir", str(tmp_path / "x")])
     assert seen["args"] == (30, 24, 0.70, str(tmp_path / "x"))
+
+
+def test_meta_counts_finished_matches_still_waiting_for_a_result(seeded, tmp_path):
+    run_export(seeded, tmp_path / "out")
+    meta = read(tmp_path / "out")["meta"]
+    validate("meta", meta)
+    want = Repository(seeded).awaiting_results()
+    assert meta["awaiting_results"] == {"official": want["official"], "experimental": want["experimental"],
+                                        "oldest": want["oldest"].isoformat() if want["oldest"] else None}
+    # measured against the board run, not the clock: a second export gives the same numbers
+    run_export(seeded, tmp_path / "again", built_at=BUILT + timedelta(days=3))
+    assert read(tmp_path / "again")["meta"]["awaiting_results"] == meta["awaiting_results"]
+
+
+def test_awaiting_results_counts_predicted_matches_finished_before_the_board_run(seeded):
+    repo = Repository(seeded)
+    assert repo.awaiting_results() == {"official": 0, "experimental": 0, "oldest": None}  # nothing finished yet
+    later = datetime.combine(D5, datetime.min.time()) + timedelta(days=2)
+    load.import_board(seeded, board_frame(3), meta_at(later))
+    got = repo.awaiting_results()
+    assert got["official"] >= 1 and got["experimental"] == 0  # Hull v Leeds (D5) has a pre-match prediction, no result
+    assert got["oldest"] is not None and got["oldest"] <= D5

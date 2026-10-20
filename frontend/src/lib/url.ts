@@ -14,6 +14,8 @@ export const PANEL_TABS = ['pred', 'teams', 'edge', 'about'] as const
 export type PanelTab = (typeof PANEL_TABS)[number]
 export const RECORDS = ['backfill', 'live', 'experimental'] as const
 export type RecordKind = (typeof RECORDS)[number]
+export const OUTCOMES = ['all', 'hit', 'miss', 'near', 'floor'] as const
+export type Outcome = (typeof OUTCOMES)[number]
 
 export interface ViewState {
   date: string | null // null = "today" (resolved against the data)
@@ -31,6 +33,8 @@ export interface ViewState {
   sd: Side
   ln: number | null // odds-check line (n + 0.5); null = default for the market
   od: string // odds as typed, shareable
+  rf: Outcome // results page: hit / miss / floor broken
+  rc: boolean // results page: 70%+ calls only
 }
 
 export interface Route { path: string; params: URLSearchParams }
@@ -82,6 +86,8 @@ export function parseState(params: URLSearchParams, meta: Pick<Meta, 'thresholds
     sd: oneOf(SIDES, params.get('sd'), 'over'),
     ln: /^\d{1,2}\.5$/.test(params.get('ln') ?? '') ? Number(params.get('ln')) : null,
     od: /^[\d.+\-/]{1,10}$/.test(params.get('od') ?? '') ? (params.get('od') as string) : '',
+    rf: oneOf(OUTCOMES, params.get('rf'), 'all'),
+    rc: params.get('rc') === '1',
   }
 }
 
@@ -103,5 +109,7 @@ export function stateToParams(s: ViewState, meta: Pick<Meta, 'thresholds'>): Rec
   if (s.sd !== 'over') out.sd = s.sd
   if (s.ln !== null) out.ln = s.ln.toFixed(1)
   if (s.od) out.od = s.od
+  if (s.rf !== 'all') out.rf = s.rf
+  if (s.rc) out.rc = '1'
   return out
 }

@@ -496,6 +496,23 @@ class Checker:
         since = self.q("SELECT min(created_at) AS t FROM predictions WHERE pre_match = 1")[0]["t"]
         if "record" in meta and meta["record"]["since"] != utc_z(since):
             self.fail(f"meta: record.since {meta['record']['since']} != database {utc_z(since)}")
+        aw = meta.get("awaiting_results")
+        if aw is not None:
+            want = {"official": 0, "experimental": 0, "oldest": None}
+            if run is not None:
+                built = str(run["built_at"])[:19].replace("T", " ")
+                for row in self.q(
+                        "SELECT o.experimental AS xp, count(DISTINCT p.match_id) AS n, min(m.date) AS oldest "
+                        "FROM predictions p JOIN prediction_runs r ON r.id = p.run_id "
+                        "JOIN v_prediction_outcomes o ON o.prediction_id = p.id JOIN matches m ON m.match_id = p.match_id "
+                        "WHERE r.kind = 'board' AND r.status = 'complete' AND o.pre_match = 1 AND o.status = 'pending' "
+                        "AND julianday(COALESCE(m.kickoff_utc, datetime(m.date, '+36 hours'))) + 2.5 / 24.0 < julianday(?) "
+                        "AND m.date >= date(?, '-30 days') GROUP BY o.experimental", built, built):
+                    want["experimental" if row["xp"] else "official"] += int(row["n"])
+                    o = str(row["oldest"])[:10]
+                    want["oldest"] = o if want["oldest"] is None or o < want["oldest"] else want["oldest"]
+            if aw != want:
+                self.fail(f"meta: awaiting_results {aw} != database {want}")
 
 
 def verify(export_dir: str | Path, db: str | Path | None = None, today: date | None = None,
