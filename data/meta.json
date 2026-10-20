@@ -1,17 +1,16 @@
 {
  "schema": 1,
- "built_at": "2026-10-19T14:25:13Z",
+ "built_at": "2026-10-20T01:17:34Z",
  "results_up_to": "2026-10-14",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-19T14:25:04Z"
+  "finished_at": "2026-10-20T01:17:26Z"
  },
  "models": [
   "negbin_pit_comp-noodds_2026-10-12",
   "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
-  "negbin_pit_comp-noodds_2026-10-12-uel-exp",
-  "negbin_pit_comp_2026-10-12"
+  "negbin_pit_comp-noodds_2026-10-12-uel-exp"
  ],
  "thresholds": {
   "total": [
@@ -38,7 +37,7 @@
    "name": "Premier League",
    "country": "England",
    "tier": 1,
-   "fixtures": 31
+   "fixtures": 30
   },
   {
    "id": "england-championship",
@@ -97,7 +96,7 @@
    "name": "Ligue 2",
    "country": "France",
    "tier": 2,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "germany-bundesliga",
@@ -125,7 +124,7 @@
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 42
+   "fixtures": 40
   },
   {
    "id": "italy-serie-b",
@@ -146,7 +145,7 @@
    "name": "Primeira Liga",
    "country": "Portugal",
    "tier": 1,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "scotland-premiership",
@@ -167,25 +166,24 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 32
+   "fixtures": 31
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 45
+   "fixtures": 44
   },
   {
    "id": "turkey-super-lig",
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 28
+   "fixtures": 27
   }
  ],
  "days": [
-  "2026-10-19",
   "2026-10-20",
   "2026-10-21",
   "2026-10-22",
@@ -209,8 +207,8 @@
   "2026-11-15"
  ],
  "counts": {
-  "fixtures": 480,
-  "with_odds": 8,
+  "fixtures": 472,
+  "with_odds": 0,
   "cold_start": 63
  },
  "record": {
