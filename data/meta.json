@@ -1,16 +1,17 @@
 {
  "schema": 1,
- "built_at": "2026-10-20T08:12:22Z",
- "results_up_to": "2026-10-14",
+ "built_at": "2026-10-20T11:28:40Z",
+ "results_up_to": "2026-10-19",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-20T08:12:12Z"
+  "finished_at": "2026-10-20T11:28:33Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
   "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
-  "negbin_pit_comp-noodds_2026-10-12-uel-exp"
+  "negbin_pit_comp-noodds_2026-10-12-uel-exp",
+  "negbin_pit_comp_2026-10-12"
  ],
  "thresholds": {
   "total": [
@@ -51,14 +52,14 @@
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 0
+   "fixtures": 12
   },
   {
    "id": "england-league-two",
    "name": "League Two",
    "country": "England",
    "tier": 4,
-   "fixtures": 0
+   "fixtures": 12
   },
   {
    "id": "uefa-champions-league",
@@ -159,6 +160,20 @@
    "name": "Championship",
    "country": "Scotland",
    "tier": 2,
+   "fixtures": 1
+  },
+  {
+   "id": "scotland-league-one",
+   "name": "League One",
+   "country": "Scotland",
+   "tier": 3,
+   "fixtures": 0
+  },
+  {
+   "id": "scotland-league-two",
+   "name": "League Two",
+   "country": "Scotland",
+   "tier": 4,
    "fixtures": 0
   },
   {
@@ -207,8 +222,8 @@
   "2026-11-15"
  ],
  "counts": {
-  "fixtures": 472,
-  "with_odds": 0,
+  "fixtures": 497,
+  "with_odds": 27,
   "cold_start": 63
  },
  "record": {
