@@ -3,7 +3,7 @@
 from shots.models.base import CONFIDENCES, TARGET, ShotModel, bound_column
 from shots.models.baselines import LeagueAverage, TeamAverage
 from shots.models.calibrated import Blend, NegBinCal, NegBinCalComp, NegBinPitComp
-from shots.models.candidates import CANDIDATES
+from shots.models.candidates import CANDIDATES, PRODUCTION_CANDIDATES
 from shots.models.drift import NegBinPitCompDrift
 from shots.models.negbin import NegBinModel
 from shots.models.qgbm import QuantileGBM
@@ -20,6 +20,8 @@ MODELS: dict[str, type[ShotModel]] = {
     "blend": Blend,
     # structural candidates (2026-10-15), not production: reports/2026-10-15_model_candidates.md
     **CANDIDATES,
+    # no-odds route candidate, behind shots.config.NOODDS_MODEL (reports/2026-10-16_fin_c_adoption.md)
+    **PRODUCTION_CANDIDATES,
 }
 
 __all__ = ["CONFIDENCES", "TARGET", "ShotModel", "bound_column", "MODELS",

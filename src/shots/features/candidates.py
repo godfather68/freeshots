@@ -77,10 +77,20 @@ G. Season context (per side unless noted; table built from results so far in the
 ctx_gp / ctx_pts / ctx_rank_frac     games played, points, (rank - 1) / (n - 1) (points then goal difference).
 ctx_gap_title / ctx_gap_safety       leader points - own; own points - points of the best team in the bottom
                                      round(15% n) places (<= 0 means in the drop zone).
-ctx_games_left                       2 (n - 1) - gp, n = teams seen in the season (fixture list size).
+ctx_games_left                       scheduled games per team - gp. Scheduled games come from the competition
+                                     format (``SEASON_FORMATS``, fixed before the season): k round robins =
+                                     k (n - 1) (default k = 2; Scottish Championship / League One / League Two
+                                     k = 4) or a fixed count (Scottish Premiership 38 = 33 + 5 after the split).
+                                     n = league size: ``league_sizes`` (production: the season's fixture
+                                     calendar), else the teams of the competition-season in the rows given.
+                                     NaN for playoff formats (Belgium; Greece from 2019/20): the remaining games
+                                     depend on the final regular-season rank, so a team's season end is not
+                                     known before the match (no last-3 flag there).
 ctx_dead                             1 if <= 10 games left, title and drop zone both out of mathematical reach
-                                     (gap > 3 * games_left). Approximation: divisions with splits / playoffs and
-                                     Europe spots are not modelled. Match level: ctx_progress, ctx_dead_n.
+                                     (gap > 3 * games_left); 0 where games left is undefined (playoff formats).
+                                     Approximation: Europe spots are not modelled. Match level: ctx_progress
+                                     (share of the scheduled games, for playoff formats of the regular season,
+                                     played), ctx_dead_n.
 """
 
 from __future__ import annotations
@@ -479,7 +489,55 @@ def family_referee(m: pd.DataFrame, exp_total: np.ndarray) -> dict[str, np.ndarr
 
 # --------------------------------------------------------------------------- G. season context
 
-def family_context(m: pd.DataFrame) -> dict[str, np.ndarray]:
+# Scheduled games per team, from each competition's format (fixed and announced before the season, so a
+# pre-match fact; rule 1). competition -> [(first season, kind, value), ...]: the latest entry whose first season
+# is <= the season applies; competitions not listed play a double round robin.
+#   ("rounds", k):     k round robins, k (n - 1) games per team
+#   ("fixed", g):      g games per team (split leagues in which every team plays the same number)
+#   ("playoff", None): regular season of 2 (n - 1) games, then playoff groups whose length depends on the final
+#                      regular-season rank: a team's season end is not known in advance -> games left NaN.
+SEASON_FORMATS: dict[str, list[tuple[str, str, int | None]]] = {
+    "Scotland Premiership": [("2000/2001", "fixed", 38)],    # 12 teams: 33 (three rounds) + 5 after the split
+    "Scotland Championship": [("2013/2014", "rounds", 4)],   # 10 teams: 36
+    "Scotland League One": [("2013/2014", "rounds", 4)],
+    "Scotland League Two": [("2013/2014", "rounds", 4)],
+    "Belgium Pro League": [("2009/2010", "playoff", None)],  # championship / Europe / relegation playoffs
+    "Greece Super League": [("2019/2020", "playoff", None)],  # 14 teams: 26 + championship / relegation rounds
+}
+
+
+def season_format(competition: str, season: str) -> tuple[str, int | None]:
+    """(kind, value) of ``SEASON_FORMATS`` for one competition-season (default: double round robin)."""
+    kind, value = "rounds", 2
+    for first, k, v in SEASON_FORMATS.get(str(competition), []):
+        if str(season) >= first:
+            kind, value = k, v
+    return kind, value
+
+
+def scheduled_games(competition: str, season: str, n_teams: int) -> tuple[int, bool]:
+    """(games per team used for the season progress, whether the season end is defined). Playoff formats:
+    (regular-season length, False)."""
+    kind, value = season_format(competition, season)
+    if kind == "fixed":
+        return max(int(value), 1), True
+    if kind == "playoff":
+        return max(2 * (n_teams - 1), 1), False
+    return max(int(value) * (n_teams - 1), 1), True
+
+
+def calendar_league_sizes(calendar: pd.DataFrame | None) -> dict[tuple[str, str], int]:
+    """{(competition, season): number of teams} from a season fixture calendar (``fixtures.parquet``)."""
+    if calendar is None or calendar.empty:
+        return {}
+    cols = ["competition", "season"]
+    long = pd.concat([calendar[[*cols, "home_team_id"]].set_axis(["c", "s", "t"], axis=1),
+                      calendar[[*cols, "away_team_id"]].set_axis(["c", "s", "t"], axis=1)])
+    n = long.dropna().groupby(["c", "s"])["t"].nunique()
+    return {(str(c), str(s)): int(v) for (c, s), v in n.items()}
+
+
+def family_context(m: pd.DataFrame, league_sizes: dict | None = None) -> dict[str, np.ndarray]:
     n = len(m)
     names = ("gp", "pts", "rank_frac", "gap_title", "gap_safety", "games_left", "dead")
     res = {f"{s}_ctx_{k}": np.full(n, np.nan) for s in ("home", "away") for k in names}
@@ -488,13 +546,17 @@ def family_context(m: pd.DataFrame) -> dict[str, np.ndarray]:
     gh, ga = m["home_goals"].to_numpy(float), m["away_goals"].to_numpy(float)
     day = m["_day"].to_numpy()
     h_id, a_id = m["home_team_id"].to_numpy(), m["away_team_id"].to_numpy()
-    for _, idx in m.groupby(["competition", "season"], sort=False).indices.items():
+    sizes = league_sizes or {}
+    for (comp, season), idx in m.groupby(["competition", "season"], sort=False).indices.items():
         idx = idx[np.argsort(day[idx], kind="mergesort")]
-        teams = pd.unique(np.concatenate([h_id[idx], a_id[idx]]))
+        teams = list(pd.unique(np.concatenate([h_id[idx], a_id[idx]])))
+        # league size known in advance (calendar): teams without any row yet sit in the table with 0 points
+        size = int(sizes.get((str(comp), str(season)), 0))
+        teams += [f"__unseen_{k}" for k in range(max(size - len(teams), 0))]
         tix = {t: i for i, t in enumerate(teams)}
         nt = len(teams)
         pts, gd, gp = np.zeros(nt), np.zeros(nt), np.zeros(nt)
-        total_games = max(2 * (nt - 1), 1)
+        total_games, end_known = scheduled_games(comp, season, nt)
         rel = max(1, int(round(0.15 * nt)))
         hh = np.array([tix[t] for t in h_id[idx]])
         aa = np.array([tix[t] for t in a_id[idx]])
@@ -513,9 +575,12 @@ def family_context(m: pd.DataFrame) -> dict[str, np.ndarray]:
             for q in range(i, j):
                 dead = []
                 for side, t in (("home", hh[q]), ("away", aa[q])):
-                    left = max(total_games - gp[t], 0.0)
                     gt, gs = leader - pts[t], pts[t] - zone_best
-                    d = float(left <= 10 and gt > 3 * left and gs > 3 * left)
+                    if end_known:
+                        left = max(total_games - gp[t], 0.0)
+                        d = float(left <= 10 and gt > 3 * left and gs > 3 * left)
+                    else:  # playoff format: remaining games unknown before the regular season ends
+                        left, d = np.nan, 0.0
                     dead.append(d)
                     r_ = idx[q]
                     for k, v in zip(names, (gp[t], pts[t], rank[t] / max(nt - 1, 1), gt, gs, left, d)):
@@ -540,9 +605,17 @@ def family_context(m: pd.DataFrame) -> dict[str, np.ndarray]:
 FAMILIES = ("adj", "style", "mktx", "sched", "h2h", "ref", "ctx")
 
 
+PRODUCTION_FAMILIES = ("adj", "h2h", "ctx")   # what the ``fin_c`` model reads (families A, E, G)
+
+
 def build_candidates(matches: pd.DataFrame, extras: pd.DataFrame | None = None, params: dict | None = None,
-                     ucl: dict[str, np.ndarray] | None = None, families=FAMILIES) -> pd.DataFrame:
-    """Candidate features keyed by ``match_id`` (rows in date, match_id order)."""
+                     ucl: dict[str, np.ndarray] | None = None, families=FAMILIES,
+                     league_sizes: dict | None = None) -> pd.DataFrame:
+    """Candidate features keyed by ``match_id`` (rows in date, match_id order).
+
+    ``matches`` may hold rows without results (upcoming fixtures): they get features and never update any state.
+    ``league_sizes``: {(competition, season): number of teams} known in advance (``calendar_league_sizes``);
+    default: the teams of the competition-season present in ``matches``."""
     m = _prepare(matches, extras)
     n = len(m)
     cols: dict[str, np.ndarray] = {}
@@ -565,7 +638,7 @@ def build_candidates(matches: pd.DataFrame, extras: pd.DataFrame | None = None, 
     if "ref" in fam:
         cols.update(family_referee(m, exp_total))
     if "ctx" in fam:
-        cols.update(family_context(m))
+        cols.update(family_context(m, league_sizes))
     out = pd.DataFrame(cols)
     out.insert(0, "match_id", m["match_id"].to_numpy())
     return out
@@ -582,7 +655,9 @@ def main() -> None:
     extras = pd.read_parquet(args.extras) if args.extras.exists() else None
     if extras is None:
         log.warning("no match_extras.parquet: style/market/referee families will be empty (run shots.ingest.match_extras)")
-    out = build_candidates(pd.read_parquet(args.input), extras, ucl=_ucl_dates())
+    cal_path = ROOT / "data" / "processed" / "fixtures.parquet"
+    sizes = calendar_league_sizes(pd.read_parquet(cal_path)) if cal_path.exists() else {}
+    out = build_candidates(pd.read_parquet(args.input), extras, ucl=_ucl_dates(), league_sizes=sizes)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     out.to_parquet(args.output, index=False)
     log.info("wrote %d rows x %d cols to %s in %.1fs", len(out), out.shape[1], args.output, time.time() - t0)

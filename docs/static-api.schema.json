@@ -44,7 +44,9 @@
             "properties": {
               "id": {"enum": ["home_attack", "away_attack", "home_defence", "away_defence", "home_venue", "away_venue",
                               "market_strength", "market_goals", "home_rest", "away_rest", "home_early", "away_early",
-                              "home_standin", "away_standin", "league_level", "calibration", "other"]},
+                              "home_standin", "away_standin", "league_level", "calibration",
+                              "home_rating_attack", "away_rating_attack", "home_rating_defence", "away_rating_defence",
+                              "head_to_head", "season_context", "shrinkage", "other"]},
               "side": {"enum": ["home", "away", "match"]},
               "label": {"type": "string", "minLength": 1, "maxLength": 80},
               "detail": {"type": "string", "minLength": 1, "maxLength": 160},

@@ -13,6 +13,15 @@ def _isolated_db(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _production_switches(monkeypatch):
+    """Since 2026-10-20 production runs fin_c on the no-odds route with the curve median
+    (src/shots/config.py). Unit tests use stub/synthetic models written for the original routing,
+    so they pin the original switches; tests about fin_c or the median set the variables themselves."""
+    monkeypatch.setenv("SHOTS_NOODDS_MODEL", "negbin_pit_comp")
+    monkeypatch.setenv("SHOTS_MEDIAN_FROM_CURVE", "0")
+
+
+@pytest.fixture(autouse=True)
 def _isolated_manual_results(tmp_path_factory, monkeypatch):
     """The committed results_manual/ holds real hand-entered results that need the live DB's fixtures;
     tests use an empty directory unless they pass one explicitly. Tests that check the committed files

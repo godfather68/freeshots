@@ -53,6 +53,7 @@ import logging
 import numpy as np
 import pandas as pd
 
+from shots.config import median_from_curve
 from shots.models.base import CONFIDENCES, TARGET, ShotModel
 from shots.models.calibration import (ConformalShift, PitLevel, PitMap, cdf_at, continuous_quantile,
                                       lb_at_level)
@@ -77,6 +78,18 @@ def _side_cdf(nb: NegBinModel, rows: pd.DataFrame, side: str) -> np.ndarray:
     if hasattr(nb, "side_cdf"):  # candidate base models (see ``_cdf``); width >= MAX_SIDE + 1
         return nb.side_cdf(rows, side)
     return np.cumsum(nb_pmf(nb.side_mu(rows, side), nb.sides_[side]["alpha"], MAX_SIDE), axis=1)
+
+
+def curve_median(pit_map, cdf: np.ndarray, groups=None) -> np.ndarray:
+    """Integer median of the published (recalibrated) curve: min{k : G(F(k)) >= 0.5}, G = the PIT map. The
+    curve's P(total >= n) = 1 - G(F(n - 1)), so P(total <= median) >= 0.5 on the published curve. Used when
+    ``shots.config.median_from_curve()`` is on (``expected`` then agrees with the published probabilities)."""
+    g = np.repeat(np.asarray(groups), cdf.shape[1]) if groups is not None else None
+    G = pit_map(cdf.ravel(), g).reshape(cdf.shape)
+    above = G >= 0.5
+    idx = above.argmax(axis=1)
+    idx[~above.any(axis=1)] = cdf.shape[1]
+    return idx.astype(float)
 
 
 def _check_side(side: str) -> str:
@@ -274,7 +287,10 @@ class NegBinCal(ShotModel):
         if missing:
             raise ValueError(f"{self.name} was not fitted for confidences {missing}")
         cdf = _cdf(self.nb_, rows)
-        median = lb_from_cdf(cdf, 0.5).astype(float)  # integer median, as negbin
+        if median_from_curve():  # switch (shots.config): 0.5 level of the published curve
+            median = curve_median(self.pit_map_, cdf, rows[self.group] if self.group else None)
+        else:
+            median = lb_from_cdf(cdf, 0.5).astype(float)  # integer median, as negbin
         bounds = {q: lb_at_level(cdf, self._levels(rows, q)) for q in confidences}
         return finalize(rows.index, median, bounds)
 

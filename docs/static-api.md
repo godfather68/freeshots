@@ -129,6 +129,11 @@ Rules
   | `home_standin`, `away_standin` | experimental fixtures only: the club has no shot data and is averaged over typical teams |
   | `league_level` | the model's own rating of an average matchup at this league level, minus the raw league average |
   | `calibration` | shift of the mean from the recalibration of the distribution on past forecast errors |
+  | `home_rating_attack`, `away_rating_attack` | only with the candidate no-odds model (`fin_c`, off by default): that team's opponent- and venue-adjusted attack rating |
+  | `home_rating_defence`, `away_rating_defence` | same, defence rating (shots conceded vs an average team) |
+  | `head_to_head` | same model: totals of previous meetings of the two clubs vs what the ratings expected |
+  | `season_context` | same model: stage of the season, last three league matches, nothing left to play for |
+  | `shrinkage` | same model: the pull of the forecast total toward the league level |
   | `other` | all factors not listed one by one |
 - **No odds values, ever.** Market factors are worded as categories ("strong favourite", "favourite", "slight
   favourite", "about level"; "high-scoring", "average", "low-scoring"); their `label` / `detail` contain no

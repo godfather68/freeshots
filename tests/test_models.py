@@ -66,6 +66,29 @@ def synthetic(n_per_season=1500, seed=0, alpha=0.05) -> pd.DataFrame:
                   ("league_level_drift", 0.3), ("league_recent100_drift", 0.5)):
         df[c] = r2.normal(0, sd, n)
     df["days_since_season_start"] = (df["date"] - df["season"].map(start)).dt.days.astype(float)
+    # Candidate features (families A / E / G, read only by fin_c). Own random stream, added last: every column
+    # above and the golden hashes are unchanged. Ratings carry signal (they are logs of the true strengths).
+    r3 = np.random.default_rng(seed + 20_000)
+    for side, att, de in (("home", att_h, def_h), ("away", att_a, def_a)):
+        df[f"{side}_adj_att"] = np.log(att) + r3.normal(0, 0.05, n)
+        df[f"{side}_adj_def"] = np.log(de) + r3.normal(0, 0.05, n)
+        df[f"{side}_adj_sot_att"] = df[f"{side}_adj_att"] + r3.normal(0, 0.05, n)
+        df[f"{side}_adj_sot_def"] = df[f"{side}_adj_def"] + r3.normal(0, 0.05, n)
+        df[f"{side}_adj_att_sd"] = r3.uniform(0.05, 0.2, n)
+        df[f"{side}_adj_def_sd"] = r3.uniform(0.05, 0.2, n)
+        df[f"{side}_ctx_gap_safety"] = r3.integers(-10, 30, n).astype(float)
+        df[f"{side}_ctx_games_left"] = r3.integers(0, 38, n).astype(float)
+        df[f"{side}_ctx_dead"] = (r3.random(n) < 0.05).astype(float)
+    df["adj_lvl_home"], df["adj_lvl_away"] = 1.05 * lvl, 0.95 * lvl
+    df["adj_exp_home_shots"] = df["adj_lvl_home"] * np.exp(df["home_adj_att"] + df["away_adj_def"])
+    df["adj_exp_away_shots"] = df["adj_lvl_away"] * np.exp(df["away_adj_att"] + df["home_adj_def"])
+    df["adj_exp_total_shots"] = df["adj_exp_home_shots"] + df["adj_exp_away_shots"]
+    df["h2h_n"] = r3.integers(0, 6, n).astype(float)
+    df["h2h_total_wmean"] = np.where(df["h2h_n"] > 0, df["adj_exp_total_shots"] + r3.normal(0, 3, n), np.nan)
+    df["h2h_dev_shrunk"] = np.where(df["h2h_n"] > 0, r3.normal(0, 1, n), 0.0)
+    df["h2h_total_shrunk"] = df["adj_exp_total_shots"] + df["h2h_dev_shrunk"]
+    df["ctx_progress"] = df["days_since_season_start"].clip(0, 280) / 280
+    df["ctx_dead_n"] = df["home_ctx_dead"] + df["away_ctx_dead"]
     return df
 
 

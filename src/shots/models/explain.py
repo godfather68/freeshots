@@ -71,7 +71,11 @@ SIDE_PARTS = ("attack", "defence", "venue", "rest", "early")
 # Display / tie-break order of the factor ids.
 FACTOR_ORDER = ["home_attack", "away_attack", "home_defence", "away_defence", "home_venue", "away_venue",
                 "market_strength", "market_goals", "home_rest", "away_rest", "home_early", "away_early",
-                "home_standin", "away_standin", "league_level", "calibration", "other"]
+                "home_standin", "away_standin", "league_level", "calibration",
+                # fin_c (no-odds candidate, shots.models.candidates.FinC): opponent-adjusted ratings, head-to-head,
+                # season context and the pull of the total toward the league level
+                "home_rating_attack", "away_rating_attack", "home_rating_defence", "away_rating_defence",
+                "head_to_head", "season_context", "shrinkage", "other"]
 # Team shot-total volatility is deliberately not reported (always null): a team's recent standard
 # deviation of match totals does not predict its future spread (rank correlation of last-10 vs next-10
 # std 0.04, 0.00 once the mean level is controlled for; 92,865 team-matches since 2019). See the report.
@@ -106,9 +110,14 @@ def column_group(col: str, side: str) -> str:
     return "other"  # const / log_prior (zero by construction of the reference) and any future column
 
 
+def _design(nb):
+    """The production feature design (``negbin._Design``) of an NB GLM or of a ``FlexNB`` candidate base."""
+    return nb.sides_["home"]["design"] if hasattr(nb, "sides_") else nb.side_fits_["home"]["design"]
+
+
 def reference_rows(nb, rows: pd.DataFrame) -> pd.DataFrame:
     """The same fixtures played by league-average teams (see module docstring)."""
-    design = nb.sides_["home"]["design"]
+    design = _design(nb)
     ref = rows.copy()
     prior = rows["league_prior_shots"].astype(float).fillna(design.prior_mean_).clip(lower=1.0)
     rates = sorted({name for _, name in RATE_COLS} | {name.replace("_for_", "_against_") for _, name in RATE_COLS}
@@ -170,6 +179,104 @@ def glm_effects(nb, rows: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray, np.nd
     return pd.DataFrame(effects, index=rows.index), mu0_total, mu_total
 
 
+def _is_flex(nb) -> bool:
+    """A ``FlexNB`` candidate base (fin_c): production design + candidate families + total shrinkage."""
+    return (hasattr(nb, "side_fits_") and not getattr(nb, "comp_intercept", False)
+            and getattr(nb, "total", "") == "moment")
+
+
+def _family_reference(block, rows: pd.DataFrame) -> dict[str, np.ndarray]:
+    """Reference value of each family column for "an average matchup": ratings 0 (league average; the rating
+    expectation is then the league level the fixture shows), no head-to-head deviation, no season-end or
+    dead-rubber flag, the training median for the rest (rating uncertainty, season progress, gap to safety),
+    missing flags 0."""
+    out = {}
+    n = len(rows)
+    for k in block.cols_:
+        if k == "A_log_exp":
+            lvl = rows[f"adj_lvl_{block.side}"].astype(float).clip(lower=1.0)
+            out[k] = np.log(lvl).fillna(block.fill_[k]).to_numpy(float)
+        elif k in ("A_sd", "G_progress", "G_gap_safety_s"):
+            out[k] = np.full(n, block.fill_[k])
+        else:  # *_missing, ratings, E_*, G_dead_n, G_last3_*
+            out[k] = np.zeros(n)
+    return out
+
+
+def _family_groups(block, rows: pd.DataFrame, side: str, x: np.ndarray, x0: np.ndarray, beta: np.ndarray,
+                   eff: dict) -> None:
+    """Add beta * (x - x0) of each family column to its factor (log scale) in ``eff``. Exact: the columns that
+    mix both teams are split along their own definition (A_log_exp = log level + att_s + def_o; A_sd =
+    att_sd_s + def_sd_o); whatever a split cannot place (clipping, a filled value) goes to ``other``."""
+    o = _other(side)
+    for j, k in enumerate(block.cols_):
+        c = beta[j] * (x[:, j] - x0[:, j])
+        if k == "A_log_exp":
+            att = rows[f"{side}_adj_att"].astype(float).fillna(0.0).to_numpy()
+            de = rows[f"{o}_adj_def"].astype(float).fillna(0.0).to_numpy()
+            parts = {f"{side}_rating_attack": beta[j] * att, f"{o}_rating_defence": beta[j] * de}
+        elif k == "A_sd":
+            half = block.fill_[k] / 2.0
+            a = rows[f"{side}_adj_att_sd"].astype(float).fillna(half).to_numpy()
+            d = rows[f"{o}_adj_def_sd"].astype(float).fillna(half).to_numpy()
+            parts = {f"{side}_early": beta[j] * (a - half), f"{o}_early": beta[j] * (d - half)}
+        elif k in ("A_att_s", "A_sot_att_s"):
+            parts = {f"{side}_rating_attack": c}
+        elif k in ("A_def_o", "A_sot_def_o"):
+            parts = {f"{o}_rating_defence": c}
+        elif k.startswith("E_"):
+            parts = {"head_to_head": c}
+        elif k.startswith("G_"):
+            parts = {"season_context": c}
+        else:
+            parts = {}
+        rest = c - sum(parts.values()) if parts else c
+        for name, v in parts.items():
+            eff[name] = eff.get(name, 0.0) + v
+        if np.any(np.abs(rest) > 0.0):
+            eff["other"] = eff.get("other", 0.0) + rest
+
+
+def flex_effects(nb, rows: pd.DataFrame):
+    """``glm_effects`` for a ``FlexNB`` base -> (effects in shots, reference total, raw total before the
+    shrinkage, raw total after it). Each side model is log-linear in [production design, family block], so the
+    same Shapley decomposition applies; the shrinkage toward the league level is a total-level factor
+    (``raw_explain`` reports it as ``shrinkage``)."""
+    ref = reference_rows(nb, rows)
+    effects: dict = {}
+    n = len(rows)
+    mu0_total, mu_total = np.zeros(n), np.zeros(n)
+    raw = {}
+    for side in SIDES:
+        s = nb.side_fits_[side]
+        cols, beta = list(s["cols"]), np.asarray(s["beta"], float)
+        x = s["design"].transform(rows)[cols].to_numpy(float)
+        x0 = s["design"].transform(ref)[cols].to_numpy(float)
+        log_eff: dict = {}
+        for j, c in enumerate(cols):
+            g = column_group(c, side)
+            log_eff[g] = log_eff.get(g, 0.0) + beta[j] * (x[:, j] - x0[:, j])
+        X, X0 = x, x0
+        block = s.get("block")
+        if block is not None and block.cols_:
+            F = block(rows)
+            ref0 = _family_reference(block, rows)
+            F0 = np.column_stack([ref0[k] for k in block.cols_])
+            _family_groups(block, rows, side, F, F0, beta[len(cols):], log_eff)
+            X, X0 = np.column_stack([x, F]), np.column_stack([x0, F0])
+        names = sorted(log_eff, key=lambda k: (FACTOR_ORDER.index(k) if k in FACTOR_ORDER else 99, k))
+        delta = np.column_stack([np.broadcast_to(np.asarray(log_eff[k], float), (n,)) for k in names])
+        mu0 = np.exp(np.clip(X0 @ beta, -20, 20))
+        phi = mu0[:, None] * shapley_product(delta)
+        for j, name in enumerate(names):
+            effects[name] = effects.get(name, 0.0) + phi[:, j]
+        mu0_total += mu0
+        raw[side] = np.exp(np.clip(X @ beta, -20, 20))
+        mu_total += raw[side]
+    ratio = nb._ratio(rows, raw["home"], raw["away"])
+    return pd.DataFrame(effects, index=rows.index), mu0_total, mu_total, mu_total * ratio
+
+
 def _calibrated_mean(pit_map, cdf: np.ndarray, groups) -> np.ndarray:
     """E[T] = sum_{k >= 1} P(T >= k) under the recalibrated CDF G(F(k))."""
     k = cdf.shape[1] - 1
@@ -178,8 +285,14 @@ def _calibrated_mean(pit_map, cdf: np.ndarray, groups) -> np.ndarray:
 
 
 def supports(model) -> bool:
-    nb = getattr(getattr(model, "base_", model), "nb_", None)
-    return nb is not None and hasattr(nb, "sides_") and hasattr(getattr(model, "base_", model), "pit_map_")
+    """NB GLMs (production, and the cross-border wrapper around one) and ``FlexNB`` candidate bases (fin_c)."""
+    base = getattr(model, "base_", model)
+    nb = getattr(base, "nb_", None)
+    if nb is None or not hasattr(base, "pit_map_"):
+        return False
+    if hasattr(model, "base_"):  # cross-border: needs an NB GLM base
+        return hasattr(nb, "sides_")
+    return hasattr(nb, "sides_") or _is_flex(nb)
 
 
 def raw_explain(model, rows: pd.DataFrame) -> pd.DataFrame | None:
@@ -193,7 +306,13 @@ def raw_explain(model, rows: pd.DataFrame) -> pd.DataFrame | None:
     base = model.base_ if cross else model
     nb = base.nb_
     groups = rows[base.group] if getattr(base, "group", None) else None
-    if not cross:
+    shrink = None
+    if not cross and _is_flex(nb):
+        effects, mu0, unshrunk, raw = flex_effects(nb, rows)
+        cdf = nb.total_cdf(rows)
+        mixture = raw
+        shrink = raw - unshrunk
+    elif not cross:
         effects, mu0, raw = glm_effects(nb, rows)
         cdf = np.cumsum(nb.total_pmf(rows), axis=1)
         mixture = raw
@@ -202,11 +321,13 @@ def raw_explain(model, rows: pd.DataFrame) -> pd.DataFrame | None:
         cdf = model._cdfs(rows)["total"]
         mixture = (1.0 - cdf).sum(axis=1)  # mean of the mixture actually published (before recalibration)
     expected = _calibrated_mean(base.pit_map_, cdf, groups)
-    prior = rows["league_prior_shots"].astype(float).fillna(nb.sides_["home"]["design"].prior_mean_).clip(lower=1.0)
+    prior = rows["league_prior_shots"].astype(float).fillna(_design(nb).prior_mean_).clip(lower=1.0)
     baseline = 2.0 * prior.to_numpy()
     out = pd.DataFrame({"expected_mean": expected, "raw_mean": mixture, "baseline": baseline}, index=rows.index)
     fx = effects.copy()
     fx["league_level"] = mu0 - baseline
+    if shrink is not None:
+        fx["shrinkage"] = shrink
     fx["calibration"] = expected - mixture
     for name in fx.columns:
         out[f"fx_{name}"] = fx[name].to_numpy(float)
@@ -329,6 +450,10 @@ def _factor_text(fid: str, row: dict, ctx: dict) -> tuple[str, str, str]:
         if tc:
             bits.append("first match after moving " + ("down" if tc > 0 else "up") + " a division")
         return side, f"{team} early season", "; ".join(bits) or "early-season adjustment"
+    if part == "rating_attack":
+        return side, f"{team} attack rating", _rating_text(_val(row, f"{side}_adj_att"), "creates")
+    if part == "rating_defence":
+        return side, f"{team} defence rating", _rating_text(_val(row, f"{side}_adj_def"), "concedes")
     if part == "standin":
         return side, f"{team} (no data)", f"no shot data: average of {ctx['n_profiles']} typical top-division teams"
     if fid == "market_strength":
@@ -339,10 +464,46 @@ def _factor_text(fid: str, row: dict, ctx: dict) -> tuple[str, str, str]:
         avg = "reference level" if cross else "league average"
         return "match", "League level", (f"the model rates an average matchup at this level at {_f1(ctx['reference'])} "
                                          f"shots ({avg} {_f1(2 * level)})")
+    if fid == "head_to_head":
+        n = int(_val(row, "h2h_n") or 0)
+        mean = _val(row, "h2h_total_wmean")
+        if n == 0 or mean is None:
+            return "match", "Head to head", "no previous meetings in the data"
+        return "match", "Head to head", (f"{n} previous meeting{'s' if n != 1 else ''}, {_f1(mean)} total shots "
+                                         "on average (recent ones count more)")
+    if fid == "season_context":
+        return "match", "Season context", _context_text(row, home, away)
+    if fid == "shrinkage":
+        return "match", "Pull toward league level", ("forecasts far from the league average are pulled back "
+                                                     "toward it, as past seasons showed they should be")
     if fid == "calibration":
         scope = "this league" if ctx["own_calibration"] else "all leagues"
         return "match", "Calibration", f"adjustment from past forecast errors in {scope}"
     return "match", "Smaller factors", "remaining terms of the model"
+
+
+def _rating_text(v, verb: str) -> str:
+    if v is None:
+        return "no rating yet"
+    pct = (math.exp(v) - 1.0) * 100.0
+    if abs(pct) < 0.5:
+        return f"{verb} about as many shots as an average team (adjusted for opponents and venue)"
+    more = "more" if pct > 0 else "fewer"
+    return f"{verb} {abs(pct):.0f}% {more} shots than an average team (adjusted for opponents and venue)"
+
+
+def _context_text(row: dict, home: str, away: str) -> str:
+    bits = []
+    p = _val(row, "ctx_progress")
+    if p is not None:
+        bits.append(f"season {p * 100:.0f}% played")
+    for side, team in (("home", home), ("away", away)):
+        left = _val(row, f"{side}_ctx_games_left")
+        if _val(row, f"{side}_ctx_dead"):
+            bits.append(f"{team}: nothing left to play for")
+        elif left is not None and left <= 3:
+            bits.append(f"{team}: one of its last three league matches")
+    return "; ".join(bits)[:160] or "stage of the season"
 
 
 def _baseline_label(row: dict, cross: bool, league: str) -> str:
@@ -371,7 +532,7 @@ def explain_rows(model, rows: pd.DataFrame, *, odds_used: bool, league: pd.Serie
         return [None] * len(rows)
     cross = hasattr(model, "base_")
     base = model.base_ if cross else model
-    design = base.nb_.sides_["home"]["design"]
+    design = _design(base.nb_)
     gap = None
     if gap_model is not None and gap_rows is not None:
         other = raw_explain(gap_model, gap_rows)
@@ -428,5 +589,5 @@ def dumps(explanation: dict | None) -> str | None:
     return None if explanation is None else json.dumps(explanation, ensure_ascii=False, separators=(",", ":"))
 
 
-__all__ = ["explain_rows", "raw_explain", "glm_effects", "shapley_product", "reference_rows", "column_group",
+__all__ = ["explain_rows", "raw_explain", "glm_effects", "flex_effects", "shapley_product", "reference_rows", "column_group",
            "strength_category", "goals_category", "league_label", "dumps", "supports", "FACTOR_ORDER"]

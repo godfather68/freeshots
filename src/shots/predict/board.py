@@ -71,17 +71,38 @@ def _explanations(prep: sc.Prepared, info: pd.DataFrame, routes: list) -> list:
     for mask, mdl, rows, label in routes:
         if not ex.supports(mdl):
             continue
-        sub = rows[mask]
         odds_used = bool(prep.has_odds[mask].all()) and not bool(exp[mask].any())
-        gap = prep.nomodel if odds_used and prep.nomodel is not None and ex.supports(prep.nomodel) else None
-        try:
-            got = ex.explain_rows(mdl, sub, odds_used=odds_used, league=league[mask], gap_model=gap,
-                                  gap_rows=sc.no_odds_rows(sub) if gap is not None else None)
-        except Exception:  # noqa: BLE001 - explanations are an add-on; predictions must still be published
-            log.exception("explanations failed for %s (%d fixtures); they are left out", label, len(sub))
-            continue
-        out[mask.to_numpy()] = [ex.dumps(e) for e in got]
+        for part, gap, gap_rows in _gap_parts(prep, mask, odds_used):
+            sub = rows[part]
+            try:
+                got = ex.explain_rows(mdl, sub, odds_used=odds_used, league=league[part], gap_model=gap,
+                                      gap_rows=sc.no_odds_rows(gap_rows[part]) if gap is not None else None)
+            except Exception:  # noqa: BLE001 - explanations are an add-on; predictions must still be published
+                log.exception("explanations failed for %s (%d fixtures); they are left out", label, len(sub))
+                continue
+            out[part.to_numpy()] = [ex.dumps(e) for e in got]
     return list(out)
+
+
+def _gap_parts(prep: sc.Prepared, mask: pd.Series, odds_used: bool):
+    """(sub-mask, no-odds model for ``signals.model_gap``, its feature rows). Production routing: one part, the
+    no-odds model. Candidate no-odds route: the no-odds model a fixture without odds would get, i.e. the
+    candidate where its inputs are complete and the production no-odds model otherwise."""
+    if not odds_used:
+        yield mask, None, None
+        return
+    if prep.fallback is None:
+        gap = prep.nomodel if prep.nomodel is not None and ex.supports(prep.nomodel) else None
+        yield mask, gap, prep.upcoming
+        return
+    from shots.models.candidates import missing_candidate_inputs
+
+    families = getattr(prep.nomodel, "families", None)
+    complete = ~missing_candidate_inputs(prep.cand_rows, families) if families else pd.Series(False, index=mask.index)
+    for part, model, rows in ((mask & complete, prep.nomodel, prep.cand_rows),
+                              (mask & ~complete, prep.fbmodel, prep.upcoming)):
+        if part.any():
+            yield part, (model if model is not None and ex.supports(model) else None), rows
 
 
 def assemble(prep: sc.Prepared, info: pd.DataFrame, ns=NS) -> pd.DataFrame:
@@ -215,8 +236,11 @@ def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFA
         meta["n_explained"] = int(board["explain"].notna().sum())
     if "experimental" in board.columns:  # cross-border fixtures (experimental model, never settled)
         meta["n_experimental"] = int(board["experimental"].sum())
+    if prep.fallback_info is not None:  # candidate no-odds route only (shots.config.NOODDS_MODEL)
+        meta["noodds_route"] = prep.fallback_info
     meta_path(out_path).write_text(json.dumps(meta, indent=2), encoding="utf-8")
     log.info("board: %d fixtures (%d with odds) -> %s", len(board), meta["n_with_odds"], out_path)
+    prep.check_fallback()  # fail loudly after writing: fallen-back fixtures carry valid production numbers
     return board
 
 

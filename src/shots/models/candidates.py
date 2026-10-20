@@ -114,6 +114,43 @@ def family_columns(rows: pd.DataFrame, side: str, fam: str) -> dict[str, pd.Seri
     return out
 
 
+def family_inputs(families) -> list[str]:
+    """Columns of ``features_candidates`` read by ``family_columns`` for these families (both sides)."""
+    cols: list[str] = []
+    for fam in families:
+        if fam == "A":
+            cols += [f"adj_exp_{s}_shots" for s in SIDES]
+            cols += [f"{s}_adj_{k}" for s in SIDES for k in ("att", "def", "sot_att", "sot_def", "att_sd", "def_sd")]
+        elif fam == "E":
+            cols += ["h2h_total_shrunk", "adj_exp_total_shots", "h2h_dev_shrunk"]
+        elif fam == "G":
+            cols += ["ctx_dead_n", "ctx_progress"] + [f"{s}_ctx_{k}" for s in SIDES for k in ("gap_safety", "games_left")]
+        elif fam == "F":
+            cols += ["ref_shots_dev"]
+        elif fam == "D":
+            cols += [f"{s}_sched_{k}" for s in SIDES for k in ("n14", "sunmon_share_l8")]
+        elif fam == "C":
+            cols += ["mktx_total_goals", "mktx_abs_gd"]
+        elif fam == "B":
+            cols += [f"{s}_style_corners_{k}_ewm" for s in SIDES for k in ("for", "against")]
+    return list(dict.fromkeys(cols))
+
+
+# Candidate inputs that are NaN by design for some rows (not a sign of a missing / stale build): games left is
+# undefined in playoff formats (shots.features.candidates.SEASON_FORMATS).
+NAN_BY_DESIGN = ("home_ctx_games_left", "away_ctx_games_left")
+
+
+def missing_candidate_inputs(rows: pd.DataFrame, families) -> pd.Series:
+    """Per row: True when an input of ``families`` is absent or NaN (other than ``NAN_BY_DESIGN``). Such a row
+    was not covered by the candidate feature build (stale or failed build, a fixture added after it): scoring
+    it would silently median-fill the gap (biased; reports/2026-10-16_fin_c_verification.md, section 5)."""
+    cols = [c for c in family_inputs(families) if c not in NAN_BY_DESIGN]
+    if any(c not in rows.columns for c in cols):
+        return pd.Series(True, index=rows.index)
+    return rows[cols].isna().any(axis=1)
+
+
 class FamilyBlock:
     """Learns fills (training median), drops constant columns and adds one missing flag per family."""
 
@@ -248,7 +285,7 @@ class FlexNB:
     def input_columns(self) -> list[str]:
         from shots.models.persist import _negbin_inputs
 
-        return sorted(_negbin_inputs()) + ["competition"]
+        return sorted(_negbin_inputs()) + ["competition"] + family_inputs(getattr(self, "families", ()))
 
     # ------------------------------------------------------------------ design
     def _X(self, rows: pd.DataFrame, side: str) -> tuple[np.ndarray, np.ndarray]:
@@ -750,6 +787,38 @@ class CandidatePit(NegBinPitComp):
         return out
 
 
+# ---------------------------------------------------------------------- fin_c (no-odds route candidate)
+
+FIN_C_FAMILIES = ("A", "E", "G")
+FIN_C_BASE = dict(families=FIN_C_FAMILIES, shrink=True, side_z=("comp",))
+
+
+class FinC(CandidatePit):
+    """``fin_c``: the production two-sided NB (same design, moment-matched total, per-competition PIT calibration
+    on two seasons) + candidate families A (opponent-adjusted EKF ratings), E (head-to-head), G (season context)
+    + out-of-sample shrinkage of the total toward the league level + per-competition side dispersion.
+    Evidence: reports/2026-10-15_model_candidates.md, reports/2026-10-16_fin_c_verification.md,
+    reports/2026-10-16_fin_c_adoption.md. Production use: the no-odds route only, behind
+    ``shots.config.NOODDS_MODEL`` (rows need the ``shots.features.candidates`` columns of ``family_inputs``).
+
+    The median follows ``shots.config.median_from_curve()`` like production (``NegBinCal.predict``), so switching
+    the model alone does not also change how ``expected`` is read."""
+
+    name = "fin_c"
+    base_cls = FlexNB
+    base_kw = FIN_C_BASE
+    families = FIN_C_FAMILIES
+
+    def predict(self, rows: pd.DataFrame, confidences=(0.7, 0.8, 0.9)) -> pd.DataFrame:
+        from shots.models.calibrated import NegBinCal
+
+        return NegBinCal.predict(self, rows, confidences)
+
+    @classmethod
+    def missing_inputs(cls, rows: pd.DataFrame) -> pd.Series:
+        return missing_candidate_inputs(rows, cls.families)
+
+
 def _cand(name: str, base_cls, **base_kw) -> type[CandidatePit]:
     return type(f"Cand_{name}", (CandidatePit,), {"name": name, "base_cls": base_cls, "base_kw": base_kw,
                                                     "__module__": __name__})
@@ -776,8 +845,12 @@ CANDIDATES: dict[str, type[CandidatePit]] = {
     "cand_comp_drift": _cand("cand_comp_drift", FlexNB, comp_intercept=True, half_life_days=1460),
 }
 
+# Candidates with a production route (behind a switch in shots.config); registered in shots.models.MODELS.
+PRODUCTION_CANDIDATES: dict[str, type[CandidatePit]] = {"fin_c": FinC}
+
 # Explicit globals so pickles (joblib) of these dynamically built classes resolve.
 for _cls in CANDIDATES.values():
     globals()[_cls.__name__] = _cls
 
-__all__ = ["FlexNB", "JointShare", "GBMNB", "Pool", "CandidatePit", "CANDIDATES", "nb_pmf_fast"]
+__all__ = ["FlexNB", "JointShare", "GBMNB", "Pool", "CandidatePit", "CANDIDATES", "nb_pmf_fast", "FinC",
+           "PRODUCTION_CANDIDATES", "family_inputs", "missing_candidate_inputs", "FIN_C_BASE"]

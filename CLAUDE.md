@@ -45,6 +45,15 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
    competition, mid-coverage (avg of P(y ≥ N) and P(y > N)) is within ±2pp of q, and pinball is no
    worse than `team_avg`. Do not force exact-q coverage at the cost of pinball.
 4. Every model change ships with a backtest report in `reports/`.
+5. **Production models (switches in `src/shots/config.py`; env `SHOTS_NOODDS_MODEL` / `SHOTS_MEDIAN_FROM_CURVE`
+   override, tests pin the old values in `tests/conftest.py`):** odds route `negbin_pit_comp`; no-odds route
+   `fin_c` (production NB + EKF opponent-adjusted ratings, head-to-head, season context, shrinkage toward league
+   level, per-competition dispersion; falls back to `negbin_pit_comp` per fixture when candidate inputs are
+   missing, and fails the run if > 2% fall back); cross-border (UCL/UEL/UECL) stays on `negbin_pit_comp`.
+   Published `expected` = median of the published curve. **Recorded exception (user, 2026-10-20):** fin_c was
+   adopted on the no-odds route only (protocol requires both variants; the odds route gain was not
+   significant). Watch Turkey, Portugal and the Scottish leagues at 90% coverage. Reports:
+   `reports/2026-10-15_model_candidates.md`, `2026-10-16_fin_c_verification.md`, `2026-10-16_fin_c_adoption.md`.
 
 ## Commands
 - Install: `python -m pip install -r requirements.txt`

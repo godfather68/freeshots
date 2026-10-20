@@ -84,7 +84,8 @@ def test_shared_run_slices_give_the_unshared_features(stub_models):  # noqa: F81
         run.domestic = None
         wide = sc.prepare_upcoming(dom, m)           # builds and stores the wide pass
         cut = sc.prepare_upcoming(narrow, m)          # slices it
-        assert run.stats == {"feature_builds": 1, "feature_slices": 1, "fetches": 0}
+        assert run.stats == {"feature_builds": 1, "feature_slices": 1, "fetches": 0,
+                             "candidate_builds": 0}  # switch off: no candidate feature build
     for a, b in zip(_prep_fields(fresh_narrow), _prep_fields(cut)):
         if isinstance(a, pd.DataFrame):
             pd.testing.assert_frame_equal(a, b, check_exact=True)

@@ -45,15 +45,19 @@ def _ns(a) -> np.ndarray:
     return np.asarray(a).astype("datetime64[ns]")
 
 
-def trailing_sums(group: np.ndarray, date: np.ndarray, vals: np.ndarray, window: int) -> np.ndarray:
+def trailing_sums(group: np.ndarray, date: np.ndarray, vals: np.ndarray, window: int,
+                  pool: np.ndarray | None = None) -> np.ndarray:
     """Sums of ``vals`` (n x k) over the last ``window`` rows of the same group dated STRICTLY before
-    each row's date (same-day rows excluded). Returns n x (k+1); the last column is the row count."""
+    each row's date (same-day rows excluded). Returns n x (k+1); the last column is the row count.
+    ``pool`` (boolean, optional): only these rows can enter a window (every row still gets its sums), e.g.
+    rows with a result, so that upcoming fixtures never take places in the trailing window."""
     n = len(date)
     out = np.zeros((n, vals.shape[1] + 1))
     date = _ns(date)
     for g in pd.unique(group):
         idx = np.flatnonzero(group == g)
-        order = idx[np.argsort(date[idx], kind="mergesort")]
+        src = idx if pool is None else idx[pool[idx]]
+        order = src[np.argsort(date[src], kind="mergesort")]
         x = date[order]
         v = np.column_stack([vals[order], np.ones(len(order))])
         c = np.vstack([np.zeros((1, v.shape[1])), np.cumsum(v, axis=0)])
@@ -71,8 +75,10 @@ def league_level(m: pd.DataFrame, home_col: str, away_col: str, window: int, k: 
     vals = np.column_stack([np.where(ok, h, 0.0), np.where(ok, a, 0.0), ok.astype(float)])
     comp = m["competition"].to_numpy()
     date = m["date"].to_numpy()
-    c = trailing_sums(comp, date, vals, window)
-    g = trailing_sums(np.zeros(len(m), dtype=int), date, vals, window * 20)
+    # only matches with the statistic fill the window: identical on history (no played row lacks shots), and
+    # upcoming fixtures (no result yet) see the same trailing matches as a row of the training data would
+    c = trailing_sums(comp, date, vals, window, pool=ok)
+    g = trailing_sums(np.zeros(len(m), dtype=int), date, vals, window * 20, pool=ok)
     # columns: sum_h, sum_a, n_ok, n_rows
     gh = g[:, 0] / np.where(g[:, 2] > 0, g[:, 2], np.nan)
     ga = g[:, 1] / np.where(g[:, 2] > 0, g[:, 2], np.nan)

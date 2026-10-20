@@ -80,6 +80,19 @@ def team_curve(model, rows: pd.DataFrame, side: str, kmax: int = KSIDE) -> np.nd
     return _pad(model.team_pit_map_[side](raw.ravel(), gg).reshape(raw.shape), kmax + 1)
 
 
+def _medians(model, rows: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """(raw NB median, median of the published curve) for PIT-calibrated models; NaN otherwise."""
+    from shots.models.calibrated import _cdf, curve_median
+    from shots.models.common import lb_from_cdf
+
+    if not hasattr(model, "pit_map_") or not hasattr(model, "nb_"):
+        nan = np.full(len(rows), np.nan)
+        return nan, nan
+    raw = _cdf(model.nb_, rows)
+    g = rows[model.group] if model.group else None
+    return lb_from_cdf(raw, 0.5).astype(float), curve_median(model.pit_map_, raw, g)
+
+
 def _blocks(test: pd.DataFrame, refit: str):
     if refit == "season":
         return [test]
@@ -128,6 +141,8 @@ def run_job(args) -> str:
         out["away_actual"] = test["away_shots"].to_numpy(float)
         out["n_prior_min"] = np.fmin(test["home_n_prior_matches"], test["away_n_prior_matches"]).to_numpy()
         out["median"] = pred["median"].to_numpy(float)
+        # both readings of the integer median (shots.config.MEDIAN_FROM_CURVE off / on), from the same fit
+        out["median_raw"], out["median_curve"] = _medians(model, te)
         for q in CONF:
             out[f"lb_{round(q * 100)}"] = pred[f"lb_{round(q * 100)}"].to_numpy(int)
         out["train_end"] = train["date"].max()

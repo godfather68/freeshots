@@ -32,6 +32,8 @@ import numpy as np
 import pandas as pd
 
 from shots.models.base import CONFIDENCES, ShotModel
+from shots.config import median_from_curve
+from shots.models.calibrated import curve_median
 from shots.models.calibration import cdf_at, lb_at_level
 from shots.models.common import SIDES, finalize, lb_from_cdf
 from scipy.special import gammaln
@@ -227,7 +229,10 @@ class CrossBorderModel(ShotModel):
 
     def predict(self, rows: pd.DataFrame, confidences=CONFIDENCES) -> pd.DataFrame:
         cdf = self._cdfs(rows)["total"]
-        median = lb_from_cdf(cdf, 0.5).astype(float)
+        if median_from_curve():  # switch (shots.config): 0.5 level of the published curve
+            median = curve_median(self.base_.pit_map_, cdf, self._groups(rows))
+        else:
+            median = lb_from_cdf(cdf, 0.5).astype(float)
         bounds = {q: lb_at_level(cdf, self.base_._levels(rows, q)) for q in confidences}
         return finalize(rows.index, median, bounds)
 
