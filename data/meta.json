@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-10-20T15:50:40Z",
+ "built_at": "2026-10-21T05:19:40Z",
  "results_up_to": "2026-10-19",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-20T15:50:31Z"
+  "finished_at": "2026-10-21T05:19:31Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
@@ -31,7 +31,7 @@
    "name": "Pro League",
    "country": "Belgium",
    "tier": 1,
-   "fixtures": 27
+   "fixtures": 28
   },
   {
    "id": "england-premier-league",
@@ -45,28 +45,28 @@
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 49
+   "fixtures": 48
   },
   {
    "id": "england-league-one",
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 12
+   "fixtures": 1
   },
   {
    "id": "england-league-two",
    "name": "League Two",
    "country": "England",
    "tier": 4,
-   "fixtures": 12
+   "fixtures": 0
   },
   {
    "id": "uefa-champions-league",
    "name": "UEFA Champions League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 34,
+   "fixtures": 25,
    "featured": true
   },
   {
@@ -104,7 +104,7 @@
    "name": "Bundesliga",
    "country": "Germany",
    "tier": 1,
-   "fixtures": 27
+   "fixtures": 28
   },
   {
    "id": "germany-2-bundesliga",
@@ -160,7 +160,7 @@
    "name": "Championship",
    "country": "Scotland",
    "tier": 2,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "scotland-league-one",
@@ -199,7 +199,6 @@
   }
  ],
  "days": [
-  "2026-10-20",
   "2026-10-21",
   "2026-10-22",
   "2026-10-23",
@@ -219,12 +218,13 @@
   "2026-11-06",
   "2026-11-07",
   "2026-11-08",
-  "2026-11-15"
+  "2026-11-15",
+  "2026-11-20"
  ],
  "counts": {
-  "fixtures": 497,
-  "with_odds": 27,
-  "cold_start": 63,
+  "fixtures": 465,
+  "with_odds": 2,
+  "cold_start": 59,
   "results": 200,
   "provisional_results": 0
  },
@@ -232,8 +232,8 @@
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 0,
-  "experimental": 0,
-  "oldest": null
+  "official": 25,
+  "experimental": 9,
+  "oldest": "2026-10-20"
  }
 }
