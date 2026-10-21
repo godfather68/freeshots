@@ -1,17 +1,16 @@
 {
  "schema": 1,
- "built_at": "2026-10-21T05:19:40Z",
- "results_up_to": "2026-10-19",
+ "built_at": "2026-10-21T22:22:55Z",
+ "results_up_to": "2026-10-21",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-21T05:19:31Z"
+  "finished_at": "2026-10-21T22:22:48Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
   "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
-  "negbin_pit_comp-noodds_2026-10-12-uel-exp",
-  "negbin_pit_comp_2026-10-12"
+  "negbin_pit_comp-noodds_2026-10-12-uel-exp"
  ],
  "thresholds": {
   "total": [
@@ -52,7 +51,7 @@
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "england-league-two",
@@ -181,7 +180,7 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 31
+   "fixtures": 30
   },
   {
    "id": "spain-segunda-division",
@@ -222,18 +221,18 @@
   "2026-11-20"
  ],
  "counts": {
-  "fixtures": 465,
-  "with_odds": 2,
+  "fixtures": 463,
+  "with_odds": 0,
   "cold_start": 59,
-  "results": 200,
+  "results": 227,
   "provisional_results": 0
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 25,
-  "experimental": 9,
+  "official": 0,
+  "experimental": 18,
   "oldest": "2026-10-20"
  }
 }
