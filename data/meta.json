@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-10-23T18:17:13Z",
+ "built_at": "2026-10-24T00:04:21Z",
  "results_up_to": "2026-10-21",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-23T18:17:05Z"
+  "finished_at": "2026-10-24T00:04:13Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
@@ -31,7 +31,7 @@
    "name": "Pro League",
    "country": "Belgium",
    "tier": 1,
-   "fixtures": 36
+   "fixtures": 35
   },
   {
    "id": "england-premier-league",
@@ -45,7 +45,7 @@
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 60
+   "fixtures": 59
   },
   {
    "id": "england-league-one",
@@ -90,28 +90,28 @@
    "name": "Ligue 1",
    "country": "France",
    "tier": 1,
-   "fixtures": 9
+   "fixtures": 8
   },
   {
    "id": "france-ligue-2",
    "name": "Ligue 2",
    "country": "France",
    "tier": 2,
-   "fixtures": 9
+   "fixtures": 4
   },
   {
    "id": "germany-bundesliga",
    "name": "Bundesliga",
    "country": "Germany",
    "tier": 1,
-   "fixtures": 36
+   "fixtures": 35
   },
   {
    "id": "germany-2-bundesliga",
    "name": "2. Bundesliga",
    "country": "Germany",
    "tier": 2,
-   "fixtures": 36
+   "fixtures": 34
   },
   {
    "id": "greece-super-league",
@@ -125,28 +125,28 @@
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 48
+   "fixtures": 49
   },
   {
    "id": "italy-serie-b",
    "name": "Serie B",
    "country": "Italy",
    "tier": 2,
-   "fixtures": 50
+   "fixtures": 49
   },
   {
    "id": "netherlands-eredivisie",
    "name": "Eredivisie",
    "country": "Netherlands",
    "tier": 1,
-   "fixtures": 9
+   "fixtures": 8
   },
   {
    "id": "portugal-primeira-liga",
    "name": "Primeira Liga",
    "country": "Portugal",
    "tier": 1,
-   "fixtures": 9
+   "fixtures": 8
   },
   {
    "id": "scotland-premiership",
@@ -181,14 +181,14 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 40
+   "fixtures": 39
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 55
+   "fixtures": 54
   },
   {
    "id": "turkey-super-lig",
@@ -199,7 +199,6 @@
   }
  ],
  "days": [
-  "2026-10-23",
   "2026-10-24",
   "2026-10-25",
   "2026-10-26",
@@ -219,11 +218,12 @@
   "2026-11-15",
   "2026-11-20",
   "2026-11-21",
-  "2026-11-22"
+  "2026-11-22",
+  "2026-11-23"
  ],
  "counts": {
-  "fixtures": 594,
-  "with_odds": 182,
+  "fixtures": 579,
+  "with_odds": 163,
   "cold_start": 30,
   "results": 227,
   "provisional_results": 0
@@ -232,7 +232,7 @@
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 0,
+  "official": 13,
   "experimental": 54,
   "oldest": "2026-10-20"
  }
