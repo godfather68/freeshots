@@ -1,17 +1,16 @@
 {
  "schema": 1,
- "built_at": "2026-10-26T15:42:59Z",
- "results_up_to": "2026-10-21",
+ "built_at": "2026-10-26T23:50:06Z",
+ "results_up_to": "2026-10-26",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-26T15:42:49Z"
+  "finished_at": "2026-10-26T23:50:00Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
   "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
-  "negbin_pit_comp-noodds_2026-10-12-uel-exp",
-  "negbin_pit_comp_2026-10-12"
+  "negbin_pit_comp-noodds_2026-10-12-uel-exp"
  ],
  "thresholds": {
   "total": [
@@ -59,7 +58,7 @@
    "name": "League Two",
    "country": "England",
    "tier": 4,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "uefa-champions-league",
@@ -90,14 +89,14 @@
    "name": "Ligue 1",
    "country": "France",
    "tier": 1,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "france-ligue-2",
    "name": "Ligue 2",
    "country": "France",
    "tier": 2,
-   "fixtures": 2
+   "fixtures": 0
   },
   {
    "id": "germany-bundesliga",
@@ -146,7 +145,7 @@
    "name": "Primeira Liga",
    "country": "Portugal",
    "tier": 1,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "scotland-premiership",
@@ -181,25 +180,24 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 31
+   "fixtures": 30
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 45
+   "fixtures": 44
   },
   {
    "id": "turkey-super-lig",
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 30
+   "fixtures": 27
   }
  ],
  "days": [
-  "2026-10-26",
   "2026-10-27",
   "2026-10-28",
   "2026-10-29",
@@ -222,17 +220,17 @@
   "2026-11-25"
  ],
  "counts": {
-  "fixtures": 448,
-  "with_odds": 10,
+  "fixtures": 438,
+  "with_odds": 0,
   "cold_start": 30,
-  "results": 315,
-  "provisional_results": 34
+  "results": 454,
+  "provisional_results": 0
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 132,
+  "official": 3,
   "experimental": 0,
   "oldest": "2026-10-23"
  }
