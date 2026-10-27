@@ -91,6 +91,12 @@ ctx_dead                             1 if <= 10 games left, title and drop zone 
                                      Approximation: Europe spots are not modelled. Match level: ctx_progress
                                      (share of the scheduled games, for playoff formats of the regular season,
                                      played), ctx_dead_n.
+H. Recent form (``shots.features.recent_form``, 2026-10-26; family key ``"form"``)
+-----------------------------------  ------------------------------------------------------------------
+form_res_l3                          team's last-3 mean of (match total - adj_exp_total_shots at the time).
+form_tot_l3 / form_tot_l10           team's last-3 / last-10 mean match total shots (pace and its trend).
+form_goals_l5                        team's last-5 mean goals for + against.
+form_promo                           +1 promoted / -1 relegated this season / 0; NaN without a previous season.
 """
 
 from __future__ import annotations
@@ -106,6 +112,7 @@ import pandas as pd
 from scipy.stats import skellam
 
 from shots.features.adj_ratings import adjusted_ratings, trailing_sums
+from shots.features.recent_form import family_form
 from shots.features.team_form import _day_first, _stat
 
 log = logging.getLogger(__name__)
@@ -602,10 +609,11 @@ def family_context(m: pd.DataFrame, league_sizes: dict | None = None) -> dict[st
 
 # --------------------------------------------------------------------------- driver
 
-FAMILIES = ("adj", "style", "mktx", "sched", "h2h", "ref", "ctx")
+FAMILIES = ("adj", "style", "mktx", "sched", "h2h", "ref", "ctx", "form")
 
 
 PRODUCTION_FAMILIES = ("adj", "h2h", "ctx")   # what the ``fin_c`` model reads (families A, E, G)
+ODDS_CANDIDATE_FAMILIES = ("adj", "h2h", "ctx", "form")   # opt-in odds candidate ``cand_odds_oos`` (2026-10-26)
 
 
 def build_candidates(matches: pd.DataFrame, extras: pd.DataFrame | None = None, params: dict | None = None,
@@ -639,6 +647,8 @@ def build_candidates(matches: pd.DataFrame, extras: pd.DataFrame | None = None, 
         cols.update(family_referee(m, exp_total))
     if "ctx" in fam:
         cols.update(family_context(m, league_sizes))
+    if "form" in fam:
+        cols.update(family_form(m, exp_total))
     out = pd.DataFrame(cols)
     out.insert(0, "match_id", m["match_id"].to_numpy())
     return out

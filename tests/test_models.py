@@ -89,6 +89,18 @@ def synthetic(n_per_season=1500, seed=0, alpha=0.05) -> pd.DataFrame:
     df["h2h_total_shrunk"] = df["adj_exp_total_shots"] + df["h2h_dev_shrunk"]
     df["ctx_progress"] = df["days_since_season_start"].clip(0, 280) / 280
     df["ctx_dead_n"] = df["home_ctx_dead"] + df["away_ctx_dead"]
+    # Candidate family H (recent form; read only by the 2026-10-26 over-shoot candidates). Own random stream,
+    # added last: every column above and the golden hashes are unchanged.
+    r4 = np.random.default_rng(seed + 30_000)
+    df = df.copy()  # de-fragment (values unchanged)
+    for side in ("home", "away"):
+        df[f"{side}_form_res_l3"] = r4.normal(0, 4, n)
+        df[f"{side}_form_tot_l10"] = 2 * lvl * r4.lognormal(0, 0.1, n)
+        df[f"{side}_form_tot_l3"] = df[f"{side}_form_tot_l10"] * r4.lognormal(0, 0.15, n)
+        df[f"{side}_form_goals_l5"] = r4.gamma(6, 0.45, n)
+        df[f"{side}_form_promo"] = np.where(r4.random(n) < 0.1, np.nan, r4.choice([-1.0, 0.0, 0.0, 0.0, 1.0], n))
+        df.loc[r4.random(n) < 0.02, [f"{side}_form_res_l3", f"{side}_form_tot_l3", f"{side}_form_tot_l10",
+                                    f"{side}_form_goals_l5"]] = np.nan
     return df
 
 

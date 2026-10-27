@@ -62,7 +62,7 @@ TOTAL_Z = ("comp", "logmu", "close", "o25", "early")
 # Columns of data/processed/features_candidates.parquet (shots.features.candidates), merged on match_id.
 # Rule 1 (coordinator, 2026-10-15): never ``*_sched_days_to_next`` nor the Champions League ``*_sched_ucl_*``.
 FORBIDDEN = ("sched_days_to_next", "sched_ucl_")
-FAMILIES = ("A", "E", "F", "G", "D", "C", "B")
+FAMILIES = ("A", "E", "F", "G", "D", "C", "B", "H")
 
 
 def _num(rows: pd.DataFrame, col: str) -> pd.Series:
@@ -109,6 +109,18 @@ def family_columns(rows: pd.DataFrame, side: str, fam: str) -> dict[str, pd.Seri
     elif fam == "B":  # style volume proxies
         out["B_corners_s"] = np.log1p(_num(rows, f"{side}_style_corners_for_ewm"))
         out["B_corners_o"] = np.log1p(_num(rows, f"{o}_style_corners_against_ewm"))
+    elif fam == "H":  # recent form (2026-10-26 over-shoot study; shots.features.recent_form)
+        for who, t in (("s", side), ("o", o)):
+            out[f"H_res_{who}"] = _num(rows, f"{t}_form_res_l3").clip(-15, 15)
+            out[f"H_pace_{who}"] = np.log(_num(rows, f"{t}_form_tot_l3").clip(lower=5.0)
+                                          / _num(rows, f"{t}_form_tot_l10").clip(lower=5.0))
+            out[f"H_goals_{who}"] = np.log1p(_num(rows, f"{t}_form_goals_l5"))
+            out[f"H_promo_{who}"] = (_num(rows, f"{t}_form_promo") > 0).astype(float).where(
+                rows[f"{t}_form_promo"].notna())
+        out["H_ldrift"] = _num(rows, "league_level_drift")
+        gap = (_num(rows, "home_adj_att") - _num(rows, "home_adj_def")) - (
+            _num(rows, "away_adj_att") - _num(rows, "away_adj_def"))
+        out["H_absgap"] = gap.abs()
     else:
         raise ValueError(f"unknown family {fam!r}")
     return out
@@ -133,6 +145,9 @@ def family_inputs(families) -> list[str]:
             cols += ["mktx_total_goals", "mktx_abs_gd"]
         elif fam == "B":
             cols += [f"{s}_style_corners_{k}_ewm" for s in SIDES for k in ("for", "against")]
+        elif fam == "H":
+            cols += [f"{s}_form_{k}" for s in SIDES for k in ("res_l3", "tot_l3", "tot_l10", "goals_l5", "promo")]
+            cols += ["league_level_drift"] + [f"{s}_adj_{k}" for s in SIDES for k in ("att", "def")]
     return list(dict.fromkeys(cols))
 
 
@@ -149,6 +164,64 @@ def missing_candidate_inputs(rows: pd.DataFrame, families) -> pd.Series:
     if any(c not in rows.columns for c in cols):
         return pd.Series(True, index=rows.index)
     return rows[cols].isna().any(axis=1)
+
+
+# Out-of-sample correction terms (2026-10-26 over-shoot study). They enter the total as
+#   log mu' = log L + c + b (log mu - log L) + sum_j g_j z_j
+# with (c, b, g) fitted by NB maximum likelihood on the latest training season carved out and scored by a model
+# fitted before it (``FlexNB._fit_shrink``), i.e. on out-of-sample predictions. Reason: these signals predict the
+# out-of-sample residual of the fitted model (non-stationarity, disagreement between the model and the ratings /
+# head to head, recent form) but carry ~0 weight when fitted in-sample as ordinary covariates.
+OOS_TERMS = ("disagree", "h2h", "mom", "pace", "goals", "ldrift", "last3", "dead")
+
+
+def oos_inputs(terms) -> list[str]:
+    cols: list[str] = []
+    for t in terms:
+        cols += {"disagree": ["adj_exp_total_shots"], "h2h": ["h2h_total_shrunk"],
+                 "mom": [f"{s}_form_res_l3" for s in SIDES],
+                 "pace": [f"{s}_form_tot_{w}" for s in SIDES for w in ("l3", "l10")],
+                 "goals": [f"{s}_form_goals_l5" for s in SIDES], "ldrift": ["league_level_drift"],
+                 "last3": [f"{s}_ctx_games_left" for s in SIDES], "dead": ["ctx_dead_n"]}[t]
+    return list(dict.fromkeys(cols))
+
+
+def oos_raw(rows: pd.DataFrame, mu: np.ndarray, term: str) -> np.ndarray:
+    """Raw value of one out-of-sample correction term (NaN where an input is missing). ``mu`` = predicted total."""
+    lmu = np.log(np.asarray(mu, float))
+    if term == "disagree":   # rating expectation vs the model's total
+        return np.log(_num(rows, "adj_exp_total_shots").clip(lower=1.0)).to_numpy() - lmu
+    if term == "h2h":        # head-to-head (shrunk to the rating expectation) vs the model's total
+        return np.log(_num(rows, "h2h_total_shrunk").clip(lower=1.0)).to_numpy() - lmu
+    if term == "mom":        # both teams' last-3 (match total - rating expectation), shots / 10
+        return (pd.concat([_num(rows, f"{s}_form_res_l3") for s in SIDES], axis=1).mean(axis=1) / 10).to_numpy()
+    if term == "pace":       # both teams' log(last-3 / last-10 match totals)
+        v = [np.log(_num(rows, f"{s}_form_tot_l3").clip(lower=5.0) / _num(rows, f"{s}_form_tot_l10").clip(lower=5.0))
+             for s in SIDES]
+        return pd.concat(v, axis=1).mean(axis=1).to_numpy()
+    if term == "goals":      # both teams' last-5 goals for + against
+        return np.log1p(pd.concat([_num(rows, f"{s}_form_goals_l5") for s in SIDES], axis=1).mean(axis=1)).to_numpy()
+    if term == "ldrift":     # season-to-date league level vs previous season (shots per team per match)
+        return _num(rows, "league_level_drift").to_numpy()
+    if term == "last3":      # either team in its last three league matches
+        gl = pd.concat([_num(rows, f"{s}_ctx_games_left") for s in SIDES], axis=1).min(axis=1)
+        return (gl <= 3).astype(float).where(gl.notna()).to_numpy()
+    if term == "dead":       # teams with nothing left to play for
+        return _num(rows, "ctx_dead_n").to_numpy()
+    raise ValueError(f"unknown out-of-sample term {term!r}")
+
+
+# Columns every row of a candidate build has (the out-of-sample terms' form inputs are NaN by design for teams
+# without history and are then filled like any cold start): a NaN here means the fixture is not in the build.
+ODDS_CANDIDATE_REQUIRED = ("adj_exp_total_shots", "h2h_total_shrunk", "home_ctx_gp", "away_ctx_gp")
+
+
+def missing_odds_candidate_inputs(rows: pd.DataFrame) -> pd.Series:
+    """Per row: True when the candidate build has no row for the fixture (stale / failed build, fixture added
+    after it). Such odds fixtures are scored by the production odds model, never median-filled."""
+    if any(c not in rows.columns for c in ODDS_CANDIDATE_REQUIRED):
+        return pd.Series(True, index=rows.index)
+    return rows[list(ODDS_CANDIDATE_REQUIRED)].isna().any(axis=1)
 
 
 class FamilyBlock:
@@ -269,7 +342,7 @@ class FlexNB:
 
     def __init__(self, side_z=(), total: str = "moment", total_z=TOTAL_Z, half_life_days: float | None = None,
                  comp_intercept: bool = False, lam: float = 50.0, lam_z: float = 50.0, rho_tol: float = 0.03,
-                 families=(), shrink: bool = False):
+                 families=(), shrink: bool = False, oos_terms=(), oos_rows: int = 3000):
         assert total in ("moment", "alpha_z", "rho_z")
         self.side_z = tuple(side_z)
         self.total = total
@@ -281,11 +354,16 @@ class FlexNB:
         self.rho_tol = rho_tol
         self.families = tuple(families)
         self.shrink = shrink
+        self.oos_terms = tuple(oos_terms)
+        self.oos_rows = int(oos_rows)
+        assert set(self.oos_terms) <= set(OOS_TERMS), self.oos_terms
 
     def input_columns(self) -> list[str]:
         from shots.models.persist import _negbin_inputs
 
-        return sorted(_negbin_inputs()) + ["competition"] + family_inputs(getattr(self, "families", ()))
+        fam = family_inputs(getattr(self, "families", ()))
+        return (sorted(_negbin_inputs()) + ["competition"] + fam
+                + [c for c in oos_inputs(getattr(self, "oos_terms", ())) if c not in fam])
 
     # ------------------------------------------------------------------ design
     def _X(self, rows: pd.DataFrame, side: str) -> tuple[np.ndarray, np.ndarray]:
@@ -353,7 +431,8 @@ class FlexNB:
             self._fit_rho(tr, mh, ma, yt, w)
         self.prior_fill_ = float(tr["league_prior_shots"].mean())
         self.shrink_ = None
-        if self.shrink:
+        self.oos_ = None
+        if self.shrink or getattr(self, "oos_terms", ()):
             self._fit_shrink(tr)
         return self
 
@@ -371,7 +450,7 @@ class FlexNB:
 
         from shots.models.nbmle import nb_loglik_terms
 
-        inner, held = carve_calibration(tr, 3000)
+        inner, held = carve_calibration(tr, getattr(self, "oos_rows", 3000))
         if held.empty or inner.empty:
             return
         kw = {k: getattr(self, k) for k in ("side_z", "total", "total_z", "half_life_days", "comp_intercept",
@@ -382,13 +461,35 @@ class FlexNB:
         x = np.log(mu) - np.log(L)
         y = held["total_shots"].to_numpy(float)
 
-        def nll(th):
-            return -nb_loglik_terms(y, np.exp(np.log(L) + th[0] + th[1] * x), alpha).mean()
+        terms = tuple(getattr(self, "oos_terms", ()))
+        if not terms:  # shrinkage only (fin_c): unchanged
+            def nll(th):
+                return -nb_loglik_terms(y, np.exp(np.log(L) + th[0] + th[1] * x), alpha).mean()
 
-        th = optimize.minimize(nll, np.array([0.0, 1.0]), method="Nelder-Mead",
-                               options=dict(xatol=1e-6, fatol=1e-10, maxiter=400)).x
-        self.shrink_ = (float(th[0]), float(th[1]))
-        log.info("total shrink toward league level: c=%.4f b=%.3f (n=%d)", th[0], th[1], len(held))
+            th = optimize.minimize(nll, np.array([0.0, 1.0]), method="Nelder-Mead",
+                                   options=dict(xatol=1e-6, fatol=1e-10, maxiter=400)).x
+            self.shrink_ = (float(th[0]), float(th[1]))
+            log.info("total shrink toward league level: c=%.4f b=%.3f (n=%d)", th[0], th[1], len(held))
+            return
+        raw = np.column_stack([oos_raw(held, mu, t) for t in terms])
+        fills = np.array([float(np.nanmedian(c)) if np.isfinite(c).any() else 0.0 for c in raw.T])
+        Z = np.where(np.isfinite(raw), raw, fills)
+        free_b = bool(self.shrink)
+
+        def unpack(th):
+            return th[0], (th[1] if free_b else 1.0), (th[2:] if free_b else th[1:])
+
+        def nll(th):
+            c, b, g = unpack(th)
+            return -nb_loglik_terms(y, np.exp(np.log(L) + c + b * x + Z @ g), alpha).mean()
+
+        th0 = np.concatenate([[0.0], [1.0] if free_b else [], np.zeros(len(terms))])
+        th = optimize.minimize(nll, th0, method="L-BFGS-B").x
+        c, b, g = unpack(th)
+        self.shrink_ = (float(c), float(b))
+        self.oos_ = {"terms": terms, "fills": fills.tolist(), "coef": [float(v) for v in g]}
+        log.info("out-of-sample total correction: c=%.4f b=%.3f %s (n=%d)", c, b,
+                 dict(zip(terms, np.round(g, 4))), len(held))
 
     def _ratio(self, rows, mh, ma) -> np.ndarray | float:
         if not getattr(self, "shrink_", None):
@@ -396,7 +497,13 @@ class FlexNB:
         c, b = self.shrink_
         L = self._level(rows)
         lm = np.log(mh + ma)
-        return np.exp(np.log(L) + c + b * (lm - np.log(L)) - lm)
+        eta = np.log(L) + c + b * (lm - np.log(L)) - lm
+        oos = getattr(self, "oos_", None)
+        if oos:
+            raw = np.column_stack([oos_raw(rows, mh + ma, t) for t in oos["terms"]])
+            Z = np.where(np.isfinite(raw), raw, np.asarray(oos["fills"]))
+            eta = eta + Z @ np.asarray(oos["coef"])
+        return np.exp(eta)
 
     def _fit_rho(self, tr, mh, ma, yt, w):
         from scipy import optimize
@@ -819,6 +926,30 @@ class FinC(CandidatePit):
         return missing_candidate_inputs(rows, cls.families)
 
 
+# ---------------------------------------------------------------------- over-shoot study candidates (2026-10-26)
+# reports/2026-10-26_overshoot_patterns.md. Family H = recent form (shots.features.recent_form).
+
+FIN_H_FAMILIES = ("A", "E", "G", "H")
+
+
+class FinH(FinC):
+    """``cand_fin_h``: ``fin_c`` + family H (recent form: rating-residual momentum, pace trend, goal form, promoted,
+    league drift, rating mismatch). Candidate for the no-odds route; not wired into production."""
+
+    name = "cand_fin_h"
+    base_kw = {**FIN_C_BASE, "families": FIN_H_FAMILIES}
+    families = FIN_H_FAMILIES
+
+
+class FinS(FinC):
+    """``cand_fin_s``: ``fin_c`` + the out-of-sample correction terms ``OOS_TERMS`` fitted jointly with its shrinkage
+    on the carved latest training season. Candidate for the no-odds route; not wired into production."""
+
+    name = "cand_fin_s"
+    base_kw = {**FIN_C_BASE, "oos_terms": OOS_TERMS}
+    families = FIN_C_FAMILIES
+
+
 def _cand(name: str, base_cls, **base_kw) -> type[CandidatePit]:
     return type(f"Cand_{name}", (CandidatePit,), {"name": name, "base_cls": base_cls, "base_kw": base_kw,
                                                     "__module__": __name__})
@@ -843,6 +974,17 @@ CANDIDATES: dict[str, type[CandidatePit]] = {
     # 5. time handling
     "cand_recency": _cand("cand_recency", FlexNB, half_life_days=1460),
     "cand_comp_drift": _cand("cand_comp_drift", FlexNB, comp_intercept=True, half_life_days=1460),
+    # 6. over-shoot study (2026-10-26): odds-route production NB + season context / head to head / recent form
+    "cand_odds_g": _cand("cand_odds_g", FlexNB, families=("G",)),
+    "cand_odds_eg": _cand("cand_odds_eg", FlexNB, families=("E", "G")),
+    "cand_odds_h": _cand("cand_odds_h", FlexNB, families=("H",)),
+    "cand_odds_egh": _cand("cand_odds_egh", FlexNB, families=("E", "G", "H")),
+    "cand_fin_h": FinH,
+    # out-of-sample correction terms (fitted on the carved latest training season), no in-sample families added
+    "cand_odds_s": _cand("cand_odds_s", FlexNB, oos_terms=OOS_TERMS),
+    # the finalist (selected on 2019/20-2022/23): + shrinkage, correction fitted on the latest ~2 seasons (12,000 rows)
+    "cand_odds_oos": _cand("cand_odds_oos", FlexNB, shrink=True, oos_terms=OOS_TERMS, oos_rows=12000),
+    "cand_fin_s": FinS,
 }
 
 # Candidates with a production route (behind a switch in shots.config); registered in shots.models.MODELS.
@@ -853,4 +995,5 @@ for _cls in CANDIDATES.values():
     globals()[_cls.__name__] = _cls
 
 __all__ = ["FlexNB", "JointShare", "GBMNB", "Pool", "CandidatePit", "CANDIDATES", "nb_pmf_fast", "FinC",
-           "PRODUCTION_CANDIDATES", "family_inputs", "missing_candidate_inputs", "FIN_C_BASE"]
+           "PRODUCTION_CANDIDATES", "family_inputs", "missing_candidate_inputs", "FIN_C_BASE", "OOS_TERMS",
+           "oos_inputs", "oos_raw", "missing_odds_candidate_inputs"]

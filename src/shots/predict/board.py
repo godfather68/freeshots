@@ -238,6 +238,8 @@ def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFA
         meta["n_experimental"] = int(board["experimental"].sum())
     if prep.fallback_info is not None:  # candidate no-odds route only (shots.config.NOODDS_MODEL)
         meta["noodds_route"] = prep.fallback_info
+    if prep.odds_info is not None:  # candidate odds route only (shots.config.ODDS_MODEL)
+        meta["odds_route"] = prep.odds_info
     meta_path(out_path).write_text(json.dumps(meta, indent=2), encoding="utf-8")
     log.info("board: %d fixtures (%d with odds) -> %s", len(board), meta["n_with_odds"], out_path)
     prep.check_fallback()  # fail loudly after writing: fallen-back fixtures carry valid production numbers
