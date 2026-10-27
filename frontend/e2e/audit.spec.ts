@@ -61,6 +61,17 @@ for (const scheme of ['light', 'dark'] as const) {
       await audit(page, 'track champions league')
     })
 
+    test('surge watch page and panel row', async ({ page }) => {
+      await boot(page, '#/surge')
+      await expect(page.getByRole('heading', { name: 'Surge Watch', level: 1 })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Upcoming surge candidates' })).toBeVisible()
+      await audit(page, 'surge watch')
+      await page.screenshot({ path: `test-results/surge-${scheme}.png`, fullPage: true })
+      await boot(page, '#/match/fx001')
+      await expect(page.getByRole('region', { name: /Surge signals/ })).toBeVisible()
+      await audit(page, 'surge panel row')
+    })
+
     test('stale data warning', async ({ page }) => {
       await boot(page, '#/', { now: '2026-10-20T10:00:00Z' })
       await expect(page.locator('.statusbar.stale')).toBeVisible()
@@ -90,6 +101,10 @@ test.describe('mobile 380px', () => {
       await noHorizontalScroll(page)
       await audit(page, `mobile results ${scheme}`)
       await page.screenshot({ path: `test-results/mobile-results-${scheme}.png`, fullPage: true })
+      await boot(page, '#/surge')
+      await noHorizontalScroll(page)
+      await audit(page, `mobile surge ${scheme}`)
+      await page.screenshot({ path: `test-results/mobile-surge-${scheme}.png`, fullPage: true })
       await boot(page, '#/track?rec=live', { data: { 'track.json': trackFull } })
       await noHorizontalScroll(page)
       await audit(page, `mobile charts ${scheme}`)

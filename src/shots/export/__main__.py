@@ -1,6 +1,6 @@
 """python -m shots.export --out <dir> [--meta changed|always] [--today YYYY-MM-DD]
 
-Writes meta.json, board.json, results.json and track.json (docs/static-api.md) from the database
+Writes meta.json, board.json, results.json, track.json and surge.json (docs/static-api.md) from the database
 (data/shots.db; SHOTS_DB overrides). Files whose content did not change are left untouched;
 meta.json (the only file with timestamps) is rewritten only when something changed, unless
 --meta always. Exit code 2 when there is nothing to export.

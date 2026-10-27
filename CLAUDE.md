@@ -107,6 +107,12 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
   (label `results-todo`) at noon Paris with up to 20 played, predicted, unsettled matches, ESPN schedule links
   (never fetched by the job: ESPN terms forbid automated collection) and pre-filled CSV rows
   (`python -m shots.results_todo`). A person or Claude, in a session, reads the pages by hand and pushes the rows.
+- **Surge Watch (`#/surge`, added 2026-10-27):** a "surge" = a match ending 5+ shots above our expected total. Signal
+  catalogue from `reports/2026-10-26_overshoot_patterns.json` via `python -m shots.evaluation.surge table` →
+  committed `src/shots/evaluation/surge_signals.json` (`HELD_BACK` keeps a signal visible but unused); per-fixture
+  labels computed in the board build (`shots.predict.surge`), exported as `board.json` `surge` + `data/surge.json`.
+  Never changes a probability. The opt-in odds model "Surge" (`cand_odds_surge`, `SHOTS_ODDS_MODEL`) is separate and
+  not adopted (`reports/2026-10-27_surge_calibration.md`).
 - Web UI (local, server-side rendered): `python -m shots.web` → http://127.0.0.1:8000. Reads the DB through
   `shots.db.repo.Repository` only (never runs a model, no SQL in routes). Access control is by entitlement,
   enforced in the repository queries. Preview config: `.claude/launch.json` (`shots-web`).

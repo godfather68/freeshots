@@ -75,7 +75,13 @@ FACTOR_ORDER = ["home_attack", "away_attack", "home_defence", "away_defence", "h
                 # fin_c (no-odds candidate, shots.models.candidates.FinC): opponent-adjusted ratings, head-to-head,
                 # season context and the pull of the total toward the league level
                 "home_rating_attack", "away_rating_attack", "home_rating_defence", "away_rating_defence",
-                "head_to_head", "season_context", "shrinkage", "other"]
+                "head_to_head", "season_context",
+                # "Surge" (odds-route candidate cand_odds_surge, behind shots.config.ODDS_MODEL): the out-of-sample
+                # correction of the total (season end, head to head, goal run, momentum, ...)
+                "surge", "shrinkage", "other"]
+# Public names of the Surge signals (shots.models.candidates.OOS_TERMS -> signal shown in "Why this number").
+SURGE_SIGNALS = {"last3": "season end", "dead": "season end", "h2h": "head-to-head", "goals": "goal run",
+                 "mom": "momentum", "pace": "momentum", "disagree": "ratings", "ldrift": "league trend"}
 # Team shot-total volatility is deliberately not reported (always null): a team's recent standard
 # deviation of match totals does not predict its future spread (rank correlation of last-10 vs next-10
 # std 0.04, 0.00 once the mean level is controlled for; 92,865 team-matches since 2019). See the report.
@@ -307,11 +313,14 @@ def raw_explain(model, rows: pd.DataFrame) -> pd.DataFrame | None:
     nb = base.nb_
     groups = rows[base.group] if getattr(base, "group", None) else None
     shrink = None
+    surge = None
     if not cross and _is_flex(nb):
         effects, mu0, unshrunk, raw = flex_effects(nb, rows)
         cdf = nb.total_cdf(rows)
         mixture = raw
         shrink = raw - unshrunk
+        if getattr(nb, "oos_", None):
+            shrink, surge = _surge_split(nb, rows, unshrunk)
     elif not cross:
         effects, mu0, raw = glm_effects(nb, rows)
         cdf = np.cumsum(nb.total_pmf(rows), axis=1)
@@ -328,11 +337,32 @@ def raw_explain(model, rows: pd.DataFrame) -> pd.DataFrame | None:
     fx["league_level"] = mu0 - baseline
     if shrink is not None:
         fx["shrinkage"] = shrink
+    if surge is not None:
+        fx["surge"] = surge.sum(axis=1).to_numpy(float)
     fx["calibration"] = expected - mixture
     for name in fx.columns:
         out[f"fx_{name}"] = fx[name].to_numpy(float)
     out["residual"] = out["expected_mean"] - out["baseline"] - fx.sum(axis=1).to_numpy()
+    if surge is not None:  # per-signal parts of fx_surge (text only; not factors of their own)
+        for c in surge.columns:
+            out[f"sg_{c}"] = surge[c].to_numpy(float)
     return out
+
+
+def _surge_split(nb, rows: pd.DataFrame, unshrunk: np.ndarray) -> tuple[np.ndarray, pd.DataFrame]:
+    """Split the total-level factor of a FlexNB with out-of-sample terms into the pull toward the league level and
+    the Surge correction, exactly: raw = unshrunk * exp(s * (eta_shrink + sum_j t_j)). Shrinkage = unshrunk *
+    (exp(s eta_shrink) - 1); Surge = unshrunk * exp(s eta_shrink) * (exp(s sum t) - 1), shared among the terms in
+    proportion to t_j (signal columns of the returned frame, in shots)."""
+    rh, ra = nb._raw_mu(rows, "home"), nb._raw_mu(rows, "away")
+    lam, eta, T = nb.ratio_parts(rows, rh, ra)
+    base = unshrunk * np.exp(lam * eta)
+    shrink = base - unshrunk
+    tot = T.sum(axis=1)
+    surge = base * (np.exp(nb.surge_log(lam, T)) - 1.0)
+    share = np.divide(T, tot[:, None], out=np.zeros_like(T), where=np.abs(tot)[:, None] > 1e-12)
+    parts = pd.DataFrame(surge[:, None] * share, columns=list(nb.oos_["terms"]), index=rows.index)
+    return shrink, parts
 
 
 def _cross_border_effects(model, nb, rows: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
@@ -473,6 +503,8 @@ def _factor_text(fid: str, row: dict, ctx: dict) -> tuple[str, str, str]:
                                          "on average (recent ones count more)")
     if fid == "season_context":
         return "match", "Season context", _context_text(row, home, away)
+    if fid == "surge":
+        return "match", "Surge correction", _surge_text(ctx.get("surge") or {})
     if fid == "shrinkage":
         return "match", "Pull toward league level", ("forecasts far from the league average are pulled back "
                                                      "toward it, as past seasons showed they should be")
@@ -480,6 +512,20 @@ def _factor_text(fid: str, row: dict, ctx: dict) -> tuple[str, str, str]:
         scope = "this league" if ctx["own_calibration"] else "all leagues"
         return "match", "Calibration", f"adjustment from past forecast errors in {scope}"
     return "match", "Smaller factors", "remaining terms of the model"
+
+
+def _surge_text(parts: dict) -> str:
+    """The Surge signals behind the factor, largest first, in shots (one decimal; signals under 0.1 left out)."""
+    by: dict = {}
+    for term, v in parts.items():
+        name = SURGE_SIGNALS.get(term, "other signals")
+        if term == "goals":
+            name = "low-goal run" if v > 0 else "high-goal run"
+        by[name] = by.get(name, 0.0) + v
+    shown = [(k, v) for k, v in sorted(by.items(), key=lambda kv: -abs(kv[1])) if abs(round(v, 1)) >= 0.1]
+    if not shown:
+        return "small corrections from recent form, head to head and season stage"
+    return "; ".join(f"{k} {v:+.1f}" for k, v in shown[:4])
 
 
 def _rating_text(v, verb: str) -> str:
@@ -547,7 +593,8 @@ def explain_rows(model, rows: pd.DataFrame, *, odds_used: bool, league: pd.Serie
         comp = str(row.get("competition"))
         ctx = {"cross": cross, "prior": r["baseline"] / 2.0, "reference": r["baseline"] + r["fx_league_level"],
                "rest_med": design.rest_med_, "n_profiles": getattr(model, "n_profiles", 0),
-               "own_calibration": (not cross) and comp in own_curves}
+               "own_calibration": (not cross) and comp in own_curves,
+               "surge": {c[3:]: float(r[c]) for c in raw.columns if c.startswith("sg_")}}
         e10, b10 = int(round(10 * r["expected_mean"])), int(round(10 * r["baseline"]))
         ranked = sorted(((c[3:], float(r[c])) for c in fx_cols),
                         key=lambda f: (-abs(round(10 * f[1])), _order(f[0]), f[0]))
@@ -589,5 +636,5 @@ def dumps(explanation: dict | None) -> str | None:
     return None if explanation is None else json.dumps(explanation, ensure_ascii=False, separators=(",", ":"))
 
 
-__all__ = ["explain_rows", "raw_explain", "glm_effects", "flex_effects", "shapley_product", "reference_rows", "column_group",
+__all__ = ["SURGE_SIGNALS", "explain_rows", "raw_explain", "glm_effects", "flex_effects", "shapley_product", "reference_rows", "column_group",
            "strength_category", "goals_category", "league_label", "dumps", "supports", "FACTOR_ORDER"]

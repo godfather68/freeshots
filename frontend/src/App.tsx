@@ -11,6 +11,7 @@ import { MatchPage } from './pages/MatchPage'
 import { ResultsPage } from './pages/ResultsPage'
 import { TrackPage } from './pages/TrackPage'
 import { ChecksPage } from './pages/ChecksPage'
+import { SurgePage } from './pages/SurgePage'
 
 function PitchMark() {
   return (
@@ -66,10 +67,10 @@ function Shell({ now }: { now?: number }) {
   const main = useRef<HTMLElement>(null)
   const prevPath = useRef<string | null>(null)
   const path = route.path
-  const here = path === '/' ? 'board' : path.startsWith('/track') ? 'track' : path.startsWith('/results') ? 'results' : path.startsWith('/how') ? 'how' : path.startsWith('/checks') ? 'checks' : path.startsWith('/match') ? 'board' : ''
+  const here = path === '/' ? 'board' : path.startsWith('/track') ? 'track' : path.startsWith('/results') ? 'results' : path.startsWith('/how') ? 'how' : path.startsWith('/checks') ? 'checks' : path.startsWith('/surge') ? 'surge' : path.startsWith('/match') ? 'board' : ''
 
   useEffect(() => {
-    const pageTitle = { board: 'Matches', track: 'Track record', results: 'Results', how: 'How it works', checks: 'My checks', '': 'Page not found' }[here]
+    const pageTitle = { board: 'Matches', track: 'Track record', results: 'Results', surge: 'Surge Watch', how: 'How it works', checks: 'My checks', '': 'Page not found' }[here]
     document.title = `${pageTitle} · Shots board`
     const was = prevPath.current
     prevPath.current = path
@@ -98,6 +99,7 @@ function Shell({ now }: { now?: number }) {
               <li><a href="#/" aria-current={here === 'board' ? 'page' : undefined}>Matches</a></li>
               <li><a href={q('/results')} aria-current={here === 'results' ? 'page' : undefined}>Results</a></li>
               <li><a href={q('/track')} aria-current={here === 'track' ? 'page' : undefined}>Track record</a></li>
+              <li><a href="#/surge" aria-current={here === 'surge' ? 'page' : undefined}>Surge</a></li>
               <li><a href="#/checks" aria-current={here === 'checks' ? 'page' : undefined}>My checks</a></li>
               <li><a href="#/how" aria-current={here === 'how' ? 'page' : undefined}>How it works</a></li>
             </ul>
@@ -115,7 +117,8 @@ function Shell({ now }: { now?: number }) {
           {path === '/results' && <ResultsPage />}
           {path === '/how' && <HowPage />}
           {path === '/checks' && <ChecksPage />}
-          {!(path === '/' || m || path === '/track' || path === '/results' || path === '/how' || path === '/checks') && (
+          {path === '/surge' && <SurgePage />}
+          {!(path === '/' || m || path === '/track' || path === '/results' || path === '/how' || path === '/checks' || path === '/surge') && (
             <div className="page narrow"><div className="card empty"><h1>Page not found</h1><p><a href="#/">Back to the matches</a></p></div></div>
           )}
         </div>

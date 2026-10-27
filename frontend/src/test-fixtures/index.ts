@@ -1,6 +1,6 @@
 // Realistic, deterministic fixtures that follow docs/static-api.md. Used by unit/component tests and by the
 // Playwright audits (served in place of data/*.json). Never shipped: not imported by the app.
-import type { Board, Dataset, Explain, Fixture, Meta, Period, Result, Results, Track, TrackNEntry, TrackRecord } from '../lib/types'
+import type { Board, Dataset, Explain, Fixture, Meta, Period, Result, Results, Surge, SurgeRouteStats, Track, TrackNEntry, TrackRecord } from '../lib/types'
 
 const TOTAL: [number, number] = [10, 45]
 const TEAM: [number, number] = [3, 25]
@@ -245,6 +245,36 @@ export const meta: Meta = {
 }
 
 const fixtures = buildFixtures()
+
+const stats = (n: number, over: number, stated: number, base: number, held: number, applies: boolean): SurgeRouteStats => ({
+  n, over_rate: over, stated_rate: stated, base_rate: base, excess_ci: [Math.round((over - stated - 0.012) * 1e4) / 1e4, Math.round((over - stated + 0.012) * 1e4) / 1e4],
+  seasons_held: held, seasons: 7, applies,
+})
+/** Surge Watch catalogue (docs/static-api.md "data/surge.json"): the research's numbers, abridged. */
+export const surge: Surge = {
+  schema: 1, report_date: '2026-10-26', margin: 5, matches: 49643, period: '2019/20 to 2025/26',
+  method: 'Out of sample: walk-forward predictions of our production models. It is a lean, not a promise.',
+  routes: { odds: { label: 'Scored with odds', base_rate: 0.2142 }, noodds: { label: 'Scored without odds', base_rate: 0.2117 } },
+  signals: [
+    { id: 'dead_rubber', label: 'Nothing to play for', direction: 'boost', explanation: 'Neither team can still reach the title or drop.',
+      routes: { odds: stats(1341, 0.2737, 0.2146, 0.2142, 7, true), noodds: stats(1341, 0.2267, 0.2195, 0.2117, 4, false) } },
+    { id: 'h2h_above', label: 'Head-to-head runs high', direction: 'boost', explanation: 'Earlier meetings averaged 4+ more shots.',
+      routes: { odds: stats(4804, 0.2281, 0.2105, 0.2142, 7, true), noodds: stats(4541, 0.2224, 0.2093, 0.2117, 6, true) } },
+    { id: 'home_mismatch', label: 'Strong home side, weak visitor', direction: 'boost', explanation: 'Home rating far above the visitor.',
+      routes: { odds: stats(5096, 0.2257, 0.2212, 0.2142, 4, false), noodds: stats(5096, 0.2374, 0.2197, 0.2117, 6, true) } },
+    { id: 'winter', label: 'December or January', direction: 'damper', explanation: 'Winter matches surged less often.',
+      routes: { odds: stats(10402, 0.196, 0.2124, 0.2142, 6, true), noodds: stats(10402, 0.1975, 0.2114, 0.2117, 6, true) } },
+  ],
+}
+/** Labels on a few league fixtures: two signals, one signal plus a damper (and an id this client does not know),
+ * assessed with nothing found, and a damper only. */
+const LABELS: Record<string, Fixture['surge']> = {
+  fx001: { signals: ['h2h_above', 'home_mismatch'], against: [] },
+  fx005: { signals: ['h2h_above', 'future_signal'], against: ['winter'] },
+  fx002: { signals: [], against: [] },
+  fx006: { signals: [], against: ['winter'] },
+}
+for (const f of fixtures) if (LABELS[f.id]) f.surge = LABELS[f.id]
 meta.leagues = LEAGUES.map((l) => ({ id: l.id, name: l.name, country: l.country, tier: l.tier, fixtures: fixtures.filter((f) => f.league === l.id).length, ...(l.featured ? { featured: true } : {}) }))
 meta.counts = { fixtures: fixtures.length, with_odds: fixtures.filter((f) => f.odds).length, cold_start: fixtures.filter((f) => f.cold_start).length }
 
@@ -284,10 +314,10 @@ export const trackFull: Track = { schema: 1, records: { ...track.records, live: 
 track.records.experimental = { ...experimentalRec }
 /** The pre-extension contract: no experimental record, no daily or weekly. */
 export const trackLegacy: Track = { schema: 1, records: { backfill: track.records.backfill, live: track.records.live } }
-export const dataset: Dataset = { meta, board, results, track }
+export const dataset: Dataset = { meta, board, results, track, surge }
 
 /** Map a request path to a fixture body, for Playwright route interception. */
 export function fixtureFor(file: string, overrides: Record<string, unknown> = {}): unknown {
   if (file in overrides) return overrides[file]
-  return { 'meta.json': meta, 'board.json': board, 'results.json': results, 'track.json': track }[file] ?? null
+  return { 'meta.json': meta, 'board.json': board, 'results.json': results, 'track.json': track, 'surge.json': surge }[file] ?? null
 }

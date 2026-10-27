@@ -27,6 +27,9 @@ export function HowPage() {
       <h2>Odds and no odds</h2>
       <p>Bookmaker odds sharpen the picture, but most fixtures this far ahead have none published. Those are scored by a separate model trained without odds, and badged <span className="badge mute">no odds</span>. Using the odds model with odds missing would overstate its confidence, so that never happens.</p>
 
+      <h2>Surge Watch</h2>
+      <p>A <em>surge</em> is a match that ends 5 or more shots above our expected total; about 1 match in 5 does, and our curves say as much. The <a href="#/surge">Surge page</a> lists conditions known before kick-off (end of season with nothing at stake, a head-to-head that runs high, low-scoring runs and a few more) under which surges were more common, or less common, than our curve said over about 50,000 past matches checked out of sample. They are a lean, not a promise, and they never change a probability on this site.</p>
+
       <h2>Calibration</h2>
       <p>A model is calibrated when its &ldquo;70%&rdquo; calls come true about 70% of the time. The <a href="#/track">track record</a> checks this on matches the model had not seen. Bounds are whole numbers, so reality tends to land slightly on the safe side of the stated figure.</p>
 

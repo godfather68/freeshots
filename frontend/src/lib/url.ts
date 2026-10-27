@@ -15,6 +15,8 @@ export type PanelTab = (typeof PANEL_TABS)[number]
 export const RECORDS = ['backfill', 'live', 'experimental'] as const
 export type RecordKind = (typeof RECORDS)[number]
 export const OUTCOMES = ['all', 'hit', 'miss', 'near', 'floor'] as const
+/** Surge page: the "at least N signals" filter goes up to this. */
+export const SURGE_MAX_MIN = 3
 export type Outcome = (typeof OUTCOMES)[number]
 
 export interface ViewState {
@@ -35,6 +37,7 @@ export interface ViewState {
   od: string // odds as typed, shareable
   rf: Outcome // results page: hit / miss / floor broken
   rc: boolean // results page: 70%+ calls only
+  ms: number // surge page: minimum number of boost signals (1-3)
 }
 
 export interface Route { path: string; params: URLSearchParams }
@@ -88,6 +91,7 @@ export function parseState(params: URLSearchParams, meta: Pick<Meta, 'thresholds
     od: /^[\d.+\-/]{1,10}$/.test(params.get('od') ?? '') ? (params.get('od') as string) : '',
     rf: oneOf(OUTCOMES, params.get('rf'), 'all'),
     rc: params.get('rc') === '1',
+    ms: clamp(int(params.get('ms'), 1), 1, SURGE_MAX_MIN),
   }
 }
 
@@ -111,5 +115,6 @@ export function stateToParams(s: ViewState, meta: Pick<Meta, 'thresholds'>): Rec
   if (s.od) out.od = s.od
   if (s.rf !== 'all') out.rf = s.rf
   if (s.rc) out.rc = '1'
+  if (s.ms !== 1) out.ms = String(s.ms)
   return out
 }

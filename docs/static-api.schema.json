@@ -46,7 +46,7 @@
                               "market_strength", "market_goals", "home_rest", "away_rest", "home_early", "away_early",
                               "home_standin", "away_standin", "league_level", "calibration",
                               "home_rating_attack", "away_rating_attack", "home_rating_defence", "away_rating_defence",
-                              "head_to_head", "season_context", "shrinkage", "other"]},
+                              "head_to_head", "season_context", "surge", "shrinkage", "other"]},
               "side": {"enum": ["home", "away", "match"]},
               "label": {"type": "string", "minLength": 1, "maxLength": 80},
               "detail": {"type": "string", "minLength": 1, "maxLength": 160},
@@ -72,6 +72,33 @@
                           "type": ["number", "null"]}
           }
         }
+      }
+    },
+    "surge_id": {"type": "string", "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"},
+    "surge_labels": {
+      "description": "Additive (schema 1). Surge Watch: which over-shoot patterns of the research (surge.json) this fixture matches, known before kick-off. Labels only: the fixture's probabilities are unchanged. Present only when the fixture was assessed (domestic, scored by the production model of its route); lists may be empty.",
+      "type": "object", "additionalProperties": false, "required": ["signals", "against"],
+      "properties": {
+        "signals": {"description": "Boost signals (ids of surge.json signals with direction boost) that apply on the fixture's route, catalogue order; at most one season-end signal.",
+                    "type": "array", "items": {"$ref": "#/$defs/surge_id"}, "uniqueItems": true},
+        "against": {"description": "Damper signals (direction damper) that apply on the fixture's route, catalogue order.",
+                    "type": "array", "items": {"$ref": "#/$defs/surge_id"}, "uniqueItems": true}
+      }
+    },
+    "surge_route_stats": {
+      "description": "The research's own numbers for one signal on one route (copied from reports/2026-10-26_overshoot_patterns.json, never recomputed).",
+      "type": "object", "additionalProperties": false,
+      "required": ["n", "over_rate", "stated_rate", "base_rate", "excess_ci", "seasons_held", "seasons", "applies"],
+      "properties": {
+        "n": {"description": "Matches in the segment.", "type": "integer", "minimum": 1},
+        "over_rate": {"description": "Share that ended 5+ shots above our expected total.", "$ref": "#/$defs/probability"},
+        "stated_rate": {"description": "What our own published curves gave for the same event on the same matches.", "$ref": "#/$defs/probability"},
+        "base_rate": {"description": "The same share over all matches of the route ('usual').", "$ref": "#/$defs/probability"},
+        "excess_ci": {"description": "95% interval of over_rate - stated_rate (day-block bootstrap; pooled signals: normal approximation).",
+                      "type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "seasons_held": {"description": "Seasons (with 20+ matches) in which the difference had the signal's direction.", "type": "integer", "minimum": 0},
+        "seasons": {"type": "integer", "minimum": 0},
+        "applies": {"description": "Whether fixtures on this route are labelled with the signal (interval excludes 0 and held in enough seasons).", "type": "boolean"}
       }
     },
     "by_n_entry": {
@@ -264,6 +291,7 @@
               "data_quality": {"description": "Additive (schema 1). Only with experimental: how many of the two clubs had domestic shot data: full = both, partial = one (the other is a neutral stand-in, wider bounds), none = neither. Absent = full for ordinary fixtures.",
                                "enum": ["full", "partial", "none"]},
               "explain": {"$ref": "#/$defs/explain"},
+              "surge": {"$ref": "#/$defs/surge_labels"},
               "team": {
                 "anyOf": [
                   {"type": "null"},
@@ -342,6 +370,45 @@
                      "$ref": "#/$defs/picks_record"},
             "experimental": {"description": "Additive (schema 1). Experimental predictions (cross-border competitions) settled by manual results (v_experimental_picks); never part of the official record.",
                              "$ref": "#/$defs/picks_record"}
+          }
+        }
+      }
+    },
+
+    "surge": {
+      "description": "Additive file (schema 1): the Surge Watch catalogue. A surge = a match that ends `margin`+ shots above our expected total. Copied from the committed table src/shots/evaluation/surge_signals.json (generated from the over-shoot report); deterministic, no timestamp.",
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "report_date", "margin", "matches", "period", "method", "routes", "signals"],
+      "properties": {
+        "schema": {"const": 1},
+        "report_date": {"$ref": "#/$defs/date"},
+        "margin": {"type": "integer", "minimum": 1},
+        "matches": {"type": "integer", "minimum": 1},
+        "period": {"type": "string", "minLength": 1},
+        "method": {"type": "string", "minLength": 1},
+        "routes": {
+          "type": "object", "additionalProperties": false, "required": ["odds", "noodds"],
+          "properties": {
+            "odds": {"type": "object", "additionalProperties": false, "required": ["label", "base_rate"],
+                     "properties": {"label": {"type": "string"}, "base_rate": {"$ref": "#/$defs/probability"}}},
+            "noodds": {"type": "object", "additionalProperties": false, "required": ["label", "base_rate"],
+                       "properties": {"label": {"type": "string"}, "base_rate": {"$ref": "#/$defs/probability"}}}
+          }
+        },
+        "signals": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["id", "label", "direction", "explanation", "routes"],
+            "properties": {
+              "id": {"$ref": "#/$defs/surge_id"},
+              "label": {"type": "string", "minLength": 1, "maxLength": 60},
+              "direction": {"enum": ["boost", "damper"]},
+              "explanation": {"type": "string", "minLength": 1, "maxLength": 400},
+              "routes": {
+                "type": "object", "additionalProperties": false, "required": ["odds", "noodds"],
+                "properties": {"odds": {"$ref": "#/$defs/surge_route_stats"}, "noodds": {"$ref": "#/$defs/surge_route_stats"}}
+              }
+            }
           }
         }
       }

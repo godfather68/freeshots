@@ -1,0 +1,397 @@
+{
+ "report": "reports/2026-10-26_overshoot_patterns.md",
+ "report_date": "2026-10-26",
+ "margin": 5,
+ "matches": 49643,
+ "period": "2019/20 to 2025/26",
+ "method": "Out of sample: walk-forward predictions of our production models, refitted every month on earlier matches only, 2019/20 to 2025/26, 21 domestic leagues. 'Usual' is the share of all matches on that route that ended 5+ shots above our expected total; 'our curve' is what our own published curves gave for the same matches. Every condition is known before kick-off. A signal is used only on a route where its difference from our curve has a 95% interval that excludes zero and held in at least 5 of the 7 seasons. It is a lean, not a promise: probabilities on the site are unchanged. A match carries at most one of the three season-end signals (the strongest that applies).",
+ "min_seasons_held": 5,
+ "route_models": {
+  "odds": "negbin_pit_comp",
+  "noodds": "fin_c-noodds"
+ },
+ "routes": {
+  "odds": {
+   "label": "Scored with odds",
+   "base_rate": 0.2142
+  },
+  "noodds": {
+   "label": "Scored without odds",
+   "base_rate": 0.2117
+  }
+ },
+ "competitions": [
+  "Belgium Pro League",
+  "England Championship",
+  "England League One",
+  "England League Two",
+  "England Premier League",
+  "France Ligue 1",
+  "France Ligue 2",
+  "Germany 2. Bundesliga",
+  "Germany Bundesliga",
+  "Greece Super League",
+  "Italy Serie A",
+  "Italy Serie B",
+  "Netherlands Eredivisie",
+  "Portugal Primeira Liga",
+  "Scotland Championship",
+  "Scotland League One",
+  "Scotland League Two",
+  "Scotland Premiership",
+  "Spain La Liga",
+  "Spain Segunda Division",
+  "Turkey Super Lig"
+ ],
+ "cuts": {
+  "goals_l5_q20": 4.2,
+  "rating_gap_q90": 0.432788,
+  "res_l3_q20": -2.048722,
+  "res_l3_q80": 1.806277
+ },
+ "signals": [
+  {
+   "id": "dead_rubber",
+   "label": "Nothing to play for",
+   "direction": "boost",
+   "group": "season_end",
+   "explanation": "Neither team can still reach the title or drop into the relegation places, with 10 or fewer league games left. Matches with nothing at stake have ended 5+ shots above our expected total more often than our curve said.",
+   "segments": [
+    "dead rubber (both teams nothing to play for)"
+   ],
+   "routes": {
+    "odds": {
+     "n": 1341,
+     "over_rate": 0.2737,
+     "stated_rate": 0.2146,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      0.0332,
+      0.0824
+     ],
+     "seasons_held": 7,
+     "seasons": 7,
+     "applies": true
+    },
+    "noodds": {
+     "n": 1341,
+     "over_rate": 0.2267,
+     "stated_rate": 0.2195,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      -0.0165,
+      0.0284
+     ],
+     "seasons_held": 4,
+     "seasons": 7,
+     "applies": false
+    }
+   }
+  },
+  {
+   "id": "dead_team",
+   "label": "One side with nothing to play for",
+   "direction": "boost",
+   "group": "season_end",
+   "explanation": "One of the two teams can no longer reach the title or the relegation places, with 10 or fewer league games left.",
+   "segments": [
+    "one dead team"
+   ],
+   "routes": {
+    "odds": {
+     "n": 2575,
+     "over_rate": 0.2563,
+     "stated_rate": 0.216,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      0.0249,
+      0.0558
+     ],
+     "seasons_held": 7,
+     "seasons": 7,
+     "applies": true
+    },
+    "noodds": {
+     "n": 2575,
+     "over_rate": 0.2346,
+     "stated_rate": 0.2175,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      0.002,
+      0.0321
+     ],
+     "seasons_held": 6,
+     "seasons": 7,
+     "applies": true
+    }
+   }
+  },
+  {
+   "id": "last_three",
+   "label": "Last three league games",
+   "direction": "boost",
+   "group": "season_end",
+   "explanation": "At least one of the teams is playing one of its last three league matches of the season.",
+   "segments": [
+    "last 3 matches (either team)"
+   ],
+   "routes": {
+    "odds": {
+     "n": 3418,
+     "over_rate": 0.2639,
+     "stated_rate": 0.215,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      0.0345,
+      0.0637
+     ],
+     "seasons_held": 7,
+     "seasons": 7,
+     "applies": true
+    },
+    "noodds": {
+     "n": 3418,
+     "over_rate": 0.2338,
+     "stated_rate": 0.2176,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      0.0022,
+      0.0297
+     ],
+     "seasons_held": 6,
+     "seasons": 7,
+     "applies": true
+    }
+   }
+  },
+  {
+   "id": "h2h_above",
+   "label": "Head-to-head runs high",
+   "direction": "boost",
+   "group": null,
+   "explanation": "Earlier meetings of these two clubs averaged at least 4 more shots than our expected total for this one (recent meetings count more).",
+   "segments": [
+    "h2h mean total - our expected: [4, 99)"
+   ],
+   "routes": {
+    "odds": {
+     "n": 4804,
+     "over_rate": 0.2281,
+     "stated_rate": 0.2105,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      0.0064,
+      0.0295
+     ],
+     "seasons_held": 7,
+     "seasons": 7,
+     "applies": true
+    },
+    "noodds": {
+     "n": 4541,
+     "over_rate": 0.2224,
+     "stated_rate": 0.2093,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      0.001,
+      0.0246
+     ],
+     "seasons_held": 6,
+     "seasons": 7,
+     "applies": true
+    }
+   }
+  },
+  {
+   "id": "low_goal_run",
+   "label": "Both in a low-scoring run",
+   "direction": "boost",
+   "group": null,
+   "explanation": "Both teams' last five matches were low-scoring (bottom fifth). With ordinary shot volume, low-scoring runs have meant more shooting, not less.",
+   "segments": [
+    "goals in both teams' last 5 (for + against): Q1"
+   ],
+   "routes": {
+    "odds": {
+     "n": 7570,
+     "over_rate": 0.22,
+     "stated_rate": 0.2042,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      0.007,
+      0.0251
+     ],
+     "seasons_held": 7,
+     "seasons": 7,
+     "applies": true
+    },
+    "noodds": {
+     "n": 7570,
+     "over_rate": 0.2143,
+     "stated_rate": 0.2038,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      0.0014,
+      0.0195
+     ],
+     "seasons_held": 6,
+     "seasons": 7,
+     "applies": true
+    }
+   }
+  },
+  {
+   "id": "beating_ratings",
+   "label": "Recent games above ratings",
+   "direction": "boost",
+   "group": null,
+   "explanation": "The two teams' last three matches averaged more shots than their opponent-adjusted ratings expected (top fifth).",
+   "segments": [
+    "rating-residual momentum (total - EKF exp), last 3: Q5"
+   ],
+   "routes": {
+    "odds": {
+     "n": 10148,
+     "over_rate": 0.2224,
+     "stated_rate": 0.2169,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      -0.003,
+      0.0138
+     ],
+     "seasons_held": 4,
+     "seasons": 7,
+     "applies": false
+    },
+    "noodds": {
+     "n": 10148,
+     "over_rate": 0.2272,
+     "stated_rate": 0.2153,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      0.0035,
+      0.0199
+     ],
+     "seasons_held": 5,
+     "seasons": 7,
+     "applies": false
+    }
+   }
+  },
+  {
+   "id": "home_mismatch",
+   "label": "Strong home side, weak visitor",
+   "direction": "boost",
+   "group": null,
+   "explanation": "The home team's rating is far above the visitor's (top tenth of rating gaps).",
+   "segments": [
+    "strong home vs weak away (rating gap top decile, home better)"
+   ],
+   "routes": {
+    "odds": {
+     "n": 5096,
+     "over_rate": 0.2257,
+     "stated_rate": 0.2212,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      -0.0061,
+      0.0156
+     ],
+     "seasons_held": 4,
+     "seasons": 7,
+     "applies": false
+    },
+    "noodds": {
+     "n": 5096,
+     "over_rate": 0.2374,
+     "stated_rate": 0.2197,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      0.0062,
+      0.0292
+     ],
+     "seasons_held": 6,
+     "seasons": 7,
+     "applies": true
+    }
+   }
+  },
+  {
+   "id": "winter",
+   "label": "December or January",
+   "direction": "damper",
+   "group": null,
+   "explanation": "Matches in December and January have ended 5+ shots above our expected total less often than our curve said.",
+   "segments": [
+    "month: 12",
+    "month: 01"
+   ],
+   "routes": {
+    "odds": {
+     "n": 10402,
+     "over_rate": 0.196,
+     "stated_rate": 0.2124,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      -0.0247,
+      -0.0081
+     ],
+     "seasons_held": 6,
+     "seasons": 7,
+     "applies": true
+    },
+    "noodds": {
+     "n": 10402,
+     "over_rate": 0.1975,
+     "stated_rate": 0.2114,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      -0.0229,
+      -0.005
+     ],
+     "seasons_held": 6,
+     "seasons": 7,
+     "applies": true
+    }
+   }
+  },
+  {
+   "id": "below_ratings",
+   "label": "Recent games below ratings",
+   "direction": "damper",
+   "group": null,
+   "explanation": "The two teams' last three matches averaged fewer shots than their opponent-adjusted ratings expected (bottom fifth).",
+   "segments": [
+    "rating-residual momentum (total - EKF exp), last 3: Q1"
+   ],
+   "routes": {
+    "odds": {
+     "n": 10120,
+     "over_rate": 0.2033,
+     "stated_rate": 0.2111,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      -0.0157,
+      0.0004
+     ],
+     "seasons_held": 7,
+     "seasons": 7,
+     "applies": false
+    },
+    "noodds": {
+     "n": 10120,
+     "over_rate": 0.1919,
+     "stated_rate": 0.2106,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      -0.0264,
+      -0.0103
+     ],
+     "seasons_held": 7,
+     "seasons": 7,
+     "applies": true
+    }
+   }
+  }
+ ]
+}

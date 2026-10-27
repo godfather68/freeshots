@@ -267,7 +267,7 @@ def test_manual_results_do_not_move_domestic_baselines_or_the_incremental_window
 def export_at(engine, out, today):
     built = datetime.combine(today, datetime.min.time()).replace(hour=9, tzinfo=timezone.utc)
     export(out, Repository(engine), built_at=built)
-    return {n: json.loads((out / f"{n}.json").read_text(encoding="utf-8")) for n in ("meta", "board", "results", "track")}
+    return {n: json.loads((out / f"{n}.json").read_text(encoding="utf-8")) for n in ("meta", "board", "results", "track", "surge")}
 
 
 def test_export_publishes_experimental_results_and_record(seeded, tmp_path, migrated_db):

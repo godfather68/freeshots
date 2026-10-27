@@ -38,7 +38,7 @@ from tests.test_web_team import with_team
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = json.loads((ROOT / "docs" / "static-api.schema.json").read_text(encoding="utf-8"))
-NAMES = ("meta", "board", "results", "track")
+NAMES = ("meta", "board", "results", "track", "surge")
 
 # Predictions are official only when inserted (DB clock) before kick-off, so every match is in the
 # future when it is predicted; results are loaded afterwards and the export is taken "as of" EXPORT_DAY.
@@ -190,7 +190,9 @@ def test_results_use_the_official_rule(seeded, tmp_path):
     assert res[0]["expected"] == 24 and res[0]["actual"]["total"] == 19  # M2: board 3 was still pre-match (22 + 2)
     assert m1["league"] == "spain-la-liga" and m1["odds"] is False and len(m1["curve"]) == 36
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", m1["predicted_at"])
-    assert abs(datetime.fromisoformat(m1["predicted_at"][:-1]) - NOW) < timedelta(minutes=10)  # the insert time
+    # the insert time, not the board's claimed build time (days later); NOW is taken at import, so a long suite run
+    # can put the insert well after it: allow hours, still far from any build time
+    assert abs(datetime.fromisoformat(m1["predicted_at"][:-1]) - NOW) < timedelta(hours=3)
     assert list(m1) == ["id", "league", "date", "home", "away", "actual", "predicted_at", "expected", "lb", "odds", "curve",
                         "result_source", "result_status"]
     assert m1["result_source"] == "football-data" and m1["result_status"] == "confirmed" and "source_url" not in m1 and "experimental" not in m1
@@ -217,7 +219,11 @@ def test_no_odds_values_or_source_columns_are_published(seeded, tmp_path):
                "brier_baseline", "reliability", "band", "stated", "realised", "by_league", "settled", "pending", "void",
                "22", "24", "result_source", "experimental", "daily", "weekly", "matches", "mae", "bias",
                "floor80_held", "picks", "result_status", "provisional", "provisional_results",
-               "awaiting_results", "official", "oldest"}
+               "awaiting_results", "official", "oldest",
+               # surge.json (Surge Watch catalogue) and a fixture's `surge` labels
+               "report_date", "margin", "period", "method", "routes", "noodds", "base_rate", "signals", "direction",
+               "explanation", "over_rate", "stated_rate", "excess_ci", "seasons_held", "seasons", "applies",
+               "surge", "against"}
 
     def keys(obj):
         if isinstance(obj, dict):
@@ -351,7 +357,7 @@ def test_verifier_agrees_with_the_export(seeded, tmp_path, migrated_db):
     assert res["checked"] == {"board fixtures": 3, "results": 2, "track live thresholds": 1, "track backfill thresholds": 2,
                               "track live daily": 2, "track live weekly": res["checked"]["track live weekly"],
                               "track experimental thresholds": 0, "track experimental daily": 0,
-                              "track experimental weekly": 0}
+                              "track experimental weekly": 0, "surge signals": 9, "surge labelled fixtures": 0}
     with pytest.raises(SystemExit) as exc:
         verify_mod.main(["--dir", str(tmp_path / "out"), "--db", str(migrated_db)])
     assert exc.value.code == 0

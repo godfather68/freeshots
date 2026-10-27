@@ -345,7 +345,7 @@ def test_provisional_results_do_not_move_baselines_or_the_incremental_window(see
 def export_at(engine, out, today):
     built = datetime.combine(today, datetime.min.time()).replace(hour=9, tzinfo=timezone.utc)
     export(out, Repository(engine), built_at=built)
-    return {n: json.loads((out / f"{n}.json").read_text(encoding="utf-8")) for n in ("meta", "board", "results", "track")}
+    return {n: json.loads((out / f"{n}.json").read_text(encoding="utf-8")) for n in ("meta", "board", "results", "track", "surge")}
 
 
 def test_export_flags_provisional_results_and_counts_them(seeded, tmp_path, migrated_db):

@@ -27,9 +27,9 @@ the step fails after writing its output when more than ``config.FALLBACK_MAX_SHA
 no-odds fixtures fell back). The odds route and the cross-border route keep the production models.
 
 Candidate odds model (switch ``shots.config.ODDS_MODEL``, default off; reports/2026-10-26_overshoot_patterns.md):
-with ``"cand_odds_oos"`` the same candidate build (plus the recent-form family) scores the domestic fixtures WITH
+with ``"cand_odds_surge"`` ("Surge") the same candidate build (plus the recent-form family) scores the domestic fixtures WITH
 odds; a fixture missing from the build falls back to the production odds model (counted in ``odds_route`` of
-board.meta.json, same failure rule). Saved as ``models_store/cand_odds_oos-odds_<date>``.
+board.meta.json, same failure rule). Saved as ``models_store/<name>-odds_<date>``.
 """
 
 from __future__ import annotations

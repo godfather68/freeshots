@@ -41,7 +41,7 @@ def prod_noodds(monkeypatch):
 
 @pytest.fixture
 def odds_switch(stub_models, prod_noodds, monkeypatch):  # noqa: F811
-    monkeypatch.setenv("SHOTS_ODDS_MODEL", "cand_odds_oos")
+    monkeypatch.setenv("SHOTS_ODDS_MODEL", "cand_odds_surge")
     monkeypatch.setattr(sc, "latest_candidate_odds_model",
                         lambda name, played, age: (HintModel(+4.0, team=True), f"{name}-odds_x"))
     return stub_models
@@ -69,7 +69,7 @@ def test_switch_defaults_to_production(monkeypatch):
     monkeypatch.setenv("SHOTS_ODDS_MODEL", "nope")
     with pytest.raises(ValueError):
         config.odds_model()
-    assert "cand_odds_oos" in MODELS and all(n in MODELS for n in config.CANDIDATE_ODDS_MODELS)
+    assert "cand_odds_surge" in MODELS and "cand_odds_oos" in MODELS and all(n in MODELS for n in config.CANDIDATE_ODDS_MODELS)
 
 
 def test_switch_off_keeps_production_odds_routing(stub_models, prod_noodds, monkeypatch):  # noqa: F811
@@ -82,11 +82,11 @@ def test_switch_off_keeps_production_odds_routing(stub_models, prod_noodds, monk
 def test_complete_build_routes_odds_fixtures_to_the_candidate(odds_switch, monkeypatch):
     prep, odds_ids = _prepare(monkeypatch, frame=_frame)
     routed = _routed(prep)
-    assert routed["cand_odds_oos-odds_x"] == odds_ids
+    assert routed["cand_odds_surge-odds_x"] == odds_ids
     assert "negbin_pit_comp_2026-10-01" not in routed
     assert any(lab == "noodds_label" for lab in routed)                       # no-odds route unchanged
     assert all(lab.startswith("noodds_label-") for lab in routed
-               if lab not in ("cand_odds_oos-odds_x", "noodds_label"))       # cross-border unchanged
+               if lab not in ("cand_odds_surge-odds_x", "noodds_label"))       # cross-border unchanged
     assert prep.odds_info["n_odds"] == 2 and prep.odds_info["n_fallback"] == 0
     prep.check_fallback()
 
@@ -97,7 +97,7 @@ def test_fixture_missing_from_the_build_falls_back_to_production(odds_switch, mo
     prep, _ = _prepare(monkeypatch, frame=lambda ids: _frame(ids, drop=[gone]))
     routed = _routed(prep)
     assert routed["negbin_pit_comp_2026-10-01"] == {gone}
-    assert routed["cand_odds_oos-odds_x"] == odds_ids - {gone}
+    assert routed["cand_odds_surge-odds_x"] == odds_ids - {gone}
     assert prep.odds_info["n_fallback"] == 1
     with pytest.raises(sc.CandidateFallbackError, match="odds fixtures"):
         prep.check_fallback()
@@ -112,7 +112,7 @@ def test_failed_build_scores_every_odds_fixture_with_production(odds_switch, mon
 
 
 def test_one_build_serves_both_candidate_routes(monkeypatch):
-    monkeypatch.setenv("SHOTS_ODDS_MODEL", "cand_odds_oos")
+    monkeypatch.setenv("SHOTS_ODDS_MODEL", "cand_odds_surge")
     monkeypatch.setenv("SHOTS_NOODDS_MODEL", "fin_c")
     assert sc.candidate_families() == ("adj", "h2h", "ctx", "form")
     monkeypatch.setenv("SHOTS_ODDS_MODEL", "negbin_pit_comp")

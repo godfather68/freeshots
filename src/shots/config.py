@@ -17,11 +17,13 @@ Evidence and the exact user-visible changes: reports/2026-10-16_fin_c_adoption.m
 
 ``ODDS_MODEL``
     Model of the ODDS route (domestic fixtures with published odds). ``"negbin_pit_comp"`` = production.
-    ``"cand_odds_oos"`` = opt-in candidate, NOT adopted (reports/2026-10-26_overshoot_patterns.md): the production
-    NB + an out-of-sample correction of the total (season end, head to head, rating disagreement, recent form,
-    goal form, league drift; ``shots.models.candidates.OOS_TERMS``). With it, the update builds the candidate
-    features (families A/E/G + recent form) once per run, odds fixtures whose candidate rows are missing fall back
-    to the production odds model (same ``FALLBACK_MAX_SHARE`` rule, reported as ``odds_route`` in board.meta.json).
+    ``"cand_odds_surge"`` = "Surge", opt-in candidate, NOT adopted (reports/2026-10-26_overshoot_patterns.md,
+    reports/2026-10-27_surge_calibration.md): the production NB + an out-of-sample correction of the total (season
+    end, head to head, rating disagreement, recent form, goal form, league drift; ``shots.models.candidates.OOS_TERMS``),
+    damped to 40%. ``"cand_odds_oos"`` = the undamped first version (kept for reproducibility). With either, the
+    update builds the candidate features (families A/E/G + recent form) once per run, odds fixtures whose candidate
+    rows are missing fall back to the production odds model (same ``FALLBACK_MAX_SHARE`` rule, reported as
+    ``odds_route`` in board.meta.json).
 
 Environment overrides (dry runs, tests): ``SHOTS_NOODDS_MODEL``, ``SHOTS_ODDS_MODEL`` and ``SHOTS_MEDIAN_FROM_CURVE``
 (``1`` / ``0``).
@@ -40,8 +42,8 @@ MEDIAN_FROM_CURVE = True           # adopted 2026-10-20 (user approval)
 
 FALLBACK_MAX_SHARE = 0.02          # fin_c route: share of non-cold-start no-odds fixtures allowed to fall back
 CANDIDATE_NOODDS_MODELS = ("fin_c",)
-ODDS_MODEL = "negbin_pit_comp"     # production; opt-in candidate "cand_odds_oos" (2026-10-26), not adopted
-CANDIDATE_ODDS_MODELS = ("cand_odds_oos",)
+ODDS_MODEL = "negbin_pit_comp"     # production; opt-in candidate "cand_odds_surge" ("Surge"), not adopted
+CANDIDATE_ODDS_MODELS = ("cand_odds_surge", "cand_odds_oos")
 
 
 def noodds_model() -> str:

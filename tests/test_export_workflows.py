@@ -291,7 +291,7 @@ def test_audit_branch_is_append_only(update):
     commit = next(s for _, s in steps(update) if s["name"].startswith("Commit the data branch"))
     assert "git diff --cached --quiet" in commit["run"]  # commit only when something changed
     assert "github-actions[bot]" in commit["run"]
-    assert "git add -- README.md data/meta.json data/board.json data/results.json data/track.json" in commit["run"]
+    assert "git add -- README.md data/meta.json data/board.json data/results.json data/track.json data/surge.json" in commit["run"]
     assert "git add -A" not in text and "git add ." not in text
 
 

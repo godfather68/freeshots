@@ -626,3 +626,42 @@ table.checks td, table.checks th { font-variant-numeric: tabular-nums; }
 .trend .dotlabel { font-size: 12px; font-weight: 800; font-family: var(--font); fill: var(--fg); }
 .smallnote { max-width: 66ch; }
 @media (max-width: 520px) { .rstats { grid-template-columns: 1fr 1fr; } .ractual b { font-size: 1.7rem; } }
+
+/* ---------- surge watch */
+.scaveat { max-width: 72ch; margin: .6rem 0 1rem; padding: .55rem .8rem; border-left: .3rem solid var(--gold); background: var(--gold-soft); border-radius: 0 var(--r1) var(--r1) 0; font-size: .92rem; }
+.surge section { margin: 1.2rem 0; }
+.surge section > h2 { font-size: 1.3rem; }
+.sgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); gap: .75rem; }
+.scard { display: flex; flex-direction: column; gap: .35rem; min-width: 0; border-top: .25rem solid var(--grass); }
+.scard.damper { border-top: .25rem dashed var(--away); }
+.scard .stitle { margin: 0; font-size: 1.02rem; text-transform: none; letter-spacing: 0; color: var(--fg); font-weight: 800; }
+.scard.boost .stitle span { color: var(--grass); } .scard.damper .stitle span { color: var(--away); }
+.sexpl { margin: 0; font-size: .88rem; color: var(--mut); }
+.sroute { border-top: 1px solid var(--bd); padding-top: .4rem; }
+.sroute .hint { margin: .2rem 0 0; }
+.shead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .1rem .6rem; margin: 0; }
+.shead .rname { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--mut); }
+.shead strong { font-size: 1.35rem; font-stretch: 82%; font-weight: 800; }
+.sbar { display: grid; gap: .25rem; margin-top: .3rem; }
+.sbar .row { display: grid; grid-template-columns: minmax(0, 1fr) 7.2rem; align-items: center; gap: .5rem; min-width: 0; }
+.sbar .track { display: block; min-width: 0; }
+.sbar i { display: block; height: .7rem; border-radius: 999px; min-width: 2px; }
+.sbar i.real { background: var(--grass-2); }
+.scard.damper .sbar i.real { background: var(--away); }
+.sbar i.curve { background: repeating-linear-gradient(135deg, var(--lo-fill) 0 3px, transparent 3px 6px); border: 1px solid var(--lo-fill); box-sizing: border-box; }
+.sbar em { font-style: normal; font-size: .78rem; color: var(--mut); white-space: nowrap; }
+.snot { border-top: 1px solid var(--bd); padding-top: .4rem; margin: 0; }
+.schips { list-style: none; display: flex; flex-wrap: wrap; gap: .3rem; margin: .45rem 0 0; padding: 0; }
+.schip { display: inline-flex; align-items: center; gap: .25rem; font-size: .76rem; font-weight: 700; line-height: 1.5; padding: 0 .5rem; border-radius: 999px; }
+.schip.boost { color: var(--hi-fg); background: var(--hi-bg); border: 1px solid var(--grass); }
+.schip.damper { color: var(--fg); background: var(--surface); border: 1px dashed var(--away); }
+.schip.damper span[aria-hidden] { color: var(--away); }
+.scount { margin: 0; text-align: right; line-height: 1.1; flex: none; display: flex; flex-direction: column; align-items: flex-end; }
+.scount b { font-size: 1.7rem; font-stretch: 80%; font-weight: 800; color: var(--grass); }
+.scount span { font-size: .72rem; color: var(--mut); }
+.sko { font-size: .82rem; color: var(--mut); }
+.srow { border: 1px solid var(--bd); border-radius: var(--r1); background: var(--surface-2); padding: .6rem .75rem; min-width: 0; }
+.surgerow { margin: .9rem 0 .2rem; }
+.surgerow h3 { margin-top: .4rem; }
+.surgerow .hint { margin: .35rem 0 0; }
+@media (max-width: 420px) { .shead strong { font-size: 1.2rem; } }

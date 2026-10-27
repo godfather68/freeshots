@@ -191,6 +191,18 @@ def assemble(prep: sc.Prepared, info: pd.DataFrame, ns=NS) -> pd.DataFrame:
     return out.sort_values(["date", "kickoff", "competition", "home_team"]).reset_index(drop=True)
 
 
+def _surge(board: pd.DataFrame, matches: pd.DataFrame, fixtures: pd.DataFrame) -> dict | None:
+    """Surge Watch signals per fixture (shots.predict.surge) for board.meta.json. An add-on: a failure is logged
+    and the board is published without them; no prediction column is read back or changed."""
+    from shots.predict import surge as sg
+
+    try:
+        return sg.board_surge(board, matches, fixtures)
+    except Exception:  # noqa: BLE001 - labels are an add-on; predictions must still be published
+        log.exception("surge signals failed; the board is published without them")
+        return None
+
+
 def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFAULT_MODEL,
           today: date | None = None, out_path: Path | None = None, max_model_age_days: int = 30) -> pd.DataFrame:
     today = today or date.today()
@@ -210,6 +222,7 @@ def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFA
     board = sc.published(assemble(prep, info))
     if board.empty:
         raise SystemExit("no upcoming fixtures in published competitions")
+    surge = _surge(board, matches, fixtures)  # Surge Watch labels (board meta only; predictions untouched)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = out_path.with_suffix(".tmp")
@@ -240,6 +253,8 @@ def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFA
         meta["noodds_route"] = prep.fallback_info
     if prep.odds_info is not None:  # candidate odds route only (shots.config.ODDS_MODEL)
         meta["odds_route"] = prep.odds_info
+    if surge is not None:
+        meta["surge"] = surge
     meta_path(out_path).write_text(json.dumps(meta, indent=2), encoding="utf-8")
     log.info("board: %d fixtures (%d with odds) -> %s", len(board), meta["n_with_odds"], out_path)
     prep.check_fallback()  # fail loudly after writing: fallen-back fixtures carry valid production numbers

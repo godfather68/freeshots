@@ -1,5 +1,10 @@
 # Over-shoot patterns: which matches beat our expected shots by 5+ (2026-10-26)
 
+> **Update 2026-10-27:** the over-confident top band of `cand_odds_oos` (section 5b) is fixed by damping the
+> correction to 40%. The result is the candidate "Surge" (`cand_odds_surge`): RPS -0.0082 [-0.0094, -0.0068] vs
+> production, 70%+ calls hit 75.5% vs 75.4%. It has its own explanation factor. See
+> `reports/2026-10-27_surge_calibration.md`. Switch still off.
+
 Author: modeler. Question from the user: "find common patterns in the fixtures that exceeded the expected shots by
 5 or 6 shots, use them as potential features, highlight the patterns that would help exceed the shot count".
 

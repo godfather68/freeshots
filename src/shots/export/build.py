@@ -1,4 +1,5 @@
-"""Build the four export documents (plain dicts) from the repository. No file access here.
+"""Build the export documents (plain dicts) from the repository. No file access here, except the committed Surge
+Watch catalogue (shots.evaluation.surge, versioned with the code).
 
 Field names and shapes are the contract in docs/static-api.md; do not change them without bumping
 SCHEMA_VERSION there. Values are the database's own (probabilities rounded to 4 decimals, never
@@ -8,6 +9,7 @@ than being published or silently repaired.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 from datetime import date, datetime, timedelta, timezone
@@ -17,9 +19,12 @@ import pandas as pd
 from shots.db.access import FULL_ACCESS
 from shots.db.repo import Repository
 from shots.db.text import fold
+from shots.evaluation import surge as sv
 from shots.ingest.cross_border import BY_NAME as CROSS_BORDER
 
 FEATURED = frozenset(CROSS_BORDER)  # competitions the site pins first (meta.leagues[].featured)
+
+log = logging.getLogger("shots.export")
 
 SCHEMA_VERSION = 1
 DEFAULT_TOTAL = 24  # default thresholds of the UI sliders (same as the server-rendered app)
@@ -129,11 +134,13 @@ def _explain(src: dict, what: str) -> dict:
 
 # ----------------------------------------------------------------------------- board / results
 
-def build_board(repo: Repository, today: date) -> tuple[dict, dict]:
-    """-> (board.json document, the repository's board_export dict)."""
+def build_board(repo: Repository, today: date, table: dict | None = None) -> tuple[dict, dict]:
+    """-> (board.json document, the repository's board_export dict). table: the Surge Watch catalogue
+    (default: the committed one) that a fixture's `surge` labels are checked against."""
     src = repo.board_export(today, FULL_ACCESS)
     if src is None:
         raise ExportError("no board run in the database")
+    surge = _surge_labels(repo, src, table or sv.load_table())
     has_team = src["team_n_min"] is not None
     fixtures = []
     for r in src["rows"]:
@@ -169,7 +176,75 @@ def build_board(repo: Repository, today: date) -> tuple[dict, dict]:
             fixtures[-1]["experimental"] = True
             if r.get("data_quality") in DATA_QUALITY:  # unknown quality is left out, never reported as "full"
                 fixtures[-1]["data_quality"] = r["data_quality"]
+        if r["match_id"] in surge:  # additive; absent when the fixture was not assessed (see _surge_labels)
+            fixtures[-1]["surge"] = surge[r["match_id"]](bool(r["odds"]), what)
     return {"schema": SCHEMA_VERSION, "fixtures": fixtures}, src
+
+
+# ----------------------------------------------------------------------------- Surge Watch
+
+SURGE_STATS = ("n", "over_rate", "stated_rate", "base_rate", "excess_ci", "seasons_held", "seasons", "applies")
+
+
+def _surge_labels(repo: Repository, src: dict, table: dict) -> dict:
+    """{match_id: check(odds, what) -> {"signals", "against"}} of the board run's Surge Watch labels, or {} when the
+    run has none or recorded them with another catalogue version than `table` (then no fixture is labelled: the
+    published catalogue would not describe them). The check re-emits the two lists and aborts the export on a
+    label the catalogue does not allow on the fixture's route, never repairing it."""
+    rs = repo.board_surge()
+    if rs is None or rs["run_id"] != src["run_id"]:
+        return {}
+    version = sv.table_version(table)
+    if rs["version"] != version:
+        log.warning("surge labels of board run %s use catalogue %s, not %s: published without labels",
+                    src["run_id"], rs["version"], version)
+        return {}
+    by_id = {s["id"]: s for s in table["signals"]}
+
+    def checker(entry):
+        def check(odds: bool, what: str) -> dict:
+            route = "odds" if odds else "noodds"
+            try:
+                out = {"signals": [str(x) for x in entry["signals"]], "against": [str(x) for x in entry["against"]]}
+            except (KeyError, TypeError) as exc:
+                raise ExportError(f"{what}: malformed surge labels ({type(exc).__name__}: {exc})") from exc
+            for key, direction in (("signals", "boost"), ("against", "damper")):
+                for sid in out[key]:
+                    s = by_id.get(sid)
+                    if s is None or s["direction"] != direction or not s["routes"][route]["applies"]:
+                        raise ExportError(f"{what}: surge label {sid!r} is not a {direction} that applies on the "
+                                          f"{route} route")
+                if len(set(out[key])) != len(out[key]):
+                    raise ExportError(f"{what}: duplicate surge label")
+            if sum(1 for sid in out["signals"] if sid in sv.SEASON_END) > 1:
+                raise ExportError(f"{what}: more than one season-end surge label")
+            return out
+        return check
+
+    return {mid: checker(entry) for mid, entry in rs["fixtures"].items()}
+
+
+def build_surge(table: dict | None = None) -> dict:
+    """surge.json: the Surge Watch catalogue (the committed table of shots.evaluation.surge, generated from the
+    over-shoot report), re-emitted key by key in the contract's order. Deterministic: no timestamp."""
+    t = table or sv.load_table()
+    try:
+        return {
+            "schema": SCHEMA_VERSION,
+            "report_date": str(t["report_date"]),
+            "margin": int(t["margin"]),
+            "matches": int(t["matches"]),
+            "period": str(t["period"]),
+            "method": str(t["method"]),
+            "routes": {r: {"label": str(t["routes"][r]["label"]), "base_rate": _num(t["routes"][r]["base_rate"], 4)}
+                       for r in sv.ROUTES},
+            "signals": [{"id": str(s["id"]), "label": str(s["label"]), "direction": str(s["direction"]),
+                         "explanation": str(s["explanation"]),
+                         "routes": {r: {k: s["routes"][r][k] for k in SURGE_STATS} for r in sv.ROUTES}}
+                        for s in t["signals"]],
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ExportError(f"surge catalogue: malformed ({type(exc).__name__}: {exc})") from exc
 
 
 def build_results(repo: Repository, today: date, days: int = RESULT_DAYS) -> tuple[dict, list[dict]]:
@@ -390,7 +465,7 @@ def _awaiting(repo: Repository) -> dict:
 
 
 def build_all(repo: Repository, built_at: datetime | None = None, today: date | None = None) -> dict[str, dict]:
-    """{"meta": ..., "board": ..., "results": ..., "track": ...}. built_at: export time (UTC);
+    """{"meta": ..., "board": ..., "results": ..., "track": ..., "surge": ...}. built_at: export time (UTC);
     today: the first day of the board, default the UTC date of built_at."""
     state = repo.state()
     if state != "ok":
@@ -399,9 +474,10 @@ def build_all(repo: Repository, built_at: datetime | None = None, today: date | 
     if built_at.tzinfo is not None:
         built_at = built_at.astimezone(timezone.utc).replace(tzinfo=None)
     today = today or built_at.date()
-    board, board_src = build_board(repo, today)
+    table = sv.load_table()
+    board, board_src = build_board(repo, today, table)
     results, result_rows = build_results(repo, today)
     track, used = build_track(repo, today=today)
     used |= {r["competition"] for r in result_rows}
     meta = build_meta(repo, built_at, board_src, used, result_rows)
-    return {"meta": meta, "board": board, "results": results, "track": track}
+    return {"meta": meta, "board": board, "results": results, "track": track, "surge": build_surge(table)}

@@ -1,8 +1,8 @@
 # Shots: published predictions (audit trail)
 
 This branch is written by the scheduled workflow `.github/workflows/update.yml` and by nothing else.
-It holds the four JSON files the static site reads (`data/meta.json`, `data/board.json`,
-`data/results.json`, `data/track.json`; format: `docs/static-api.md` on the default branch).
+It holds the five JSON files the static site reads (`data/meta.json`, `data/board.json`,
+`data/results.json`, `data/track.json`, `data/surge.json`; format: `docs/static-api.md` on the default branch).
 
 A commit is added only when the published data changed. Commits are never rewritten or force-pushed,
 so the history of `data/board.json`, with GitHub's server-side push times, shows what was predicted

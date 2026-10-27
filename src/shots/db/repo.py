@@ -121,6 +121,17 @@ class Repository:
         meta["run_id"] = run["id"]
         return meta
 
+    def board_surge(self) -> dict | None:
+        """Surge Watch labels recorded with the latest board run (board.meta.json "surge", stored in the run's
+        meta, never in a prediction row): {"version": catalogue version, "fixtures": {match_id: {"signals": [ids],
+        "against": [ids]}}}, only for the fixtures the research applies to. None when the run has none. Labels
+        only: they never change a prediction (shots.predict.surge, shots.evaluation.surge)."""
+        meta = self.board_meta()
+        surge = (meta or {}).get("surge")
+        if not isinstance(surge, dict) or not isinstance(surge.get("fixtures"), dict):
+            return None
+        return {"version": surge.get("version"), "fixtures": surge["fixtures"], "run_id": meta["run_id"]}
+
     # ------------------------------------------------------------------ board
 
     @staticmethod

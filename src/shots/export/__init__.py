@@ -1,7 +1,7 @@
 """Static JSON export for the Stage 1 site (GitHub Pages): meta.json, board.json, results.json,
-track.json, exactly as specified in docs/static-api.md (JSON Schema: docs/static-api.schema.json).
+track.json and surge.json (the Surge Watch catalogue), exactly as specified in docs/static-api.md (JSON Schema: docs/static-api.schema.json).
 
-    python -m shots.export --out <dir>             write the four files (only those whose content changed)
+    python -m shots.export --out <dir>             write the five files (only those whose content changed)
     python -m shots.export.verify --dir <dir>      independent check of an export against the database
 
 Everything is read through shots.db.repo.Repository with full-access entitlements. Only our own

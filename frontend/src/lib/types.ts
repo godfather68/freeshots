@@ -40,6 +40,39 @@ export interface Fixture {
   data_quality?: DataQuality
   /** Additive (optional): the 'why this number' breakdown. */
   explain?: Explain | null
+  /** Additive (optional): Surge Watch labels (ids of surge.json signals). Absent = not assessed. */
+  surge?: SurgeLabels | null
+}
+export interface SurgeLabels { signals: string[]; against: string[] }
+export type SurgeRoute = 'odds' | 'noodds'
+/** The research's own numbers for one signal on one route (surge.json). */
+export interface SurgeRouteStats {
+  n: number
+  over_rate: number
+  stated_rate: number
+  base_rate: number
+  excess_ci: [number, number]
+  seasons_held: number
+  seasons: number
+  applies: boolean
+}
+export interface SurgeSignal {
+  id: string
+  label: string
+  direction: 'boost' | 'damper'
+  explanation: string
+  routes: Record<SurgeRoute, SurgeRouteStats>
+}
+/** Additive file (optional): the Surge Watch catalogue. */
+export interface Surge {
+  schema: number
+  report_date: string
+  margin: number
+  matches: number
+  period: string
+  method: string
+  routes: Record<SurgeRoute, { label: string; base_rate: number }>
+  signals: SurgeSignal[]
 }
 export type Volatility = 'low' | 'average' | 'high'
 export interface ExplainFactor { id: string; side?: 'home' | 'away' | 'match' | null; label: string; detail?: string | null; effect: number }
@@ -148,4 +181,4 @@ export interface Item {
   result: Result | null
 }
 
-export interface Dataset { meta: Meta; board: Board; results: Results | null; track: Track | null }
+export interface Dataset { meta: Meta; board: Board; results: Results | null; track: Track | null; surge?: Surge | null }

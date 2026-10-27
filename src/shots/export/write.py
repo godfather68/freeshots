@@ -21,7 +21,7 @@ from shots.export.build import ExportError, build_all
 
 log = logging.getLogger("shots.export")
 
-FILES = ("board", "results", "track", "meta")  # meta last: it is decided by the others
+FILES = ("board", "results", "track", "surge", "meta")  # meta last: it is decided by the others
 ROW_LISTS = {"board": "fixtures", "results": "results"}  # top-level lists written one item per line
 
 
@@ -71,7 +71,7 @@ def _write_if_changed(path: Path, text: str) -> bool:
 
 def export(out_dir: str | Path, db=None, meta: str = "changed", built_at: datetime | None = None,
            today: date | None = None) -> dict:
-    """Write meta.json, board.json, results.json and track.json into out_dir.
+    """Write meta.json, board.json, results.json, track.json and surge.json into out_dir.
     meta: "changed" (default) rewrites meta.json only when something else changed; "always" refreshes
     its built_at on every run. -> {"dir", "written": [names], "unchanged": [names], "fixtures", "results"}.
     Raises ExportError (and writes nothing) when the database has no board or holds an invalid curve."""

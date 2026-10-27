@@ -60,6 +60,15 @@ a later recomputation would use newer results or a refitted model, i.e. explain 
 is part of the board's content hash only when the board has the column, holds no odds values, and no view
 reads it. Contract: `docs/static-api.md`, "`explain`".
 
+**Surge Watch labels** (no migration): `prediction_runs.meta["surge"]` of a board run =
+`{"version": <catalogue hash>, "fixtures": {match_id: {"signals": [...], "against": [...]}}}`, written by the
+board build (`shots.predict.surge`) into `board.meta.json` and stored with the run like the rest of the meta.
+They are labels about the fixture (which over-shoot patterns of `reports/2026-10-26_overshoot_patterns.md` it
+matches before kick-off), not predictions: no prediction row is touched, so the append-only rules are unchanged.
+An identical rebuild refreshes them with the meta (`import_board`, "unchanged"). The catalogue (research
+numbers per signal and route, cut points) is the committed `src/shots/evaluation/surge_signals.json`, generated
+from the report JSON by `python -m shots.evaluation.surge table`; `Repository.board_surge()` reads the labels.
+
 Curves: `total_curve[i] = P(total >= curve_n_min + i)` (board: n = 10..45),
 `home_curve[i] / away_curve[i] = P(team >= team_n_min + i)` (n = 3..25). Sparse probabilities (picks:
 one N; backfill: 22/24/26) are a JSON object `points = {"24": 0.71}`.
@@ -311,7 +320,9 @@ league id = slug of the canonical competition name (`england-premier-league_2026
 - `board_meta() -> dict | None`: latest board run's `board.meta.json` keys (`built_at` local ISO,
   `results_up_to`, `window_days`, `window_from`, `models`, `n_fixtures`, `n_with_odds`, `n_without_odds`,
   `n_cold_start`, `n_leagues`, `date_min`, `date_max`, `thresholds`, `team_predictions`,
-  `team_thresholds`) + `run_id`.
+  `team_thresholds`, `surge`) + `run_id`.
+- `board_surge() -> dict | None`: the latest board run's Surge Watch labels `{version, fixtures, run_id}`
+  (None when the run has none).
 - `board_leagues(ent) -> tuple[str, ...]`: competitions on the latest board the caller may see.
 - `latest_board(f, today, ent) -> BoardView` where `f` is `shots.web.filters.Filters` (`leagues, groups,
   n, smin, smax, pmin, when, odds, nocold, q, sort, side, tn, tp`). Filters, probability lookup and sort
@@ -739,9 +750,17 @@ python -m shots.export.verify --dir <dir> [--db data/shots.db] [--today D] [--no
 python -m shots update --export-dir <dir>      # or SHOTS_EXPORT_DIR; off by default
 ```
 
-Writes `meta.json`, `board.json`, `results.json`, `track.json` exactly as specified in `docs/static-api.md`
-(JSON Schema: `docs/static-api.schema.json`, closed objects, validated in `tests/test_export.py`). Everything
-is read through `Repository` with `FULL_ACCESS`; the exporter never opens the parquet / raw files.
+Writes `meta.json`, `board.json`, `results.json`, `track.json` and `surge.json` exactly as specified in
+`docs/static-api.md` (JSON Schema: `docs/static-api.schema.json`, closed objects, validated in
+`tests/test_export.py`). Everything is read through `Repository` with `FULL_ACCESS`; the exporter never opens the
+parquet / raw files (its only file read is the committed Surge Watch catalogue).
+
+- **Surge Watch** (2026-10-27): `surge.json` is the committed catalogue (`src/shots/evaluation/surge_signals.json`)
+  copied field by field; a fixture's `surge` is the label set recorded with the board run (see "Predictions"),
+  published only when the run used the same catalogue version, and checked against it (a label that does not
+  apply on the fixture's route aborts the export). The site's "Surge" page (`#/surge`) explains the patterns and
+  lists upcoming fixtures with a boost; probabilities are never adjusted. Tests: `tests/test_predict_surge.py`
+  (rule, routes, no leakage), `tests/test_export_surge.py` (export, schema, verifier).
 
 - **What is published:** our predictions, fixture identity (teams, league, kick-off) and, for finished
   matches, the final total / home / away shot counts. Never odds values, market probabilities, goals, shots
@@ -787,8 +806,9 @@ is read through `Repository` with `FULL_ACCESS`; the exporter never opens the pa
 with its own SQL (no repository, no exporter code) and compares: the JSON Schema, a forbidden-key scan, every
 curve, `board.json` against the latest board run row by row and in order, `results.json` against its own
 selection of the last pre-match board prediction, `track.json` counts and per-N picks / hits against
-`v_official_picks` and the backfill run, and `meta.json` against all of these. Exit 0 / 1 (differences
-listed) / 2. It runs after every export in the scheduled workflow and in `tests/test_export.py`, where
+`v_official_picks` and the backfill run, `meta.json` against all of these, `surge.json` against the committed
+catalogue and every fixture's `surge` against the board run's labels and the catalogue's route rules. Exit 0 / 1
+(differences listed) / 2. It runs after every export in the scheduled workflow and in `tests/test_export.py`, where
 twelve kinds of tampering are each detected.
 
 ### Workflows (`.github/workflows/`)

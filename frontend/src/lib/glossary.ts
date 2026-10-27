@@ -13,5 +13,6 @@ export const TERMS: Record<string, [string, string]> = {
   provisional: ['Provisional result', 'Entered by hand from ESPN; replaced by the official data when it arrives. It already counts in the results and the track record, and a hit or miss can still change by a shot or two.'],
   limited_data: ['Limited data', 'One or both clubs have no domestic data in our sources (for example a side from a league we do not cover), so there is less to build the estimate on. Treat it as a rough guide.'],
   bar: ['The probability bar', 'The bar fills in proportion to the chance. The vertical tick marks 70%: when the green fill passes it, the match clears the bar we highlight.'],
+  surge: ['Surge signals', "A surge is a match that ends 5 or more shots above our expected total; about 1 match in 5 does. Surge signals are conditions known before kick-off that, over about 50,000 past matches checked out of sample, came with surges more often (or, for dampers, less often) than our own curve said. They are a lean, not a promise, and they never change the chances shown on this site. See the Surge page for the numbers behind each one."],
   calibrated: ['Calibrated', "A model is calibrated when its '70%' calls come true about 70% of the time. The track record page checks this on matches the model had not seen."],
 }

@@ -618,7 +618,7 @@ def test_export_marks_experimental_fixtures_and_features_the_competition(engine,
     out = tmp_path / "site"
     built = datetime.combine(date.today(), datetime.min.time()).replace(hour=9, tzinfo=timezone.utc)
     export(out, Repository(engine), built_at=built)
-    docs = {n: json.loads((out / f"{n}.json").read_text(encoding="utf-8")) for n in ("meta", "board", "results", "track")}
+    docs = {n: json.loads((out / f"{n}.json").read_text(encoding="utf-8")) for n in ("meta", "board", "results", "track", "surge")}
     for name, doc in docs.items():
         validate(name, doc)
     assert docs["meta"]["schema"] == 1 and docs["board"]["schema"] == 1

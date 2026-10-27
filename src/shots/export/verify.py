@@ -19,6 +19,10 @@ difference. Checks:
              v_official_picks / v_experimental_picks and the backfill run; the daily / weekly accuracy series
              recomputed from the same per-match predictions as results.json
   meta       thresholds, counts, days, leagues, models, last_job consistent with the above
+  surge      surge.json equals the committed Surge Watch catalogue (src/shots/evaluation/surge_signals.json, read
+             here as a plain file); each fixture's `surge` labels are exactly those recorded with the board run
+             (its meta, same catalogue version, else none), every label is a boost / damper that applies on the
+             fixture's route, and at most one season-end label
 
 Exit code 0 = all good, 1 = differences (listed), 2 = cannot run.
 """
@@ -35,7 +39,10 @@ from datetime import date, timedelta
 from pathlib import Path
 
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "static-api.schema.json"
-NAMES = ("meta", "board", "results", "track")
+SURGE_TABLE = Path(__file__).resolve().parents[1] / "evaluation" / "surge_signals.json"
+NAMES = ("meta", "board", "results", "track", "surge")
+SURGE_STATS = ("n", "over_rate", "stated_rate", "base_rate", "excess_ci", "seasons_held", "seasons", "applies")
+SEASON_END = ("dead_rubber", "dead_team", "last_three")
 FORBIDDEN_KEY = re.compile(r"odds_|mkt|market|source|goal|sot$|_sot|b365|bookmaker|price|closing|password|email|session",
                            re.IGNORECASE)
 RESULT_DAYS = 30
@@ -190,6 +197,59 @@ class Checker:
                 self.fail(f"{what}: model_gap on a fixture scored without odds")
         if n:
             self.checked["explanations"] = n
+
+    def surge_catalogue(self, table: dict) -> None:
+        """surge.json is the committed catalogue, field by field (nothing added, nothing recomputed)."""
+        got = self.docs["surge"]
+        want = {"schema": 1, "report_date": table["report_date"], "margin": table["margin"], "matches": table["matches"],
+                "period": table["period"], "method": table["method"],
+                "routes": {r: {"label": v["label"], "base_rate": v["base_rate"]} for r, v in table["routes"].items()},
+                "signals": [{"id": x["id"], "label": x["label"], "direction": x["direction"],
+                             "explanation": x["explanation"],
+                             "routes": {r: {k: x["routes"][r][k] for k in SURGE_STATS} for r in ("odds", "noodds")}}
+                            for x in table["signals"]]}
+        if got != want:
+            keys = [k for k in want if got.get(k) != want[k]]
+            self.fail(f"surge: surge.json differs from the committed catalogue ({', '.join(keys) or 'keys'})")
+        self.checked["surge signals"] = len(got.get("signals", []))
+
+    def surge_labels(self, run: dict | None, table: dict) -> None:
+        """Every fixture's `surge` = the labels recorded with the board run for it (same catalogue version), or
+        absent; and each label is allowed on the fixture's route."""
+        import hashlib
+
+        recorded: dict = {}
+        if run is not None:
+            meta = json.loads(run["meta"]) if isinstance(run.get("meta"), str) else (run.get("meta") or {})
+            s = meta.get("surge") if isinstance(meta, dict) else None
+            version = hashlib.sha256(json.dumps(table, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+                                     .encode("utf-8")).hexdigest()[:16]
+            if isinstance(s, dict) and s.get("version") == version and isinstance(s.get("fixtures"), dict):
+                recorded = s["fixtures"]
+        sig = {x["id"]: x for x in table["signals"]}
+        n = 0
+        for f in self.docs["board"]["fixtures"]:
+            got = f.get("surge")
+            want = recorded.get(f["id"])
+            if "surge" in f and got is None:
+                self.fail(f"surge: {f['id']}: `surge` must be an object or absent, never null")
+                continue
+            if got != (None if want is None else {"signals": want["signals"], "against": want["against"]}):
+                self.fail(f"surge: {f['id']}: labels {got!r} differ from the board run's {want!r}")
+            if got is None:
+                continue
+            n += 1
+            route = "odds" if f["odds"] else "noodds"
+            for key, direction in (("signals", "boost"), ("against", "damper")):
+                for sid in got[key]:
+                    x = sig.get(sid)
+                    if x is None or x["direction"] != direction or not x["routes"][route]["applies"]:
+                        self.fail(f"surge: {f['id']}: {sid!r} is not a {direction} that applies on the {route} route")
+            if sum(1 for sid in got["signals"] if sid in SEASON_END) > 1:
+                self.fail(f"surge: {f['id']}: more than one season-end label")
+            if f.get("experimental"):
+                self.fail(f"surge: {f['id']}: an experimental fixture is never assessed")
+        self.checked["surge labelled fixtures"] = n
 
     # ------------------------------------------------------------------ database checks
 
@@ -540,6 +600,9 @@ def verify(export_dir: str | Path, db: str | Path | None = None, today: date | N
         ck.results()
         ck.track()
         ck.meta(run)
+        table = json.loads(SURGE_TABLE.read_text(encoding="utf-8"))
+        ck.surge_catalogue(table)
+        ck.surge_labels(run, table)
     finally:
         con.close()
     return {"ok": not ck.problems, "problems": ck.problems, "checked": ck.checked, "today": today.isoformat()}
@@ -547,7 +610,7 @@ def verify(export_dir: str | Path, db: str | Path | None = None, today: date | N
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(prog="python -m shots.export.verify", description=__doc__.split("\n")[0])
-    ap.add_argument("--dir", required=True, help="directory holding meta.json, board.json, results.json, track.json")
+    ap.add_argument("--dir", required=True, help="directory holding meta.json, board.json, results.json, track.json, surge.json")
     ap.add_argument("--db", default=None, help="SQLite file (default: SHOTS_DB or data/shots.db)")
     ap.add_argument("--today", type=date.fromisoformat, default=None,
                     help="the export's first board day (default: the UTC date of meta.built_at)")

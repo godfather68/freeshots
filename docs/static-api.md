@@ -137,6 +137,7 @@ Rules
   | `home_rating_defence`, `away_rating_defence` | same, defence rating (shots conceded vs an average team) |
   | `head_to_head` | same model: totals of previous meetings of the two clubs vs what the ratings expected |
   | `season_context` | same model: stage of the season, last three league matches, nothing left to play for |
+  | `surge` | only with the candidate odds model "Surge" (`cand_odds_surge`, off by default): label "Surge correction"; the out-of-sample correction of the total, detail lists the signals behind it (season end, head-to-head, low/high-goal run, momentum, ratings, league trend) with their shots |
   | `shrinkage` | same model: the pull of the forecast total toward the league level |
   | `other` | all factors not listed one by one |
 - **No odds values, ever.** Market factors are worded as categories ("strong favourite", "favourite", "slight
@@ -151,6 +152,28 @@ Rules
 - These are attributions of the model (how its coefficients split the credit), not causes: form and odds
   overlap, so do not read a small `market_*` effect as "the odds do not matter".
 - Experimental fixtures carry `explain` too (from the experimental model; the same caveats apply).
+
+### `surge`: Surge Watch labels (additive, schema 1)
+```json
+{"id": "…", "home": "Como", "away": "Venezia", "expected": 32, "odds": false, "…": "…",
+ "surge": {"signals": ["beating_ratings", "home_mismatch"], "against": []}}
+```
+- A **surge** is a match that ends 5+ shots above our expected total (the integer median `expected`). `surge`
+  lists the over-shoot patterns of `reports/2026-10-26_overshoot_patterns.md` this fixture matches before
+  kick-off: `signals` = boosts (surges were more common than our curve said), `against` = dampers (less
+  common). Ids, labels and the research numbers are in `data/surge.json`. **Labels only: the fixture's
+  probabilities are exactly the published ones**, nothing is adjusted.
+- `surge` is an **object or absent** (never `null`). Present when the fixture was assessed: a domestic
+  fixture of a competition the research covered, scored by the production model of its route (with odds
+  `negbin_pit_comp`, without odds `fin_c`). Absent for experimental (cross-border) fixtures, fallback or
+  candidate models, and when the board run recorded its labels with another catalogue version than the
+  published `surge.json`. Both lists may be empty ("assessed, nothing found").
+- A label appears only when the catalogue says it `applies` on the fixture's route (`odds` true = route
+  `odds`, else `noodds`); ids are in catalogue order; at most one of the season-end signals (`dead_rubber`,
+  `dead_team`, `last_three`).
+- Computed when the board is built (`shots.predict.surge`), from pre-match features only (each uses matches
+  dated strictly before the fixture's date), and stored in the board run's metadata, never in a prediction
+  row. The verifier checks them against the run.
 
 ### Under probabilities (client-side, no new field)
 `P(under N.5) = P(total <= N) = 1 - curve[N + 1 - thresholds.total[0]]`, valid for N = 9..44 with the
@@ -256,6 +279,48 @@ the last pre-match board prediction), plus experimental ones settled by the same
     hits = those with actual >= N. Summed over all days, `picks` / `hits` equal `by_n[N].n` / `.hits` (when the
     record is within the window), so a weekly hit rate can be compared with `by_n[N].mean_stated`.
 
+## `data/surge.json` (Surge Watch catalogue; additive file, schema 1)
+```json
+{
+  "schema": 1,
+  "report_date": "2026-10-26",
+  "margin": 5,
+  "matches": 49643,
+  "period": "2019/20 to 2025/26",
+  "method": "Out of sample: walk-forward predictions of our production models ...",
+  "routes": {"odds": {"label": "Scored with odds", "base_rate": 0.2142},
+             "noodds": {"label": "Scored without odds", "base_rate": 0.2117}},
+  "signals": [{
+    "id": "dead_rubber", "label": "Nothing to play for", "direction": "boost",
+    "explanation": "Neither team can still reach the title or drop into the relegation places ...",
+    "routes": {
+      "odds": {"n": 1341, "over_rate": 0.2737, "stated_rate": 0.2146, "base_rate": 0.2142,
+               "excess_ci": [0.0332, 0.0824], "seasons_held": 7, "seasons": 7, "applies": true},
+      "noodds": {"n": 1341, "over_rate": 0.2267, "stated_rate": 0.2195, "base_rate": 0.2117,
+                 "excess_ci": [-0.0165, 0.0284], "seasons_held": 4, "seasons": 7, "applies": false}
+    }
+  }]
+}
+```
+- The research's own numbers, never recomputed at export time: the committed table
+  `src/shots/evaluation/surge_signals.json` is generated from `reports/2026-10-26_overshoot_patterns.json` by
+  `python -m shots.evaluation.surge table` and copied field by field. Deterministic: no timestamp, so the file only
+  changes when the catalogue does.
+- Per signal and route (`odds` = fixtures scored with odds, `noodds` = without): `n` matches in the segment,
+  `over_rate` = share that ended `margin`+ shots above our expected total, `stated_rate` = what our own published
+  curves gave for that event on the same matches, `base_rate` = the share over all matches of the route ("usual"),
+  `excess_ci` = 95% interval of `over_rate - stated_rate` (day-block bootstrap; `winter` pools two months with a
+  normal approximation), `seasons_held` of `seasons` (with 20+ matches) in which the difference had the signal's
+  direction, `applies` = the interval excludes 0 **and** it held in at least 5 seasons. A signal that does not
+  apply on a route is still listed (its numbers show why: usually our model already accounts for it) but never
+  labels a fixture on that route.
+- `direction`: `boost` (surges more common than our curve said) or `damper` (less common). Signal ids today:
+  `dead_rubber`, `dead_team`, `last_three`, `h2h_above`, `low_goal_run`, `beating_ratings`, `home_mismatch`
+  (boosts), `winter`, `below_ratings` (dampers); clients must ignore unknown ids.
+- The site is expected to say it plainly: signals come from about 50,000 past matches out of sample; they are a
+  lean, not a promise; the probabilities shown are unchanged.
+- Optional for clients: a site without `surge.json` simply hides Surge Watch.
+
 ## Audit trail
 Each scheduled run commits the regenerated `data/*.json` to the published branch. Git history (with
 GitHub's server-side timestamps) is the public proof of what was predicted before kick-off.
@@ -274,8 +339,8 @@ The shapes above are unchanged. Details an implementer of the site needs (JSON S
   `result_status`, `meta.counts.results` / `provisional_results`, record and point `provisional` (see
   "Provisional results"), and, for cross-border
   competitions only, fixture `experimental` / `data_quality` and league `featured` (see "Experimental
-  fixtures"), and fixture `explain` (see "`explain`"). `meta.counts.cold_start` includes experimental
-  fixtures with a club without data.
+  fixtures"), fixture `explain` (see "`explain`"), fixture `surge` and the file `surge.json` (see "`surge`" and
+  "`data/surge.json`"). `meta.counts.cold_start` includes experimental fixtures with a club without data.
 - `meta.leagues` lists every league id used in any file; `fixtures` is 0 when a league only appears in
   `results.json` or `track.json`. League `name` has no country prefix ("Premier League").
 - `expected`, `lb.*`, `median`, `lb80` are integers; `mean` has 2 decimals; `league_avg` / `above_league` 1.

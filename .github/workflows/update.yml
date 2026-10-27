@@ -339,10 +339,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Refuse to publish anything but the four JSON files and the README.
-          extra=$(git status --porcelain --untracked-files=all | awk '{print $2}' | grep -vE '^(data/(meta|board|results|track)\.json|README\.md)$' || true)
+          # Refuse to publish anything but the five JSON files and the README.
+          extra=$(git status --porcelain --untracked-files=all | awk '{print $2}' | grep -vE '^(data/(meta|board|results|track|surge)\.json|README\.md)$' || true)
           if [ -n "$extra" ]; then echo "::error::unexpected files in the data branch: $extra"; exit 1; fi
-          git add -- README.md data/meta.json data/board.json data/results.json data/track.json
+          git add -- README.md data/meta.json data/board.json data/results.json data/track.json data/surge.json
           if git diff --cached --quiet; then
             echo "No change in the published data: nothing to commit."
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -467,7 +467,7 @@ jobs:
       - name: Check what will be published
         if: ${{ steps.frontend.outputs.present == 'true' }}
         run: |
-          for f in meta board results track; do test -s "frontend/dist/data/$f.json" || { echo "::error::frontend/dist/data/$f.json is missing"; exit 1; }; done
+          for f in meta board results track surge; do test -s "frontend/dist/data/$f.json" || { echo "::error::frontend/dist/data/$f.json is missing"; exit 1; }; done
           bad=$(find frontend/dist -type f \( -name '*.db' -o -name '*.db-*' -o -name '*.csv' -o -name '*.parquet' -o -name '*.joblib' -o -name '*.ics' -o -name '*.key' \) | head -20)
           if [ -n "$bad" ]; then echo "::error::source data or database files in the site: $bad"; exit 1; fi
 

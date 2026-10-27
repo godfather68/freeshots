@@ -342,7 +342,8 @@ class FlexNB:
 
     def __init__(self, side_z=(), total: str = "moment", total_z=TOTAL_Z, half_life_days: float | None = None,
                  comp_intercept: bool = False, lam: float = 50.0, lam_z: float = 50.0, rho_tol: float = 0.03,
-                 families=(), shrink: bool = False, oos_terms=(), oos_rows: int = 3000):
+                 families=(), shrink: bool = False, oos_terms=(), oos_rows: int = 3000, oos_scale: float = 1.0,
+                 oos_cap: float | None = None, oos_keep=()):
         assert total in ("moment", "alpha_z", "rho_z")
         self.side_z = tuple(side_z)
         self.total = total
@@ -356,6 +357,9 @@ class FlexNB:
         self.shrink = shrink
         self.oos_terms = tuple(oos_terms)
         self.oos_rows = int(oos_rows)
+        self.oos_scale = float(oos_scale)
+        self.oos_cap = None if oos_cap is None else float(oos_cap)
+        self.oos_keep = tuple(oos_keep)   # terms exempt from the damping (kept at full strength)
         assert set(self.oos_terms) <= set(OOS_TERMS), self.oos_terms
 
     def input_columns(self) -> list[str]:
@@ -491,19 +495,37 @@ class FlexNB:
         log.info("out-of-sample total correction: c=%.4f b=%.3f %s (n=%d)", c, b,
                  dict(zip(terms, np.round(g, 4))), len(held))
 
-    def _ratio(self, rows, mh, ma) -> np.ndarray | float:
-        if not getattr(self, "shrink_", None):
-            return 1.0
+    def ratio_parts(self, rows, mh, ma):
+        """(scale, log shrinkage term, per-term log corrections (n x k) or None). The total is multiplied by
+        exp(scale * (shrink + sum of terms)). ``scale`` = ``oos_scale`` when out-of-sample terms are fitted
+        (damping of the whole fitted correction, chosen on discovery seasons), else 1."""
         c, b = self.shrink_
         L = self._level(rows)
         lm = np.log(mh + ma)
         eta = np.log(L) + c + b * (lm - np.log(L)) - lm
         oos = getattr(self, "oos_", None)
-        if oos:
-            raw = np.column_stack([oos_raw(rows, mh + ma, t) for t in oos["terms"]])
-            Z = np.where(np.isfinite(raw), raw, np.asarray(oos["fills"]))
-            eta = eta + Z @ np.asarray(oos["coef"])
-        return np.exp(eta)
+        if not oos:
+            return 1.0, eta, None
+        raw = np.column_stack([oos_raw(rows, mh + ma, t) for t in oos["terms"]])
+        Z = np.where(np.isfinite(raw), raw, np.asarray(oos["fills"]))
+        lam = float(getattr(self, "oos_scale", 1.0))
+        T = Z * np.asarray(oos["coef"])[None, :]
+        keep = getattr(self, "oos_keep", ())
+        if keep and lam > 0:  # undamped terms: lam * (t / lam) = t
+            T = T * np.array([1.0 / lam if t in keep else 1.0 for t in oos["terms"]])[None, :]
+        return lam, eta, T
+
+    def _ratio(self, rows, mh, ma) -> np.ndarray | float:
+        if not getattr(self, "shrink_", None):
+            return 1.0
+        lam, eta, T = self.ratio_parts(rows, mh, ma)
+        return np.exp(lam * eta + (self.surge_log(lam, T) if T is not None else 0.0))
+
+    def surge_log(self, lam: float, T: np.ndarray) -> np.ndarray:
+        """Log correction of the out-of-sample terms as applied: lam * sum_j t_j, clipped to +-``oos_cap``."""
+        v = lam * T.sum(axis=1)
+        cap = getattr(self, "oos_cap", None)
+        return v if cap is None else np.clip(v, -cap, cap)
 
     def _fit_rho(self, tr, mh, ma, yt, w):
         from scipy import optimize
@@ -984,6 +1006,10 @@ CANDIDATES: dict[str, type[CandidatePit]] = {
     "cand_odds_s": _cand("cand_odds_s", FlexNB, oos_terms=OOS_TERMS),
     # the finalist (selected on 2019/20-2022/23): + shrinkage, correction fitted on the latest ~2 seasons (12,000 rows)
     "cand_odds_oos": _cand("cand_odds_oos", FlexNB, shrink=True, oos_terms=OOS_TERMS, oos_rows=12000),
+    # "Surge" (2026-10-27): cand_odds_oos with the fitted correction damped to 40% (chosen on 2019/20-2022/23 so
+    # that confident P(24+) calls hit at least as often as production's); reports/2026-10-27_surge_calibration.md
+    "cand_odds_surge": _cand("cand_odds_surge", FlexNB, shrink=True, oos_terms=OOS_TERMS, oos_rows=12000,
+                             oos_scale=0.4),
     "cand_fin_s": FinS,
 }
 

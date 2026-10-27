@@ -1,5 +1,5 @@
 // Loading the published JSON. Only data/*.json relative to the page is ever fetched.
-import type { Board, Dataset, Meta, Results, Track } from './types'
+import type { Board, Dataset, Meta, Results, Surge, Track } from './types'
 
 export class DataError extends Error {
   file: string
@@ -28,12 +28,18 @@ async function getJson<T>(file: string, fetcher: typeof fetch): Promise<T> {
   }
 }
 
-/** meta + board are required; results and track degrade to null (the UI then hides those parts). */
+/** surge.json is optional: anything that is not a catalogue (no signal list) is treated as missing. */
+function validSurge(s: Surge): Surge | null {
+  return Array.isArray(s.signals) && s.routes && typeof s.margin === 'number' ? s : null
+}
+
+/** meta + board are required; results, track and surge degrade to null (the UI then hides those parts). */
 export async function loadDataset(fetcher: typeof fetch = fetch): Promise<Dataset> {
   const [meta, board] = await Promise.all([getJson<Meta>('meta.json', fetcher), getJson<Board>('board.json', fetcher)])
-  const [results, track] = await Promise.all([
+  const [results, track, surge] = await Promise.all([
     getJson<Results>('results.json', fetcher).catch(() => null),
     getJson<Track>('track.json', fetcher).catch(() => null),
+    getJson<Surge>('surge.json', fetcher).then(validSurge).catch(() => null),
   ])
-  return { meta, board, results, track }
+  return { meta, board, results, track, surge }
 }
