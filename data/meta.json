@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-10-26T23:50:06Z",
+ "built_at": "2026-10-27T04:56:42Z",
  "results_up_to": "2026-10-26",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-26T23:50:00Z"
+  "finished_at": "2026-10-27T04:56:33Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
@@ -73,7 +73,7 @@
    "name": "UEFA Conference League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 18,
+   "fixtures": 36,
    "featured": true
   },
   {
@@ -81,7 +81,7 @@
    "name": "UEFA Europa League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 18,
+   "fixtures": 36,
    "featured": true
   },
   {
@@ -217,12 +217,13 @@
   "2026-11-22",
   "2026-11-23",
   "2026-11-24",
-  "2026-11-25"
+  "2026-11-25",
+  "2026-11-26"
  ],
  "counts": {
-  "fixtures": 438,
+  "fixtures": 474,
   "with_odds": 0,
-  "cold_start": 30,
+  "cold_start": 59,
   "results": 454,
   "provisional_results": 0
  },
