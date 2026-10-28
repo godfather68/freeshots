@@ -255,6 +255,74 @@
    }
   },
   {
+   "id": "top_vs_bottom",
+   "label": "Top of the table against the bottom",
+   "direction": "boost",
+   "explanation": "In the last third of the season, the two teams are far apart in the league table (at least 60% of the table between them), whichever side is at home.",
+   "routes": {
+    "odds": {
+     "n": 2815,
+     "over_rate": 0.2369,
+     "stated_rate": 0.216,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      0.0063,
+      0.0367
+     ],
+     "seasons_held": 6,
+     "seasons": 7,
+     "applies": true
+    },
+    "noodds": {
+     "n": 2815,
+     "over_rate": 0.233,
+     "stated_rate": 0.2152,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      0.0034,
+      0.0335
+     ],
+     "seasons_held": 6,
+     "seasons": 7,
+     "applies": true
+    }
+   }
+  },
+  {
+   "id": "promoted_struggling",
+   "label": "Promoted side near the bottom",
+   "direction": "boost",
+   "explanation": "In the last third of the season, a team promoted last summer sits in the bottom quarter of the table.",
+   "routes": {
+    "odds": {
+     "n": 1061,
+     "over_rate": 0.2394,
+     "stated_rate": 0.2167,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      0.0003,
+      0.0467
+     ],
+     "seasons_held": 5,
+     "seasons": 7,
+     "applies": true
+    },
+    "noodds": {
+     "n": 1061,
+     "over_rate": 0.2479,
+     "stated_rate": 0.2129,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      0.0116,
+      0.0576
+     ],
+     "seasons_held": 7,
+     "seasons": 7,
+     "applies": true
+    }
+   }
+  },
+  {
    "id": "winter",
    "label": "December or January",
    "direction": "damper",
@@ -321,6 +389,303 @@
      "applies": true
     }
    }
+  },
+  {
+   "id": "title_race",
+   "label": "Title race",
+   "direction": "damper",
+   "explanation": "In the last third of the season, both teams are within 6 points of first place. These matches have ended 5+ shots above our expected total much less often than our curve said.",
+   "routes": {
+    "odds": {
+     "n": 215,
+     "over_rate": 0.1628,
+     "stated_rate": 0.2058,
+     "base_rate": 0.2142,
+     "excess_ci": [
+      -0.0891,
+      0.0071
+     ],
+     "seasons_held": 4,
+     "seasons": 6,
+     "applies": false
+    },
+    "noodds": {
+     "n": 215,
+     "over_rate": 0.1163,
+     "stated_rate": 0.2077,
+     "base_rate": 0.2117,
+     "excess_ci": [
+      -0.1331,
+      -0.0482
+     ],
+     "seasons_held": 6,
+     "seasons": 6,
+     "applies": false
+    }
+   }
   }
- ]
+ ],
+ "stacking": {
+  "min_boosts": 2,
+  "note": "Matches by number of boost signals that apply (a match counts at most one season-end signal). 'Strong surge candidate' = 2 or more. Out of sample, 2019/20 to 2025/26; the strong rule is used on a route only where 2+ signals beat our curve with a 95% interval above zero, in at least 5 of 7 seasons and in the confirmation seasons 2023/24 to 2025/26.",
+  "groups": [
+   "0",
+   "1",
+   "2",
+   "3+",
+   "2+"
+  ],
+  "phases": [
+   "early",
+   "middle",
+   "late",
+   "run_in"
+  ],
+  "routes": {
+   "noodds": {
+    "signals": [
+     "dead_team",
+     "last_three",
+     "h2h_above",
+     "low_goal_run",
+     "home_mismatch",
+     "top_vs_bottom",
+     "promoted_struggling"
+    ],
+    "share": {
+     "0": 0.6038,
+     "1": 0.3079,
+     "2": 0.0718,
+     "3+": 0.0165,
+     "2+": 0.0883
+    },
+    "by_count": {
+     "0": {
+      "n": 29976,
+      "over_rate": 0.2048,
+      "stated_rate": 0.2119,
+      "excess_ci": [
+       -0.0116,
+       -0.0026
+      ],
+      "seasons_held": 3,
+      "seasons": 7
+     },
+     "1": {
+      "n": 15283,
+      "over_rate": 0.2168,
+      "stated_rate": 0.211,
+      "excess_ci": [
+       -0.0006,
+       0.0126
+      ],
+      "seasons_held": 4,
+      "seasons": 7
+     },
+     "2": {
+      "n": 3566,
+      "over_rate": 0.2361,
+      "stated_rate": 0.2119,
+      "excess_ci": [
+       0.0118,
+       0.0373
+      ],
+      "seasons_held": 7,
+      "seasons": 7
+     },
+     "3+": {
+      "n": 818,
+      "over_rate": 0.2616,
+      "stated_rate": 0.2177,
+      "excess_ci": [
+       0.0168,
+       0.0695
+      ],
+      "seasons_held": 7,
+      "seasons": 7
+     },
+     "2+": {
+      "n": 4384,
+      "over_rate": 0.2409,
+      "stated_rate": 0.213,
+      "excess_ci": [
+       0.0169,
+       0.0401
+      ],
+      "seasons_held": 7,
+      "seasons": 7
+     }
+    },
+    "season_phase": {
+     "early": {
+      "n": 13008,
+      "over_rate": 0.2143,
+      "stated_rate": 0.212,
+      "excess_ci": [
+       -0.0061,
+       0.0102
+      ],
+      "seasons_held": 5,
+      "seasons": 7
+     },
+     "middle": {
+      "n": 20858,
+      "over_rate": 0.2052,
+      "stated_rate": 0.2116,
+      "excess_ci": [
+       -0.0122,
+       -0.0004
+      ],
+      "seasons_held": 2,
+      "seasons": 7
+     },
+     "late": {
+      "n": 8947,
+      "over_rate": 0.2125,
+      "stated_rate": 0.2091,
+      "excess_ci": [
+       -0.0058,
+       0.0127
+      ],
+      "seasons_held": 3,
+      "seasons": 7
+     },
+     "run_in": {
+      "n": 6830,
+      "over_rate": 0.2255,
+      "stated_rate": 0.215,
+      "excess_ci": [
+       0.0005,
+       0.02
+      ],
+      "seasons_held": 5,
+      "seasons": 7
+     }
+    },
+    "strong_applies": false
+   },
+   "odds": {
+    "signals": [
+     "dead_rubber",
+     "dead_team",
+     "last_three",
+     "h2h_above",
+     "low_goal_run",
+     "top_vs_bottom",
+     "promoted_struggling"
+    ],
+    "share": {
+     "0": 0.6664,
+     "1": 0.2678,
+     "2": 0.0558,
+     "3+": 0.01,
+     "2+": 0.0658
+    },
+    "by_count": {
+     "0": {
+      "n": 33081,
+      "over_rate": 0.2067,
+      "stated_rate": 0.2139,
+      "excess_ci": [
+       -0.0114,
+       -0.0027
+      ],
+      "seasons_held": 1,
+      "seasons": 7
+     },
+     "1": {
+      "n": 13294,
+      "over_rate": 0.2236,
+      "stated_rate": 0.2095,
+      "excess_ci": [
+       0.0069,
+       0.0217
+      ],
+      "seasons_held": 7,
+      "seasons": 7
+     },
+     "2": {
+      "n": 2769,
+      "over_rate": 0.2481,
+      "stated_rate": 0.211,
+      "excess_ci": [
+       0.0233,
+       0.0512
+      ],
+      "seasons_held": 7,
+      "seasons": 7
+     },
+     "3+": {
+      "n": 499,
+      "over_rate": 0.2685,
+      "stated_rate": 0.2144,
+      "excess_ci": [
+       0.0199,
+       0.0893
+      ],
+      "seasons_held": 7,
+      "seasons": 7
+     },
+     "2+": {
+      "n": 3268,
+      "over_rate": 0.2512,
+      "stated_rate": 0.2115,
+      "excess_ci": [
+       0.0268,
+       0.0525
+      ],
+      "seasons_held": 7,
+      "seasons": 7
+     }
+    },
+    "season_phase": {
+     "early": {
+      "n": 13008,
+      "over_rate": 0.2165,
+      "stated_rate": 0.2133,
+      "excess_ci": [
+       -0.0052,
+       0.0107
+      ],
+      "seasons_held": 4,
+      "seasons": 7
+     },
+     "middle": {
+      "n": 20858,
+      "over_rate": 0.2044,
+      "stated_rate": 0.2127,
+      "excess_ci": [
+       -0.0142,
+       -0.0022
+      ],
+      "seasons_held": 2,
+      "seasons": 7
+     },
+     "late": {
+      "n": 8947,
+      "over_rate": 0.2126,
+      "stated_rate": 0.2103,
+      "excess_ci": [
+       -0.0066,
+       0.0115
+      ],
+      "seasons_held": 3,
+      "seasons": 7
+     },
+     "run_in": {
+      "n": 6830,
+      "over_rate": 0.2417,
+      "stated_rate": 0.2136,
+      "excess_ci": [
+       0.017,
+       0.0388
+      ],
+      "seasons_held": 7,
+      "seasons": 7
+     }
+    },
+    "strong_applies": true
+   }
+  }
+ }
 }
