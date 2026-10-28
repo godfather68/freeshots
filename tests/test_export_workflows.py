@@ -100,12 +100,13 @@ def test_permissions_are_minimal_per_job(update, ci, watchdog):
     assert jobs["build"]["permissions"] == {"contents": "read"}  # npm install / build never sees a write token
     assert jobs["deploy"]["permissions"] == {"pages": "write", "id-token": "write"}
     assert jobs["deploy"]["environment"]["name"] == "github-pages"
+    assert jobs["surge_issue"]["permissions"] == {"issues": "write"}  # only the REVERT issue; no contents, no actions
     assert ci["permissions"] == {"contents": "read"} and all("permissions" not in j for j in ci["jobs"].values())
     assert watchdog["permissions"] == {} and list(watchdog["jobs"]) == ["check"]
     assert watchdog["jobs"]["check"]["permissions"] == {"contents": "read", "actions": "write"}
 
 
-@pytest.mark.parametrize("name", ["update.yml", "watchdog.yml"])
+@pytest.mark.parametrize("name", ["update.yml", "watchdog.yml", "surge-weekly.yml"])
 def test_no_expression_is_interpolated_into_a_shell_script_and_no_secret_is_used(name):
     doc = load(name)
     for _, s in steps(doc):
@@ -116,9 +117,11 @@ def test_no_expression_is_interpolated_into_a_shell_script_and_no_secret_is_used
     assert tokens == {"update.yml": ["Guard the live record", "Plan this run",
                                      "Delete superseded caches (keep the 5 newest databases)",
                                      "Check out the data branch",
-                                     "Commit the data branch (only when something changed)"],
+                                     "Commit the data branch (only when something changed)",
+                                     "Open or update the surge-monitor issue"],
                       "watchdog.yml": ["Look at the recent update runs and the site",
-                                       "Start the update workflow"]}[name]
+                                       "Start the update workflow"],
+                      "surge-weekly.yml": ["Start the update workflow"]}[name]
 
 
 @pytest.mark.parametrize("name", ["update.yml", "ci.yml", "watchdog.yml"])
@@ -239,7 +242,9 @@ def test_site_is_built_and_deployed_only_when_the_publish_decision_says_so(updat
     assert site["if"] == "${{ !cancelled() && steps.publish.outputs.deploy == 'true' }}"
     assert 'echo "exported=true" >> "$GITHUB_OUTPUT"' in site["run"]
     jobs = update["jobs"]
-    assert jobs["update"]["outputs"] == {"exported": "${{ steps.site.outputs.exported }}"}
+    assert jobs["update"]["outputs"] == {"exported": "${{ steps.site.outputs.exported }}",
+                                         "surge_verdict": "${{ steps.monitor.outputs.verdict }}",
+                                         "surge_report": "${{ steps.monitor.outputs.report }}"}
     assert jobs["build"]["needs"] == "update" and jobs["deploy"]["needs"] == "build"
     assert jobs["build"]["if"] == "${{ !cancelled() && needs.update.outputs.exported == 'true' }}"
     assert "needs.build.result == 'success'" in jobs["deploy"]["if"]
@@ -346,3 +351,59 @@ def test_lock_file_pins_every_requirement():
               if line.strip() and not line.startswith("#")]
     assert wanted and not [w for w in wanted if w not in lock]
     assert {"lightgbm", "statsmodels", "pyarrow", "pandas", "numpy", "scipy", "scikit-learn"} <= set(lock)
+
+
+# ----------------------------------------------------------------------------- weekly Surge rebuild + monitor
+
+@pytest.fixture(scope="module")
+def weekly():
+    return load("surge-weekly.yml")
+
+
+def test_weekly_workflow_dispatches_a_forced_update_with_the_monitor(weekly, update):
+    assert set(weekly["on"]) == {"schedule", "workflow_dispatch"}
+    assert [s["cron"] for s in weekly["on"]["schedule"]] == ["0 7 * * 1"]  # Monday 07:00 UTC
+    assert weekly["permissions"] == {} and list(weekly["jobs"]) == ["dispatch"]
+    job = weekly["jobs"]["dispatch"]
+    assert job["permissions"] == {"actions": "write"}  # starting update.yml is all it does
+    assert job["runs-on"] == "ubuntu-24.04" and job["timeout-minutes"] <= 5
+    assert weekly["concurrency"]["group"] not in (update["concurrency"]["group"], "shots-watchdog")
+    assert not any("uses" in s for s in job["steps"])  # no checkout, no install, no third-party code
+    runs = "\n".join(s.get("run", "") for s in job["steps"])
+    assert "gh workflow run update.yml -f force=true -f surge_monitor=true" in runs
+    assert "pip install" not in runs and "git " not in runs and "secrets." not in (WORKFLOWS / "surge-weekly.yml").read_text()
+
+
+def test_update_runs_the_surge_monitor_only_when_asked_and_after_the_database_check(update, watchdog):
+    inp = update["on"]["workflow_dispatch"]["inputs"]["surge_monitor"]
+    assert inp["type"] == "boolean" and inp["default"] is False  # schedule, push and the watchdog never run it
+    assert "surge_monitor" not in "\n".join(s.get("run", "") for s in watchdog["jobs"]["check"]["steps"])
+    job = update["jobs"]["update"]["steps"]
+    names = [s["name"] for s in job]
+    by = {s["name"]: s for s in job}
+    mon = by["Surge monitor"]
+    assert mon["id"] == "monitor"
+    assert mon["if"] == "${{ !cancelled() && inputs.surge_monitor && steps.dbcheck.outcome == 'success' }}"
+    assert names.index("Check the database") < names.index("Surge monitor") < names.index("Export JSON")
+    run = mon["run"]
+    assert 'python -m shots.surge_monitor --out-dir "$out"' in run and 'out="$RUNNER_TEMP/surge-monitor"' in run
+    assert "GITHUB_STEP_SUMMARY" in run and 'echo "verdict=$verdict" >> "$GITHUB_OUTPUT"' in run
+    assert "2) verdict=REVERT" in run  # the monitor's exit code 2
+    # read-only: no config change, no commit, nothing written into the repository or the published branch
+    for word in ("config.py", "SHOTS_ODDS_MODEL", "git ", "site-data", "reports/", "sed "):
+        assert word not in run, word
+    assert "continue-on-error" not in mon and "|| rc=$?" in run  # a failing monitor never blocks publishing
+
+
+def test_a_revert_verdict_opens_or_updates_an_issue_and_changes_nothing(update):
+    job = update["jobs"]["surge_issue"]
+    assert job["needs"] == "update" and job["runs-on"] == "ubuntu-24.04" and job["timeout-minutes"] <= 5
+    assert job["if"] == "${{ !cancelled() && needs.update.outputs.surge_verdict == 'REVERT' }}"
+    [step] = job["steps"]
+    assert "uses" not in step
+    run = step["run"]
+    assert "gh issue list --label surge-monitor --state open" in run
+    assert 'gh issue comment "$num"' in run and "gh issue create" in run and "--label surge-monitor" in run
+    assert step["env"]["REPORT_B64"] == "${{ needs.update.outputs.surge_report }}"
+    for word in ("git ", "config.py", "gh workflow", "gh api", "gh pr"):
+        assert word not in run, word

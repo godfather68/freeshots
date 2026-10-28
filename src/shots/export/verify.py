@@ -22,7 +22,9 @@ difference. Checks:
   surge      surge.json equals the committed Surge Watch catalogue (src/shots/evaluation/surge_signals.json, read
              here as a plain file); each fixture's `surge` labels are exactly those recorded with the board run
              (its meta, same catalogue version, else none), every label is a boost / damper that applies on the
-             fixture's route, and at most one season-end label
+             fixture's route, and at most one season-end label; each fixture's `context` (table position, season
+             phase) is exactly the one recorded with the board run, in range and consistent; each result's `surge`
+             is exactly the label set its pre-match board run recorded for it (or absent)
 
 Exit code 0 = all good, 1 = differences (listed), 2 = cannot run.
 """
@@ -43,6 +45,8 @@ SURGE_TABLE = Path(__file__).resolve().parents[1] / "evaluation" / "surge_signal
 NAMES = ("meta", "board", "results", "track", "surge")
 SURGE_STATS = ("n", "over_rate", "stated_rate", "base_rate", "excess_ci", "seasons_held", "seasons", "applies")
 SEASON_END = ("dead_rubber", "dead_team", "last_three")
+STACK_CELL = ("n", "over_rate", "stated_rate", "excess_ci", "seasons_held", "seasons")
+PHASES = ("early", "middle", "late", "run_in")
 FORBIDDEN_KEY = re.compile(r"odds_|mkt|market|source|goal|sot$|_sot|b365|bookmaker|price|closing|password|email|session",
                            re.IGNORECASE)
 RESULT_DAYS = 30
@@ -208,6 +212,15 @@ class Checker:
                              "explanation": x["explanation"],
                              "routes": {r: {k: x["routes"][r][k] for k in SURGE_STATS} for r in ("odds", "noodds")}}
                             for x in table["signals"]]}
+        st = table.get("stacking")
+        if isinstance(st, dict):  # additive: copied field by field, empty groups carry only n
+            cell = lambda c: {k: c[k] for k in STACK_CELL if k in c}  # noqa: E731
+            want["stacking"] = {
+                "min_boosts": st["min_boosts"], "note": st["note"], "groups": st["groups"], "phases": st["phases"],
+                "routes": {r: {"signals": v["signals"], "share": v["share"],
+                               "by_count": {g: cell(c) for g, c in v["by_count"].items()},
+                               "season_phase": {ph: cell(c) for ph, c in v["season_phase"].items()},
+                               "strong_applies": v["strong_applies"]} for r, v in st["routes"].items()}}
         if got != want:
             keys = [k for k in want if got.get(k) != want[k]]
             self.fail(f"surge: surge.json differs from the committed catalogue ({', '.join(keys) or 'keys'})")
@@ -234,7 +247,8 @@ class Checker:
             if "surge" in f and got is None:
                 self.fail(f"surge: {f['id']}: `surge` must be an object or absent, never null")
                 continue
-            if got != (None if want is None else {"signals": want["signals"], "against": want["against"]}):
+            if got != (None if want is None else {"signals": want["signals"], "against": want["against"],
+                                                  **({"strong": True} if want.get("strong") is True else {})}):
                 self.fail(f"surge: {f['id']}: labels {got!r} differ from the board run's {want!r}")
             if got is None:
                 continue
@@ -247,9 +261,50 @@ class Checker:
                         self.fail(f"surge: {f['id']}: {sid!r} is not a {direction} that applies on the {route} route")
             if sum(1 for sid in got["signals"] if sid in SEASON_END) > 1:
                 self.fail(f"surge: {f['id']}: more than one season-end label")
+            st = table.get("stacking") or {}
+            strong_ok = bool((st.get("routes") or {}).get(route, {}).get("strong_applies")) and \
+                len(got["signals"]) >= int(st.get("min_boosts", 2))
+            if ("strong" in got) != strong_ok or got.get("strong", True) is not True:
+                self.fail(f"surge: {f['id']}: `strong` {got.get('strong')!r} but the catalogue gives {strong_ok} on "
+                          f"the {route} route")
             if f.get("experimental"):
                 self.fail(f"surge: {f['id']}: an experimental fixture is never assessed")
         self.checked["surge labelled fixtures"] = n
+
+    def table_context(self, run: dict | None) -> None:
+        """Every fixture's `context` = the one recorded with the board run (meta.surge.context), or absent; values in
+        range (1 <= pos <= of, leader gap >= 0) and the phase defined exactly when games left are."""
+        recorded: dict = {}
+        if run is not None:
+            meta = json.loads(run["meta"]) if isinstance(run.get("meta"), str) else (run.get("meta") or {})
+            s = meta.get("surge") if isinstance(meta, dict) else None
+            if isinstance(s, dict) and isinstance(s.get("context"), dict):
+                recorded = s["context"]
+        n = 0
+        for f in self.docs["board"]["fixtures"]:
+            got, want = f.get("context"), recorded.get(f["id"])
+            if "context" in f and got is None:
+                self.fail(f"context: {f['id']}: `context` must be an object or absent, never null")
+                continue
+            if f.get("experimental"):
+                want = None  # never assessed
+            if got != want:
+                self.fail(f"context: {f['id']}: {got!r} differs from the board run's {want!r}")
+            if got is None:
+                continue
+            n += 1
+            if got.get("phase") is not None and got.get("phase") not in PHASES:
+                self.fail(f"context: {f['id']}: unknown phase {got.get('phase')!r}")
+            for side in ("home", "away"):
+                t = got.get(side) or {}
+                pos, of = t.get("pos"), t.get("of")
+                if not isinstance(of, int) or (pos is not None and not (isinstance(pos, int) and 1 <= pos <= of)):
+                    self.fail(f"context: {f['id']}.{side}: position {pos!r} of {of!r}")
+                if not isinstance(t.get("to_top"), int) or t["to_top"] < 0:
+                    self.fail(f"context: {f['id']}.{side}: gap to the leader {t.get('to_top')!r}")
+                if t.get("left") is not None and got.get("phase") is None:
+                    self.fail(f"context: {f['id']}.{side}: games left known but no season phase")
+        self.checked["context fixtures"] = n
 
     # ------------------------------------------------------------------ database checks
 
@@ -382,7 +437,37 @@ class Checker:
                 self.fail(f"results: {mid}.source_url differs from the database")
             if x["actual"]["home"] + x["actual"]["away"] != x["actual"]["total"]:
                 self.fail(f"results: {mid} home + away != total")
+            want_surge = self._run_labels(r["run_id"]).get(mid)
+            if want_surge is not None:
+                want_surge = {"signals": want_surge.get("signals"), "against": want_surge.get("against"),
+                              **({"strong": True} if want_surge.get("strong") is True else {})}
+            want_ctx = None if r["experimental"] else (self._run_meta_surge(r["run_id"]).get("context") or {}).get(mid)
+            if "context" in x and x["context"] is None:
+                self.fail(f"results: {mid}.context must be an object or absent, never null")
+            elif x.get("context") != want_ctx:
+                self.fail(f"results: {mid}.context differs from its board run's")
+            if "surge" in x and x["surge"] is None:
+                self.fail(f"results: {mid}.surge must be an object or absent, never null")
+            elif x.get("surge") != want_surge:
+                self.fail(f"results: {mid}.surge = {x.get('surge')!r} differs from its board run's {want_surge!r}")
         self.checked["results"] = len(got)
+        self.checked["results with surge labels"] = sum(1 for x in got.values() if x.get("surge") is not None)
+        self.checked["results with context"] = sum(1 for x in got.values() if x.get("context") is not None)
+
+    def _run_meta_surge(self, run_id) -> dict:
+        """A board run's meta.surge block ({} when none), cached per run."""
+        cache = self.__dict__.setdefault("_surge_meta", {})
+        if run_id not in cache:
+            row = self.q("SELECT meta FROM prediction_runs WHERE id = ?", run_id)
+            meta = json.loads(row[0]["meta"]) if row and row[0]["meta"] else {}
+            s = meta.get("surge") if isinstance(meta, dict) else None
+            cache[run_id] = s if isinstance(s, dict) else {}
+        return cache[run_id]
+
+    def _run_labels(self, run_id) -> dict:
+        """{match_id: labels} recorded in a board run's meta (meta.surge.fixtures)."""
+        f = self._run_meta_surge(run_id).get("fixtures")
+        return f if isinstance(f, dict) else {}
 
     def _headline(self, name: str, by_n: dict, rows: list) -> None:
         """rows: (n, p, hit) of settled picks."""
@@ -603,6 +688,7 @@ def verify(export_dir: str | Path, db: str | Path | None = None, today: date | N
         table = json.loads(SURGE_TABLE.read_text(encoding="utf-8"))
         ck.surge_catalogue(table)
         ck.surge_labels(run, table)
+        ck.table_context(run)
     finally:
         con.close()
     return {"ok": not ck.problems, "problems": ck.problems, "checked": ck.checked, "today": today.isoformat()}

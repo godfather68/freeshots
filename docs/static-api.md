@@ -177,6 +177,40 @@ Rules
 - Computed when the board is built (`shots.predict.surge`), from pre-match features only (each uses matches
   dated strictly before the fixture's date), and stored in the board run's metadata, never in a prediction
   row. The verifier checks them against the run.
+- League-table signals (2026-10-28, `reports/2026-10-28_surge_table_signals.md`): `top_vs_bottom` and
+  `promoted_struggling` (boosts, last third of the season), from the same pre-match league table as `context`.
+- `strong` (**`true` or absent**): a **strong surge candidate** = `stacking.min_boosts` (2) or more `signals`, and
+  only on a route where `surge.json` `stacking.routes.<route>.strong_applies` is true (2+ signals beat our curve
+  out of sample, in the confirmation seasons too). Today that is the odds route only, i.e. fixtures scored by
+  `negbin_pit_comp` (Scotland Championship, Surge fallbacks); never the no-odds route. Surge-scored fixtures are
+  not labelled at all, so they are never strong. The exporter and the verifier recompute the rule.
+
+### `context`: table position and season period (additive, schema 1)
+```json
+{"id": "…", "home": "Como", "away": "Venezia", "…": "…",
+ "surge": {"signals": ["home_mismatch"], "against": []},
+ "context": {"phase": "middle",
+             "home": {"pos": 3, "of": 20, "pts": 21, "gp": 9, "left": 29, "to_top": 2, "to_safety": 12},
+             "away": {"pos": 17, "of": 20, "pts": 8, "gp": 9, "left": 29, "to_top": 15, "to_safety": -1}}}
+```
+- `context` is an **object or absent** (never `null`), present on the fixtures Surge Watch assessed (the same set
+  as `surge`, see above; it does not depend on the catalogue version, so it stays when the labels are withheld).
+  Context only: it never changes a probability.
+- Our own computation from results dated strictly before the fixture (the season-context features of the
+  candidate build, `shots.features.candidates` family G), recorded with the board run (its meta, next to the surge
+  labels) when the board is built. No odds, no source rows.
+- Per team: `pos` = league position, 1 = top, ranked by points then goal difference (equal teams are ordered
+  arbitrarily within their block; `null` before the team's first game); `of` = teams in the league (the season
+  calendar's); `pts`; `gp` = games played; `left` = scheduled games left (format-aware: double round robin by
+  default, four rounds in the Scottish Championship / Leagues One and Two, 38 in the Scottish Premiership; `null` for
+  playoff formats, Belgium and Greece); `to_top` = leader's points minus own (0 = level or leading);
+  `to_safety` = own points minus those of the best-placed team in the drop zone (the bottom round(15%) places,
+  e.g. 3 of 20; **<= 0 = in the drop zone**; an approximation: real relegation and play-off places vary).
+- `phase` (the competition-season at that fixture) is **the same definition the table signals use**
+  (`shots.evaluation.surge_rules.phase_of`): `run_in` = a team has 6 or fewer league games left, else `late` = the
+  last third (>= 2/3 of the scheduled games played, mean of the two teams), `middle` = >= 25%, `early` below.
+  Playoff formats (Belgium, Greece; `left` is `null`) use the share of the regular season, count the playoff rounds
+  as `late` and never have a `run_in`. `null` only when progress is unknown (never when `left` is known).
 
 ### Under probabilities (client-side, no new field)
 `P(under N.5) = P(total <= N) = 1 - curve[N + 1 - thresholds.total[0]]`, valid for N = 9..44 with the
@@ -209,6 +243,22 @@ the under-(N-1).5 band `[1 - hi, 1 - lo]` with stated `1 - s` and realised `1 - 
 The client marks hit/miss for the visitor's threshold N as `actual.total >= N` next to `curve[N]`.
 Only predictions the database counts as official appear (`v_official_picks` rule: live, pre-match; per match
 the last pre-match board prediction), plus experimental ones settled by the same rule (see below).
+
+### Surge labels of settled matches (additive, schema 1)
+```json
+{"id": "…", "league": "italy-serie-a", "date": "2026-10-27", "home": "Como", "away": "Venezia",
+ "actual": {"total": 34, "home": 20, "away": 14}, "expected": 27, "…": "…",
+ "surge": {"signals": ["home_mismatch"], "against": []}}
+```
+- `surge` (**object or absent**, never `null`): the Surge Watch labels the fixture carried in the board run its
+  prediction comes from (the pre-match run of the `results.json` rule), exactly as recorded then, so a visitor can
+  see how surge candidates turned out (surged = `actual.total >= expected + margin`, `margin` from `surge.json`).
+  Absent when that run did not assess the fixture or recorded no labels (labels started 2026-10-27).
+- Recorded with the catalogue of that day: they are not re-checked against today's `surge.json` (a catalogue
+  update must not rewrite history). Clients ignore ids the current catalogue does not list. `strong` (true or
+  absent) is copied as recorded too.
+- `context` (**object or absent**): the table context the same run recorded for the fixture (shape of the board
+  fixture's `context`), so outcomes can be read by season phase.
 
 ### Experimental results (additive, schema 1; UEFA Champions League)
 - `result_source` (every result): `"football-data"` (automatic) or `"manual"` (typed in from a public match
@@ -323,6 +373,13 @@ the last pre-match board prediction), plus experimental ones settled by the same
 - The site is expected to say it plainly: signals come from about 50,000 past matches out of sample; they are a
   lean, not a promise; the probabilities shown are unchanged.
 - Optional for clients: a site without `surge.json` simply hides Surge Watch.
+- `stacking` (additive, 2026-10-28): matches by number of applying boost signals, per route, the research's numbers
+  copied from the catalogue: `min_boosts` (2), `note`, `groups` (`"0"`, `"1"`, `"2"`, `"3+"`, `"2+"`), `phases`,
+  and per route `signals` (the boosts counted), `share` (share of matches per group), `by_count` and `season_phase`
+  (cells `n`, `over_rate`, `stated_rate`, `excess_ci`, `seasons_held`, `seasons`; an empty group has only `n`) and
+  `strong_applies` (whether fixtures of that route get the `strong` label). Example: odds route `by_count["2+"]` =
+  `{"n": 3268, "over_rate": 0.2512, "stated_rate": 0.2115, "excess_ci": [0.0268, 0.0525], "seasons_held": 7,
+  "seasons": 7}`, `strong_applies: true`; no-odds `strong_applies: false` (fails the strict out-of-sample test).
 
 ## Audit trail
 Each scheduled run commits the regenerated `data/*.json` to the published branch. Git history (with
@@ -343,7 +400,8 @@ The shapes above are unchanged. Details an implementer of the site needs (JSON S
   "Provisional results"), and, for cross-border
   competitions only, fixture `experimental` / `data_quality` and league `featured` (see "Experimental
   fixtures"), fixture `explain` (see "`explain`"), fixture `surge` and the file `surge.json` (see "`surge`" and
-  "`data/surge.json`"). `meta.counts.cold_start` includes experimental fixtures with a club without data.
+  "`data/surge.json`"), fixture `context` (see "`context`") and result `surge` (see "Surge labels of settled
+  matches"). `meta.counts.cold_start` includes experimental fixtures with a club without data.
 - `meta.leagues` lists every league id used in any file; `fixtures` is 0 when a league only appears in
   `results.json` or `track.json`. League `name` has no country prefix ("Premier League").
 - `expected`, `lb.*`, `median`, `lb80` are integers; `mean` has 2 decimals; `league_avg` / `above_league` 1.

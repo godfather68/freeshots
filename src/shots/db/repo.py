@@ -132,6 +132,38 @@ class Repository:
             return None
         return {"version": surge.get("version"), "fixtures": surge["fixtures"], "run_id": meta["run_id"]}
 
+    def board_context(self) -> dict | None:
+        """Table context recorded with the latest board run's Surge Watch labels (``meta["surge"]["context"]``,
+        shots.predict.surge.table_context): {"run_id", "fixtures": {match_id: {"phase", "home": {...}, "away":
+        {...}}}}. Independent of the catalogue version (positions do not depend on it). None when the run has none."""
+        meta = self.board_meta()
+        surge = (meta or {}).get("surge")
+        ctx = surge.get("context") if isinstance(surge, dict) else None
+        if not isinstance(ctx, dict):
+            return None
+        return {"run_id": meta["run_id"], "fixtures": ctx}
+
+    def run_surge_labels(self, run_ids) -> dict[int, dict]:
+        """Surge Watch labels recorded with the given board runs: {run_id: {"version", "fixtures": {match_id:
+        {"signals", "against"[, "strong"]}}, "context": {match_id: table context} ({} if none)}} for the runs that have them (labels started 2026-10-27; older runs have none).
+        Used to show how flagged matches turned out: a result row's labels are those of the run its prediction
+        came from (settled_results' run_id), as recorded then."""
+        ids = sorted({int(r) for r in run_ids if r is not None})
+        if not ids:
+            return {}
+        with self.engine.connect() as c:
+            rows = c.execute(select(PredictionRun.id, PredictionRun.meta)
+                             .where(PredictionRun.id.in_(ids), PredictionRun.kind == "board")).all()
+        out = {}
+        for rid, meta in rows:
+            meta = json.loads(meta) if isinstance(meta, (str, bytes)) else (meta or {})
+            surge = meta.get("surge") if isinstance(meta, dict) else None
+            if isinstance(surge, dict) and isinstance(surge.get("fixtures"), dict):
+                ctx = surge.get("context")
+                out[int(rid)] = {"version": surge.get("version"), "fixtures": surge["fixtures"],
+                                 "context": ctx if isinstance(ctx, dict) else {}}
+        return out
+
     # ------------------------------------------------------------------ board
 
     @staticmethod
@@ -385,7 +417,7 @@ class Repository:
         ("football-data" | "manual" | the provider label of a provisional result, e.g. "espn"),
         result_status ("provisional": settled by a hand-entered stand-in that football-data has not
         confirmed yet; "confirmed": the competition's own source), source_url (manual and provisional
-        results only, else None).
+        results only, else None), run_id (the board run the prediction belongs to).
         Experimental predictions are excluded: see settled_results."""
         return self.settled_results(since, until, ent, experimental=False)
 
@@ -402,8 +434,8 @@ class Repository:
         sql = text(f"""
             SELECT match_id, date, competition, country, tier, home_team, away_team, actual_total, actual_home,
                    actual_away, predicted_at, expected_shots, lb_70, lb_80, lb_90, odds, total_curve,
-                   curve_n_min, curve_n_max, experimental, manual, source_url, provisional, prov_url, provider
-            FROM (SELECT p.match_id, o.date, o.competition, c.country, c.tier, m.home_team, m.away_team,
+                   curve_n_min, curve_n_max, experimental, manual, source_url, provisional, prov_url, provider, run_id
+            FROM (SELECT p.match_id, p.run_id, o.date, o.competition, c.country, c.tier, m.home_team, m.away_team,
                          o.actual_total, o.actual_home, o.actual_away, p.created_at AS predicted_at,
                          p.median AS expected_shots, p.lb_70, p.lb_80, p.lb_90, p.odds_available AS odds,
                          p.total_curve, r.curve_n_min, r.curve_n_max, o.experimental,

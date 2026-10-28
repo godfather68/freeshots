@@ -42,11 +42,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from shots.evaluation import surge_rules as sr
+
 log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[3]
 REPORT_JSON = ROOT / "reports" / "2026-10-26_overshoot_patterns.json"
 REPORT_MD = "reports/2026-10-26_overshoot_patterns.md"
+# league-table signals, season phase and stacking (2026-10-28, ``python -m shots.evaluation.surge_table study``)
+TABLE_REPORT_JSON = ROOT / "reports" / "2026-10-28_surge_table_signals.json"
+TABLE_REPORT_MD = "reports/2026-10-28_surge_table_signals.md"
 TABLE_PATH = Path(__file__).with_name("surge_signals.json")
 MARGIN = 5
 MIN_SEASONS_HELD = 5
@@ -65,6 +70,7 @@ class Signal:
     direction: str            # "boost" (more surges than the curve said) | "damper" (fewer)
     segments: tuple[str, ...]  # research segment names (report JSON); more than one = pooled
     explanation: str
+    source: str = "overshoot"  # which research report holds the segments: "overshoot" (REPORT_JSON) | "table"
 
 
 SIGNALS: tuple[Signal, ...] = (
@@ -90,6 +96,14 @@ SIGNALS: tuple[Signal, ...] = (
     Signal("home_mismatch", "Strong home side, weak visitor", "boost",
            ("strong home vs weak away (rating gap top decile, home better)",),
            "The home team's rating is far above the visitor's (top tenth of rating gaps)."),
+    Signal("top_vs_bottom", "Top of the table against the bottom", "boost",
+           (sr.segment_name(*sr.SELECTED["top_vs_bottom"]),),
+           "In the last third of the season, the two teams are far apart in the league table (at least 60% of the "
+           "table between them), whichever side is at home.", source="table"),
+    Signal("promoted_struggling", "Promoted side near the bottom", "boost",
+           (sr.segment_name(*sr.SELECTED["promoted_struggling"]),),
+           "In the last third of the season, a team promoted last summer sits in the bottom quarter of the table.",
+           source="table"),
     Signal("winter", "December or January", "damper", ("month: 12", "month: 01"),
            "Matches in December and January have ended 5+ shots above our expected total less often than our "
            "curve said."),
@@ -97,7 +111,11 @@ SIGNALS: tuple[Signal, ...] = (
            ("rating-residual momentum (total - EKF exp), last 3: Q1",),
            "The two teams' last three matches averaged fewer shots than their opponent-adjusted ratings "
            "expected (bottom fifth)."),
+    Signal("title_race", "Title race", "damper", (sr.segment_name(*sr.SELECTED["title_race"]),),
+           "In the last third of the season, both teams are within 6 points of first place. These matches have "
+           "ended 5+ shots above our expected total much less often than our curve said.", source="table"),
 )
+TABLE_SIGNALS = tuple(s.id for s in SIGNALS if s.source == "table")
 BY_ID = {s.id: s for s in SIGNALS}
 
 # Signals kept in the catalogue (so the research numbers stay visible) but never applied to fixtures.
@@ -106,6 +124,9 @@ BY_ID = {s.id: s for s in SIGNALS}
 # residuals run high, so a flag today would not mean what the research measured. Revisit with a per-season cut.
 HELD_BACK: dict[str, str] = {
     "beating_ratings": "held back: this season's ratings run high, so the research cut would flag too many matches",
+    # title_race (2026-10-28): strong on the no-odds route (-9pp, every season), but its discovery sample was below
+    # the study's pre-set minimum (103 < 150 matches), so its definition was chosen after the fact. Shown, not used.
+    "title_race": "held back: too few matches in the discovery seasons to choose its definition in advance",
 }
 
 METHOD = ("Out of sample: walk-forward predictions of our production models, refitted every month on earlier "
@@ -168,8 +189,55 @@ def route_stats(report_route: dict, sig: Signal) -> dict:
             "applies": bool(ci_ok and held >= MIN_SEASONS_HELD and sig.id not in HELD_BACK)}
 
 
-def build_table(report: dict, cuts: dict) -> dict:
-    """The committed catalogue (``surge_signals.json``) from the report JSON and the discovery cut points."""
+def load_table_report(path: Path | None = None) -> dict:
+    return json.loads(Path(path or TABLE_REPORT_JSON).read_text(encoding="utf-8"))
+
+
+def _stack_cell(c: dict) -> dict:
+    """One stacking cell of the table report in catalogue form (rates, CI of the excess, seasons held)."""
+    if "excess_ci" not in c:
+        return {"n": int(c["n"])}
+    return {"n": int(c["n"]), "over_rate": _r(c["rate"]), "stated_rate": _r(c["stated"]),
+            "excess_ci": [_r(c["excess_ci"][0]), _r(c["excess_ci"][1])], "seasons_held": int(c["seasons_pos"]),
+            "seasons": int(c["seasons_n"])}
+
+
+STACK_NOTE = ("Matches by number of boost signals that apply (a match counts at most one season-end signal). "
+              "'Strong surge candidate' = 2 or more. Out of sample, 2019/20 to 2025/26; the strong rule is used on a "
+              "route only where 2+ signals beat our curve with a 95% interval above zero, in at least "
+              f"{MIN_SEASONS_HELD} of 7 seasons and in the confirmation seasons 2023/24 to 2025/26.")
+
+
+def stacking_table(table_report: dict) -> dict:
+    """The page's stacking table (counts and rates by number of applying boosts, per route and season phase) and
+    whether the "strong surge candidate" rule (``surge_rules.STRONG_MIN_BOOSTS``+ boosts) holds on each route."""
+    out = {"report": TABLE_REPORT_MD, "note": STACK_NOTE, "min_boosts": sr.STRONG_MIN_BOOSTS,
+           "groups": [*sr.STACK_GROUPS, "2+"], "phases": list(sr.PHASES), "routes": {}}
+    for r in ROUTES:
+        st = table_report[r]["stacking"]
+        two = st["groups"]["2+"]
+        oos = table_report[r]["oos"]["stacking_confirmation"]["groups"]["2+"]
+        holds = bool("excess_ci" in two and two["excess_ci"][0] > 0 and two["seasons_pos"] >= MIN_SEASONS_HELD
+                     and "conf" in two and two["conf"]["excess"] > 0 and "excess" in oos and oos["excess"] > 0)
+        out["routes"][r] = {
+            "signals": list(table_report[r]["used"]),
+            "share": {g: _r(v) for g, v in st["share"].items()},
+            "by_count": {g: _stack_cell(c) for g, c in st["groups"].items()},
+            "by_phase": {ph: {g: _stack_cell(c) for g, c in cells.items()} for ph, cells in st["by_phase"].items()},
+            "season_phase": {ph: _stack_cell(c) for ph, c in table_report[r]["phases"].items()},
+            "calls_70": {g: {"n": int(c["n"]), "hit_rate": _r(c.get("rate")), "stated": _r(c.get("stated"))}
+                         for g, c in st["calls_70"].items()},
+            "strong_applies": holds,
+        }
+    return out
+
+
+def build_table(report: dict, cuts: dict, table_report: dict | None = None) -> dict:
+    """The committed catalogue (``surge_signals.json``) from the report JSON(s) and the discovery cut points.
+    League-table signals (``source="table"``) and the stacking table come from ``table_report`` (default: the
+    committed ``TABLE_REPORT_JSON``); the keys ``table_report`` and ``stacking`` are additive."""
+    table_report = table_report if table_report is not None else load_table_report()
+    src = {"overshoot": report, "table": table_report}
     comps = sorted(set(report["odds"]["competitions"]) & set(report["noodds"]["competitions"]))
     return {
         "report": REPORT_MD,
@@ -185,7 +253,9 @@ def build_table(report: dict, cuts: dict) -> dict:
         "cuts": {k: _r(v, 6) for k, v in sorted(cuts.items())},
         "signals": [{"id": s.id, "label": s.label, "direction": s.direction, "group": "season_end" if s.id in SEASON_END else None,
                      "explanation": s.explanation, "segments": list(s.segments),
-                     "routes": {r: route_stats(report[r], s) for r in ROUTES}} for s in SIGNALS],
+                     "routes": {r: route_stats(src[s.source][r], s) for r in ROUTES}} for s in SIGNALS],
+        "table_report": TABLE_REPORT_MD,
+        "stacking": stacking_table(table_report),
     }
 
 
@@ -213,7 +283,11 @@ def flags(inputs: pd.DataFrame, cuts: dict) -> pd.DataFrame:
     h2h_gap = weighted head-to-head mean total - our expected (published median); goals_l5 = both teams' mean goals
     for + against over their last 5 matches, summed; res_l3 = mean of the two teams' last-3 mean (match total -
     rating expectation); rating_gap = (home att - home def) - (away att - away def), opponent-adjusted ratings;
-    month = 1-12 of the match date."""
+    month = 1-12 of the match date.
+
+    League-table signals (``TABLE_SIGNALS``, 2026-10-28) read the optional columns ``surge_rules.TABLE_INPUTS``
+    (``surge_rules.table_inputs`` builds them from the candidate + form features); when a column is absent the
+    condition is not met, so callers that do not pass them get exactly the earlier flags plus all-False columns."""
     f = inputs
     num = {c: pd.to_numeric(f[c], errors="coerce").to_numpy(float) for c in INPUTS}
     with np.errstate(invalid="ignore"):
@@ -229,6 +303,8 @@ def flags(inputs: pd.DataFrame, cuts: dict) -> pd.DataFrame:
             "winter": np.isin(num["month"], (12, 1)),
             "below_ratings": num["res_l3"] < cuts["res_l3_q20"],
         }
+    tf = sr.table_flags(f, {sid: sr.SELECTED[sid] for sid in TABLE_SIGNALS})
+    out.update({sid: tf[sid].to_numpy(bool) for sid in TABLE_SIGNALS})
     return pd.DataFrame(out, index=f.index)
 
 
@@ -254,15 +330,22 @@ def assign(fl: pd.DataFrame, route: pd.Series, table: dict) -> pd.Series:
 def research_inputs(d: pd.DataFrame) -> pd.DataFrame:
     """The live rule's inputs on the study frame (after ``overshoot.segments``, which defines ``_goals5``,
     ``_ekf3`` and ``_rgap``)."""
-    return pd.DataFrame({
+    x = pd.DataFrame({
         "dead_n": d["ctx_dead_n"], "games_left_min": np.fmin(d["home_ctx_games_left"], d["away_ctx_games_left"]),
         "h2h_gap": d["h2h_total_wmean"] - d["expected"], "goals_l5": d["_goals5"], "res_l3": d["_ekf3"],
         "rating_gap": d["_rgap"], "month": d["month"]}, index=d.index)
+    # table inputs: season context of features_candidates, promotion of overshoot._promoted (= form_promo)
+    for side in ("home", "away"):
+        for k in ("rank_frac", "gap_title", "gap_safety", "games_left"):
+            x[f"{side}_{k}"] = d[f"{side}_ctx_{k}"]
+        x[f"{side}_promo"] = d[f"{side}_promo"]
+    x["progress"] = d["ctx_progress"]
+    return x
 
 
-def cut_points(preds: Path, report: dict) -> dict:
+def cut_points(preds: Path, report: dict, table_report: dict | None = None) -> dict:
     """Discovery quantiles of the study (``overshoot``) and a check that the live rule reproduces every segment
-    count of the report on the study's rows."""
+    count of the reports on the study's rows (league-table signals: counts of ``table_report``)."""
     from shots.evaluation import overshoot as ov
 
     cond = ov.conditioning_frame()
@@ -281,11 +364,19 @@ def cut_points(preds: Path, report: dict) -> dict:
 
         cuts = {"goals_l5_q20": q("_goals5", .2), "res_l3_q20": q("_ekf3", .2), "res_l3_q80": q("_ekf3", .8),
                 "rating_gap_q90": q("_rgap", .9)}
-        fl = flags(research_inputs(d), cuts)
+        x = research_inputs(d)
+        fl = flags(x, cuts)
         for s in SIGNALS:
-            seg = np.logical_or.reduce([np.asarray(segs[name], bool) for name in s.segments])
+            if s.source == "table":
+                if table_report is None:
+                    continue
+                fam, kw = sr.SELECTED[s.id]
+                seg = np.asarray(sr.FAMILIES[fam](x, **kw), bool)
+                reported = sum(table_report[route]["segments"][name]["n"] for name in s.segments)
+            else:
+                seg = np.logical_or.reduce([np.asarray(segs[name], bool) for name in s.segments])
+                reported = sum(report[route]["segments"][name]["n"] for name in s.segments)
             got = fl[s.id].to_numpy(bool)
-            reported = sum(report[route]["segments"][name]["n"] for name in s.segments)
             if int(seg.sum()) != reported:
                 raise AssertionError(f"{route} {s.id}: study {int(seg.sum())}, report {reported}")
             if s.id == "low_goal_run":
@@ -310,15 +401,18 @@ def main(argv=None) -> None:
     t = sub.add_parser("table", help="write the committed signal catalogue from the report JSON")
     t.add_argument("--report", type=Path, default=REPORT_JSON)
     t.add_argument("--preds", type=Path, default=None, help="walk-forward predictions of the study (recompute cuts)")
+    t.add_argument("--table-report", type=Path, default=TABLE_REPORT_JSON,
+                   help="league-table signals and stacking (python -m shots.evaluation.surge_table study)")
     t.add_argument("--out", type=Path, default=TABLE_PATH)
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     report = json.loads(a.report.read_text(encoding="utf-8"))
+    table_report = load_table_report(a.table_report)
     if a.preds is not None:
-        cuts = cut_points(a.preds, report)
+        cuts = cut_points(a.preds, report, table_report)
     else:
         cuts = load_table(a.out)["cuts"]
-    table = build_table(report, cuts)
+    table = build_table(report, cuts, table_report)
     a.out.write_text(json.dumps(table, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     log.info("wrote %s (%d signals)", a.out, len(table["signals"]))
 

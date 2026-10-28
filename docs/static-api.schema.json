@@ -82,7 +82,55 @@
         "signals": {"description": "Boost signals (ids of surge.json signals with direction boost) that apply on the fixture's route, catalogue order; at most one season-end signal.",
                     "type": "array", "items": {"$ref": "#/$defs/surge_id"}, "uniqueItems": true},
         "against": {"description": "Damper signals (direction damper) that apply on the fixture's route, catalogue order.",
-                    "type": "array", "items": {"$ref": "#/$defs/surge_id"}, "uniqueItems": true}
+                    "type": "array", "items": {"$ref": "#/$defs/surge_id"}, "uniqueItems": true},
+        "strong": {"description": "Additive (schema 1). Present (true) only for a strong surge candidate: stacking.min_boosts or more signals AND the catalogue allows the label on the fixture's route (surge.json stacking.routes.<route>.strong_applies).",
+                   "const": true}
+      }
+    },
+    "stack_cell": {
+      "description": "Research numbers of one group of matches (by number of signals or by season phase); an empty group has only n.",
+      "type": "object", "additionalProperties": false, "required": ["n"],
+      "properties": {
+        "n": {"type": "integer", "minimum": 0},
+        "over_rate": {"$ref": "#/$defs/probability"},
+        "stated_rate": {"$ref": "#/$defs/probability"},
+        "excess_ci": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "seasons_held": {"type": "integer", "minimum": 0},
+        "seasons": {"type": "integer", "minimum": 0}
+      }
+    },
+    "stack_route": {
+      "type": "object", "additionalProperties": false,
+      "required": ["signals", "share", "by_count", "season_phase", "strong_applies"],
+      "properties": {
+        "signals": {"type": "array", "items": {"$ref": "#/$defs/surge_id"}},
+        "share": {"type": "object", "additionalProperties": {"$ref": "#/$defs/probability"}},
+        "by_count": {"type": "object", "additionalProperties": {"$ref": "#/$defs/stack_cell"}},
+        "season_phase": {"type": "object", "additionalProperties": {"$ref": "#/$defs/stack_cell"}},
+        "strong_applies": {"type": "boolean"}
+      }
+    },
+    "table_side": {
+      "description": "Additive (schema 1). One team's league table before the match (our own computation from results dated strictly before it).",
+      "type": "object", "additionalProperties": false, "required": ["pos", "of", "pts", "gp", "left", "to_top", "to_safety"],
+      "properties": {
+        "pos": {"description": "League position, 1 = top (points, then goal difference); null before the team's first game.", "type": ["integer", "null"], "minimum": 1},
+        "of": {"description": "Teams in the league.", "type": "integer", "minimum": 2},
+        "pts": {"type": "integer", "minimum": 0},
+        "gp": {"description": "Games played.", "type": "integer", "minimum": 0},
+        "left": {"description": "Scheduled games left (format-aware); null for playoff formats.", "type": ["integer", "null"], "minimum": 0},
+        "to_top": {"description": "Leader's points minus own (0 = level with or leading).", "type": "integer", "minimum": 0},
+        "to_safety": {"description": "Own points minus those of the best-placed team in the drop zone (bottom round(15% of the league) places); <= 0 = in the drop zone.", "type": "integer"}
+      }
+    },
+    "table_context": {
+      "description": "Additive (schema 1). Table position and season period of a fixture assessed by Surge Watch, before kick-off. Context only: never changes a probability.",
+      "type": "object", "additionalProperties": false, "required": ["phase", "home", "away"],
+      "properties": {
+        "phase": {"description": "The signals' own definition (shots.evaluation.surge_rules): run_in (a team has 6 or fewer league games left), else late (>= 2/3 of the scheduled games played), middle (>= 25%), early. Playoff formats: by the regular-season share, playoff rounds = late, never run_in. null when progress is unknown.",
+                  "enum": ["early", "middle", "late", "run_in", null]},
+        "home": {"$ref": "#/$defs/table_side"},
+        "away": {"$ref": "#/$defs/table_side"}
       }
     },
     "surge_route_stats": {
@@ -292,6 +340,7 @@
                                "enum": ["full", "partial", "none"]},
               "explain": {"$ref": "#/$defs/explain"},
               "surge": {"$ref": "#/$defs/surge_labels"},
+              "context": {"$ref": "#/$defs/table_context"},
               "team": {
                 "anyOf": [
                   {"type": "null"},
@@ -342,7 +391,15 @@
               "source_url": {"description": "Additive (schema 1). Only with a manual or provisional result: the page the counts were read from.",
                              "type": "string", "pattern": "^https?://"},
               "experimental": {"description": "Additive (schema 1). Present (true) only for an experimental prediction (cross-border competitions); such results are never part of the official live record. Absent = an ordinary prediction.",
-                               "const": true}
+                               "const": true},
+              "surge": {"description": "Additive (schema 1). The Surge Watch labels this fixture carried in the pre-match board run its prediction comes from, exactly as recorded then (the catalogue of that day; clients ignore unknown ids). Absent when that run did not assess it (labels started 2026-10-27).",
+                        "type": "object", "additionalProperties": false, "required": ["signals", "against"],
+                        "properties": {
+                          "signals": {"type": "array", "items": {"$ref": "#/$defs/surge_id"}, "uniqueItems": true},
+                          "against": {"type": "array", "items": {"$ref": "#/$defs/surge_id"}, "uniqueItems": true},
+                          "strong": {"const": true}
+                        }},
+              "context": {"$ref": "#/$defs/table_context"}
             }
           }
         }
@@ -380,6 +437,18 @@
       "type": "object", "additionalProperties": false,
       "required": ["schema", "report_date", "margin", "matches", "period", "method", "routes", "signals"],
       "properties": {
+        "stacking": {
+          "description": "Additive (schema 1, 2026-10-28). Matches by number of applying boost signals, per route (research numbers, copied), and whether the 'strong surge candidate' label is used on the route.",
+          "type": "object", "additionalProperties": false, "required": ["min_boosts", "note", "groups", "phases", "routes"],
+          "properties": {
+            "min_boosts": {"type": "integer", "minimum": 2},
+            "note": {"type": "string"},
+            "groups": {"type": "array", "items": {"type": "string"}},
+            "phases": {"type": "array", "items": {"enum": ["early", "middle", "late", "run_in"]}},
+            "routes": {"type": "object", "additionalProperties": false, "required": ["odds", "noodds"],
+                       "properties": {"odds": {"$ref": "#/$defs/stack_route"}, "noodds": {"$ref": "#/$defs/stack_route"}}}
+          }
+        },
         "schema": {"const": 1},
         "report_date": {"$ref": "#/$defs/date"},
         "margin": {"type": "integer", "minimum": 1},

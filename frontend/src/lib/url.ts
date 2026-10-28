@@ -17,6 +17,11 @@ export type RecordKind = (typeof RECORDS)[number]
 export const OUTCOMES = ['all', 'hit', 'miss', 'near', 'floor'] as const
 /** Surge page: the "at least N signals" filter goes up to this. */
 export const SURGE_MAX_MIN = 3
+/** Surge page: season-phase filter ('' = all) and candidate order. */
+export const SURGE_PHASES = ['', 'early', 'middle', 'late', 'run_in'] as const
+export type SurgePhaseFilter = (typeof SURGE_PHASES)[number]
+export const SURGE_SORTS = ['signals', 'time', 'prob'] as const
+export type SurgeSort = (typeof SURGE_SORTS)[number]
 export type Outcome = (typeof OUTCOMES)[number]
 
 export interface ViewState {
@@ -38,6 +43,8 @@ export interface ViewState {
   rf: Outcome // results page: hit / miss / floor broken
   rc: boolean // results page: 70%+ calls only
   ms: number // surge page: minimum number of boost signals (1-3)
+  ph: SurgePhaseFilter // surge page: season phase of the candidates ('' = all)
+  ss: SurgeSort // surge page: candidate order
 }
 
 export interface Route { path: string; params: URLSearchParams }
@@ -92,6 +99,8 @@ export function parseState(params: URLSearchParams, meta: Pick<Meta, 'thresholds
     rf: oneOf(OUTCOMES, params.get('rf'), 'all'),
     rc: params.get('rc') === '1',
     ms: clamp(int(params.get('ms'), 1), 1, SURGE_MAX_MIN),
+    ph: oneOf(SURGE_PHASES, params.get('ph'), ''),
+    ss: oneOf(SURGE_SORTS, params.get('ss'), 'signals'),
   }
 }
 
@@ -116,5 +125,7 @@ export function stateToParams(s: ViewState, meta: Pick<Meta, 'thresholds'>): Rec
   if (s.rf !== 'all') out.rf = s.rf
   if (s.rc) out.rc = '1'
   if (s.ms !== 1) out.ms = String(s.ms)
+  if (s.ph) out.ph = s.ph
+  if (s.ss !== 'signals') out.ss = s.ss
   return out
 }

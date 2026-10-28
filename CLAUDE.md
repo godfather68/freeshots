@@ -122,6 +122,10 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
   labels computed in the board build (`shots.predict.surge`), exported as `board.json` `surge` + `data/surge.json`.
   Never changes a probability. Odds fixtures are labelled only when the Surge model did not score them (Scotland
   Championship, fallbacks): Surge already corrects for these signals, so labelling them would double count.
+  Table signals and stacking (`shots.evaluation.surge_rules`, `reports/2026-10-28_surge_table_signals.md`):
+  per-fixture `context` (position, points, gaps, season phase), `strong` = 2+ boosts only where
+  `stacking.routes.<route>.strong_applies`. `.github/workflows/surge-weekly.yml` (Mon 07:00 UTC) dispatches
+  update.yml with `force` + `surge_monitor`; a REVERT verdict opens a `surge-monitor` issue, never a config change.
 - Web UI (local, server-side rendered): `python -m shots.web` → http://127.0.0.1:8000. Reads the DB through
   `shots.db.repo.Repository` only (never runs a model, no SQL in routes). Access control is by entitlement,
   enforced in the repository queries. Preview config: `.claude/launch.json` (`shots-web`).

@@ -68,6 +68,11 @@ matches before kick-off), not predictions: no prediction row is touched, so the 
 An identical rebuild refreshes them with the meta (`import_board`, "unchanged"). The catalogue (research
 numbers per signal and route, cut points) is the committed `src/shots/evaluation/surge_signals.json`, generated
 from the report JSON by `python -m shots.evaluation.surge table`; `Repository.board_surge()` reads the labels.
+The same block holds `"context"` (2026-10-28): `{match_id: {"phase", "home": {pos, of, pts, gp, left, to_top,
+to_safety}, "away": {...}}}` for the assessed fixtures, the league table before the match and the season phase
+(`shots.predict.surge.table_context` / `season_phase`, from the candidate build's season-context family; published
+as the fixture's `context`). `Repository.board_context()` reads it, `Repository.run_surge_labels(run_ids)` the labels
+of any board runs (used for the labels of settled results: the run a result's prediction came from).
 
 Curves: `total_curve[i] = P(total >= curve_n_min + i)` (board: n = 10..45),
 `home_curve[i] / away_curve[i] = P(team >= team_n_min + i)` (n = 3..25). Sparse probabilities (picks:
@@ -323,6 +328,9 @@ league id = slug of the canonical competition name (`england-premier-league_2026
   `team_thresholds`, `surge`) + `run_id`.
 - `board_surge() -> dict | None`: the latest board run's Surge Watch labels `{version, fixtures, run_id}`
   (None when the run has none).
+- `board_context() -> dict | None`: the latest board run's table context `{run_id, fixtures: {match_id: {...}}}`.
+- `run_surge_labels(run_ids) -> {run_id: {version, fixtures}}`: labels recorded with the given board runs (runs
+  without labels are left out). `settled_results` rows carry `run_id` (the board run of the chosen prediction).
 - `board_leagues(ent) -> tuple[str, ...]`: competitions on the latest board the caller may see.
 - `latest_board(f, today, ent) -> BoardView` where `f` is `shots.web.filters.Filters` (`leagues, groups,
   n, smin, smax, pmin, when, odds, nocold, q, sort, side, tn, tp`). Filters, probability lookup and sort
@@ -761,6 +769,16 @@ parquet / raw files (its only file read is the committed Surge Watch catalogue).
   apply on the fixture's route aborts the export). The site's "Surge" page (`#/surge`) explains the patterns and
   lists upcoming fixtures with a boost; probabilities are never adjusted. Tests: `tests/test_predict_surge.py`
   (rule, routes, no leakage), `tests/test_export_surge.py` (export, schema, verifier).
+- **Table signals, strong candidates** (2026-10-28, `reports/2026-10-28_surge_table_signals.md`): the board build
+  adds the table inputs (`surge_rules.table_inputs`) so `top_vs_bottom` / `promoted_struggling` fire, records
+  `"strong": true` on fixtures with 2+ boosts when `stacking.routes.<route>.strong_applies` (odds only today), and
+  takes the context's phase from `surge_rules.phase_of` (one definition). `surge.json` carries `stacking`; results
+  carry the recorded `context` too.
+- **Surge results and table context** (2026-10-28): a `results.json` row carries `surge` = the labels its pre-match
+  board run recorded for it, as recorded (not re-judged against today's catalogue; malformed ids abort the export);
+  a board fixture carries `context` (table position, season phase) recorded with the board run, checked for range
+  and consistency (else the export aborts). The Surge page charts how flagged matches turned out (weekly surge rate,
+  1+ boost vs assessed without, per-signal counts, latest settled candidates) and shows the context and a phase filter.
 
 - **What is published:** our predictions, fixture identity (teams, league, kick-off) and, for finished
   matches, the final total / home / away shot counts. Never odds values, market probabilities, goals, shots
@@ -807,7 +825,9 @@ with its own SQL (no repository, no exporter code) and compares: the JSON Schema
 curve, `board.json` against the latest board run row by row and in order, `results.json` against its own
 selection of the last pre-match board prediction, `track.json` counts and per-N picks / hits against
 `v_official_picks` and the backfill run, `meta.json` against all of these, `surge.json` against the committed
-catalogue and every fixture's `surge` against the board run's labels and the catalogue's route rules. Exit 0 / 1
+catalogue and every fixture's `surge` against the board run's labels and the catalogue's route rules, every
+fixture's `context` against the run's recorded context (range and phase consistency too), and every result's
+`surge` against the labels its own pre-match board run recorded. Exit 0 / 1
 (differences listed) / 2. It runs after every export in the scheduled workflow and in `tests/test_export.py`, where
 twelve kinds of tampering are each detected.
 
@@ -822,6 +842,7 @@ separate permissions:
 | `update` | `contents: write`, `actions: write`, `deployments: read` | restore state -> plan -> `python -m shots.worker run-once [--force]` -> check + save state -> export -> `shots.export.verify` -> commit `data/*.json` to the `data` branch -> decide whether to deploy |
 | `build` | `contents: read` | `npm ci && npm run build` in `frontend/` with the exported JSON in `frontend/public/data/`; refuses to publish `*.db, *.csv, *.parquet, *.joblib, *.ics, *.key` |
 | `deploy` | `pages: write`, `id-token: write` | `actions/upload-pages-artifact` + `actions/deploy-pages` (environment `github-pages`) |
+| `surge_issue` | `issues: write` | only when the run's Surge monitor said REVERT: open an issue labelled `surge-monitor`, or comment on the open one |
 
 - Python **3.12** on `ubuntu-24.04`, installed from `requirements.lock` (exact versions, all wheels; resolved
   and tested on Ubuntu 24.04 / Python 3.12.3) plus `pip install --no-deps -e .` (editable is required: the
@@ -841,6 +862,17 @@ separate permissions:
   of what was predicted before kick-off. The deployed site gets the same files with a fresh `built_at`.
 - `watchdog.yml` (hourly at :43; `contents: read`, `actions: write`): the second, independent schedule;
   see "Triggers".
+- `surge-weekly.yml` (Monday 07:00 UTC + manual; `actions: write` only, no checkout): `gh workflow run update.yml
+  -f force=true -f surge_monitor=true`, so the board, the Surge model's numbers and Surge Watch are rebuilt from the
+  newest fixtures at least weekly (the hourly runs already rebuild them whenever data changes). The monitor needs
+  the database, which only exists in `update.yml`'s state cache, so it runs there: step "Surge monitor" (input
+  `surge_monitor`, default false: schedule, push and watchdog runs never run it), after "Check the database",
+  read-only, report to the runner's temp directory and the job summary (never committed). Exit 2 = REVERT ->
+  job `surge_issue`. A failing monitor is a warning, never a failed publish. **No config change is ever made
+  automatically**: reverting the odds model is the owner's decision (`reports/2026-10-27_surge_adoption.md`).
+  Limits: GitHub's schedule is best effort (a dropped Monday slot is not replaced; start it by hand), and a
+  dispatched run that is still pending when a newer `update.yml` run queues is replaced by it (concurrency
+  group `shots-update`), so that week has no monitor run either.
 - `ci.yml` (push to `main` / `master`, pull requests; read-only token): `pytest -m "not a11y"` (includes the
   export contract, schema, privacy and verifier tests), an optional non-blocking Playwright a11y job, and
   frontend lint / unit tests / build when `frontend/package.json` exists.

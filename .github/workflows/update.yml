@@ -7,6 +7,7 @@
 #           commit data/*.json to the `data` branch
 #   build   (contents: read)                   npm ci && npm run build with the exported JSON (no write token here)
 #   deploy  (pages: write, id-token: write)    actions/deploy-pages
+#   surge_issue (issues: write)                only after a weekly Surge monitor REVERT: open / update an issue
 #
 # What a run does depends on its trigger (shots.worker.ci.plan, tested in tests/test_worker_ci.py):
 #   schedule             hourly, best effort. The worker decides (never forced): most runs find nothing due
@@ -52,6 +53,10 @@ on:
         description: "Start from an empty database if the cached one cannot be restored (the live record restarts)"
         type: boolean
         default: false
+      surge_monitor:
+        description: "Also run the Surge monitor on the updated database (set by surge-weekly.yml); REVERT opens an issue"
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -87,6 +92,8 @@ jobs:
       deployments: read  # which commit is live on Pages (plan: catch-up, heartbeat)
     outputs:
       exported: ${{ steps.site.outputs.exported }}
+      surge_verdict: ${{ steps.monitor.outputs.verdict }}
+      surge_report: ${{ steps.monitor.outputs.report }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -241,6 +248,33 @@ jobs:
         run: |
           python -m shots.worker.ci db-check --baseline "$RUNNER_TEMP/db-before.json"
           python -m shots.worker.ci prune-fixtures --keep 3
+
+      # Weekly (surge-weekly.yml dispatches a forced run with surge_monitor=true): the Surge monitor on the database
+      # this run restored and updated, the only place that database exists. Read-only; its report goes to the
+      # runner's temp directory and the job summary, never to the repository or the data branch. It never changes
+      # a model switch: a REVERT verdict only opens / updates an issue (job surge_issue) for a person to decide.
+      - name: Surge monitor
+        id: monitor
+        if: ${{ !cancelled() && inputs.surge_monitor && steps.dbcheck.outcome == 'success' }}
+        run: |
+          out="$RUNNER_TEMP/surge-monitor"
+          mkdir -p "$out"
+          rc=0
+          python -m shots.surge_monitor --out-dir "$out" > "$out/verdict.txt" || rc=$?
+          cat "$out/verdict.txt"
+          report=$(ls "$out"/*.md 2>/dev/null | head -n 1 || true)
+          case "$rc" in
+            0) verdict=$(tail -n 1 "$out/verdict.txt" | cut -d: -f1 | tr ' ' '_' | tr -cd 'A-Z_') ;;  # OK | NOT_ENOUGH_CALLS
+            2) verdict=REVERT ;;
+            *) verdict=error; echo "::warning::the Surge monitor failed (exit code $rc): no verdict this week, see its log" ;;
+          esac
+          if [ "$verdict" = "REVERT" ]; then echo "::warning::Surge monitor: REVERT (an issue labelled surge-monitor is opened; nothing is changed automatically)"; fi
+          {
+            echo "### Surge monitor: \`$verdict\`"
+            if [ -n "$report" ]; then cat "$report"; else echo "No report was written."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          if [ -n "$report" ]; then echo "report=$(base64 -w0 "$report")" >> "$GITHUB_OUTPUT"; fi
 
       # Only when the update cycle ran: a run that changed nothing must not add a cache generation.
       - name: Save state
@@ -415,6 +449,40 @@ jobs:
         run: |
           echo "::error::python -m shots.worker run-once reported failures (see its log). State was saved and whatever could be exported was published."
           exit 1
+
+  # A REVERT verdict of the weekly Surge monitor: open an issue (or comment on the open one). No config change,
+  # no commit: reverting the odds model is the owner's decision (reports/2026-10-27_surge_adoption.md).
+  surge_issue:
+    name: Flag a Surge monitor REVERT
+    needs: update
+    if: ${{ !cancelled() && needs.update.outputs.surge_verdict == 'REVERT' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the surge-monitor issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPORT_B64: ${{ needs.update.outputs.surge_report }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body="$RUNNER_TEMP/surge-monitor-issue.md"
+          {
+            echo "The weekly Surge monitor says **REVERT** ($RUN_URL)."
+            echo
+            echo "Nothing was changed automatically. Revert procedure, after the owner's decision: reports/2026-10-27_surge_adoption.md."
+            echo
+            printf '%s' "$REPORT_B64" | base64 -d 2>/dev/null || echo "(the report could not be attached; see the run's summary)"
+          } > "$body"
+          gh label create surge-monitor --color B60205 --description "Surge monitor verdicts (shots.surge_monitor)" 2>/dev/null || true
+          num=$(gh issue list --label surge-monitor --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$num" ]; then
+            gh issue comment "$num" --body-file "$body"
+          else
+            gh issue create --title "Surge monitor: REVERT ($(date -u +%Y-%m-%d))" --label surge-monitor --body-file "$body"
+          fi
 
   build:
     name: Build the site

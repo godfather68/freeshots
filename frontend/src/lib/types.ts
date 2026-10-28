@@ -42,8 +42,37 @@ export interface Fixture {
   explain?: Explain | null
   /** Additive (optional): Surge Watch labels (ids of surge.json signals). Absent = not assessed. */
   surge?: SurgeLabels | null
+  /** Additive (optional): league table before the match and the season phase (assessed fixtures only). */
+  context?: TableContext | null
 }
-export interface SurgeLabels { signals: string[]; against: string[] }
+/** `strong` (true or absent): a strong surge candidate (2+ signals on a route where stacking confirms it). */
+export interface SurgeLabels { signals: string[]; against: string[]; strong?: boolean }
+/** One research cell of surge.json `stacking` (an empty group has only n). */
+export interface StackCell { n: number; over_rate?: number; stated_rate?: number; excess_ci?: [number, number]; seasons_held?: number; seasons?: number }
+export interface StackRoute {
+  signals: string[]
+  share: Record<string, number>
+  by_count: Record<string, StackCell>
+  season_phase: Record<string, StackCell>
+  strong_applies: boolean
+}
+export interface Stacking { min_boosts: number; note: string; groups: string[]; phases: string[]; routes: Record<SurgeRoute, StackRoute> }
+export type SeasonPhase = 'early' | 'middle' | 'late' | 'run_in'
+/** One team's table before the match (our own computation from earlier results). */
+export interface TableSide {
+  /** 1 = top; null before the team's first game. */
+  pos: number | null
+  of: number
+  pts: number
+  gp: number
+  /** Scheduled games left; null for play-off formats. */
+  left: number | null
+  /** Leader's points minus own (0 = level or leading). */
+  to_top: number
+  /** Own points minus those of the best-placed team in the drop zone (<= 0 = in it). */
+  to_safety: number
+}
+export interface TableContext { phase: SeasonPhase | null; home: TableSide; away: TableSide }
 export type SurgeRoute = 'odds' | 'noodds'
 /** The research's own numbers for one signal on one route (surge.json). */
 export interface SurgeRouteStats {
@@ -73,6 +102,8 @@ export interface Surge {
   method: string
   routes: Record<SurgeRoute, { label: string; base_rate: number }>
   signals: SurgeSignal[]
+  /** Additive (optional): matches by number of signals per route, and where the strong label is used. */
+  stacking?: Stacking | null
 }
 export type Volatility = 'low' | 'average' | 'high'
 export interface ExplainFactor { id: string; side?: 'home' | 'away' | 'match' | null; label: string; detail?: string | null; effect: number }
@@ -113,6 +144,10 @@ export interface Result {
   result_status?: 'provisional' | 'confirmed'
   /** Additive (optional, manual and provisional results): link to the page the result was copied from. */
   source_url?: string | null
+  /** Additive (optional): the Surge Watch labels this fixture carried before kick-off, as recorded then. */
+  surge?: SurgeLabels | null
+  /** Additive (optional): the league table before the match, as recorded then. */
+  context?: TableContext | null
 }
 export interface Results { schema: number; results: Result[] }
 export interface ReliabilityBand { band: [number, number]; n: number; stated: number; realised: number }

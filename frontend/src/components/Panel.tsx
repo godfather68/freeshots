@@ -11,7 +11,7 @@ import type { PanelTab } from '../lib/url'
 import { CurveChart } from './CurveChart'
 import { EdgeCheck } from './EdgeCheck'
 import { Explain } from './Explain'
-import { SurgeRow } from './Surge'
+import { SurgeRow, TableContextRow } from './Surge'
 import { Badge, Help, ItemTags, LeagueChip, ProbPill, Stepper, Tabs, isLimited, useStore, ScrollRegion } from './ui'
 
 const TAB_LABEL: Record<PanelTab, string> = { pred: 'Prediction', teams: 'Teams', edge: 'Odds check', about: 'About this match' }
@@ -120,6 +120,7 @@ function Prediction({ item }: { item: Item }) {
       </ul>
 
       <SurgeRow item={item} />
+      <TableContextRow item={item} />
 
       <Explain item={item} />
 

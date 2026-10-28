@@ -223,7 +223,11 @@ def test_no_odds_values_or_source_columns_are_published(seeded, tmp_path):
                # surge.json (Surge Watch catalogue) and a fixture's `surge` labels
                "report_date", "margin", "period", "method", "routes", "noodds", "base_rate", "signals", "direction",
                "explanation", "over_rate", "stated_rate", "excess_ci", "seasons_held", "seasons", "applies",
-               "surge", "against"}
+               "surge", "against",
+               # surge.json `stacking` (2026-10-28), a fixture's `strong` flag and table `context`
+               "stacking", "min_boosts", "note", "groups", "phases", "share", "by_count", "season_phase",
+               "strong_applies", "0", "1", "2", "3+", "2+", "early", "middle", "late", "run_in", "strong",
+               "context", "phase", "pos", "of", "pts", "gp", "left", "to_top", "to_safety"}
 
     def keys(obj):
         if isinstance(obj, dict):
@@ -357,7 +361,8 @@ def test_verifier_agrees_with_the_export(seeded, tmp_path, migrated_db):
     assert res["checked"] == {"board fixtures": 3, "results": 2, "track live thresholds": 1, "track backfill thresholds": 2,
                               "track live daily": 2, "track live weekly": res["checked"]["track live weekly"],
                               "track experimental thresholds": 0, "track experimental daily": 0,
-                              "track experimental weekly": 0, "surge signals": 9, "surge labelled fixtures": 0}
+                              "track experimental weekly": 0, "surge signals": len(verify_mod.json.loads(verify_mod.SURGE_TABLE.read_text(encoding="utf-8"))["signals"]), "surge labelled fixtures": 0,
+                              "context fixtures": 0, "results with surge labels": 0, "results with context": 0}
     with pytest.raises(SystemExit) as exc:
         verify_mod.main(["--dir", str(tmp_path / "out"), "--db", str(migrated_db)])
     assert exc.value.code == 0

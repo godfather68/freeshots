@@ -1,0 +1,52 @@
+# Weekly Surge rebuild and monitor. Every hourly update.yml run already rebuilds the board, the Surge model's
+# numbers and the Surge Watch labels / table context whenever the data changed; this makes sure a full, forced
+# rebuild from the newest fixtures happens at least once a week, and runs the Surge monitor (python -m
+# shots.surge_monitor) on the database that run restores from the Actions cache.
+#
+# The database exists only inside update.yml's cache, so the monitor runs there (input surge_monitor=true): its
+# summary goes to that run's job summary, and a REVERT verdict opens or updates an issue labelled `surge-monitor`
+# (update.yml, job surge_issue). Nothing changes a model switch automatically; reverting is the owner's decision
+# (reports/2026-10-27_surge_adoption.md). Design: docs/platform.md, "Workflows".
+#
+# workflow_dispatch is one of the two events that start a workflow when sent with GITHUB_TOKEN. No checkout, no
+# install, no secrets: the preinstalled gh only.
+name: Surge weekly
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"  # Monday 07:00 UTC (best effort, like every GitHub schedule)
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: shots-surge-weekly
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Start a forced update with the Surge monitor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write  # start update.yml (workflow_dispatch)
+    steps:
+      - name: Start the update workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh workflow run update.yml -f force=true -f surge_monitor=true
+          echo "::notice::started update.yml (force=true, surge_monitor=true); the monitor's summary is in that run"
+
+      - name: Summary
+        if: ${{ always() }}
+        env:
+          OUTCOME: ${{ job.status }}
+        run: |
+          {
+            echo "### Surge weekly"
+            echo "- started update.yml with force=true, surge_monitor=true: \`${OUTCOME}\`"
+            echo "- the Surge monitor's verdict and report are in the job summary of that update.yml run;"
+            echo "  a REVERT verdict opens or updates an issue labelled surge-monitor (no automatic config change)"
+          } >> "$GITHUB_STEP_SUMMARY"

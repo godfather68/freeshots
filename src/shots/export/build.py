@@ -141,6 +141,8 @@ def build_board(repo: Repository, today: date, table: dict | None = None) -> tup
     if src is None:
         raise ExportError("no board run in the database")
     surge = _surge_labels(repo, src, table or sv.load_table())
+    ctx = repo.board_context()
+    context = ctx["fixtures"] if ctx is not None and ctx["run_id"] == src["run_id"] else {}
     has_team = src["team_n_min"] is not None
     fixtures = []
     for r in src["rows"]:
@@ -178,6 +180,8 @@ def build_board(repo: Repository, today: date, table: dict | None = None) -> tup
                 fixtures[-1]["data_quality"] = r["data_quality"]
         if r["match_id"] in surge:  # additive; absent when the fixture was not assessed (see _surge_labels)
             fixtures[-1]["surge"] = surge[r["match_id"]](bool(r["odds"]), what)
+        if r["match_id"] in context and not r.get("experimental"):  # additive; assessed fixtures only
+            fixtures[-1]["context"] = _context(context[r["match_id"]], what)
     return {"schema": SCHEMA_VERSION, "fixtures": fixtures}, src
 
 
@@ -200,6 +204,8 @@ def _surge_labels(repo: Repository, src: dict, table: dict) -> dict:
                     src["run_id"], rs["version"], version)
         return {}
     by_id = {s["id"]: s for s in table["signals"]}
+    stacking = table.get("stacking") or {}
+    min_boosts = int(stacking.get("min_boosts", 2))
 
     def checker(entry):
         def check(odds: bool, what: str) -> dict:
@@ -218,10 +224,71 @@ def _surge_labels(repo: Repository, src: dict, table: dict) -> dict:
                     raise ExportError(f"{what}: duplicate surge label")
             if sum(1 for sid in out["signals"] if sid in sv.SEASON_END) > 1:
                 raise ExportError(f"{what}: more than one season-end surge label")
+            # "strong surge candidate": exactly when the run says so, it has min_boosts+ boosts and the catalogue
+            # allows the label on this route (stacking.routes.<route>.strong_applies)
+            allowed = bool((stacking.get("routes") or {}).get(route, {}).get("strong_applies", False))
+            want = allowed and len(out["signals"]) >= min_boosts
+            got = entry.get("strong", False)
+            if got not in (True, False) or bool(got) != want:
+                raise ExportError(f"{what}: surge `strong` = {got!r}, the catalogue gives {want} on the {route} route")
+            if want:
+                out["strong"] = True
             return out
         return check
 
     return {mid: checker(entry) for mid, entry in rs["fixtures"].items()}
+
+
+CONTEXT_PHASES = ("early", "middle", "late", "run_in")
+CONTEXT_KEYS = ("pos", "of", "pts", "gp", "left", "to_top", "to_safety")
+
+
+def _context(entry, what: str) -> dict:
+    """A fixture's table context as recorded with the board run (shots.predict.surge.table_context), re-emitted key
+    by key in the contract's order and checked (whole numbers, 1 <= pos <= of, leader gap >= 0, phase defined
+    whenever games left are); anything else aborts the export, never repaired."""
+    def whole(v, nullable: bool = False):
+        if v is None and nullable:
+            return None
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v != int(v):
+            raise ExportError(f"{what}: table context value {v!r} is not a whole number")
+        return int(v)
+
+    try:
+        phase = entry["phase"]
+        sides = {}
+        for side in ("home", "away"):
+            t = entry[side]
+            sides[side] = {"pos": whole(t["pos"], True), "of": whole(t["of"]), "pts": whole(t["pts"]),
+                           "gp": whole(t["gp"]), "left": whole(t["left"], True), "to_top": whole(t["to_top"]),
+                           "to_safety": whole(t["to_safety"])}
+    except (KeyError, TypeError) as exc:
+        raise ExportError(f"{what}: malformed table context ({type(exc).__name__}: {exc})") from exc
+    if phase is not None and phase not in CONTEXT_PHASES:
+        raise ExportError(f"{what}: unknown season phase {phase!r}")
+    for t in sides.values():
+        if t["of"] < 2 or (t["pos"] is not None and not 1 <= t["pos"] <= t["of"]) or t["to_top"] < 0                 or t["pts"] < 0 or t["gp"] < 0 or (t["left"] is not None and t["left"] < 0):
+            raise ExportError(f"{what}: table context out of range")
+        if t["left"] is not None and phase is None:
+            raise ExportError(f"{what}: games left known but no season phase")
+    return {"phase": phase, "home": sides["home"], "away": sides["away"]}
+
+
+def _recorded_labels(entry, what: str) -> dict:
+    """Labels a settled match carried in its pre-match board run, as recorded then (with the catalogue of that day,
+    so they are not re-checked against today's route rules; clients ignore ids they do not know)."""
+    try:
+        out = {"signals": [str(x) for x in entry["signals"]], "against": [str(x) for x in entry["against"]]}
+    except (KeyError, TypeError) as exc:
+        raise ExportError(f"{what}: malformed surge labels ({type(exc).__name__}: {exc})") from exc
+    for key in ("signals", "against"):
+        if len(set(out[key])) != len(out[key]) or any(not re.fullmatch(r"[a-z0-9]+(_[a-z0-9]+)*", x) for x in out[key]):
+            raise ExportError(f"{what}: malformed surge label in {key}")
+    if "strong" in entry:
+        if entry["strong"] is not True or not out["signals"]:
+            raise ExportError(f"{what}: malformed surge `strong`")
+        out["strong"] = True
+    return out
 
 
 def build_surge(table: dict | None = None) -> dict:
@@ -229,7 +296,7 @@ def build_surge(table: dict | None = None) -> dict:
     over-shoot report), re-emitted key by key in the contract's order. Deterministic: no timestamp."""
     t = table or sv.load_table()
     try:
-        return {
+        doc = {
             "schema": SCHEMA_VERSION,
             "report_date": str(t["report_date"]),
             "margin": int(t["margin"]),
@@ -243,8 +310,32 @@ def build_surge(table: dict | None = None) -> dict:
                          "routes": {r: {k: s["routes"][r][k] for k in SURGE_STATS} for r in sv.ROUTES}}
                         for s in t["signals"]],
         }
+        if isinstance(t.get("stacking"), dict):  # additive (2026-10-28)
+            doc["stacking"] = _stacking(t["stacking"])
+        return doc
     except (KeyError, TypeError, ValueError) as exc:
         raise ExportError(f"surge catalogue: malformed ({type(exc).__name__}: {exc})") from exc
+
+
+STACK_CELL = ("n", "over_rate", "stated_rate", "excess_ci", "seasons_held", "seasons")
+
+
+def _stack_cell(c: dict) -> dict:
+    """One stacking cell in the contract's order; an empty group has only ``n``."""
+    return {k: c[k] for k in STACK_CELL if k in c}
+
+
+def _stacking(st: dict) -> dict:
+    """surge.json `stacking`: matches by number of applying boosts per route (the research's numbers, copied) and
+    whether the "strong surge candidate" label is used on the route."""
+    return {"min_boosts": int(st["min_boosts"]), "note": str(st["note"]), "groups": [str(g) for g in st["groups"]],
+            "phases": [str(p) for p in st["phases"]],
+            "routes": {r: {"signals": [str(x) for x in v["signals"]],
+                           "share": {g: _num(x, 4) for g, x in v["share"].items()},
+                           "by_count": {g: _stack_cell(c) for g, c in v["by_count"].items()},
+                           "season_phase": {ph: _stack_cell(c) for ph, c in v["season_phase"].items()},
+                           "strong_applies": bool(v["strong_applies"])}
+                       for r, v in sorted(st["routes"].items())}}
 
 
 def build_results(repo: Repository, today: date, days: int = RESULT_DAYS) -> tuple[dict, list[dict]]:
@@ -253,6 +344,7 @@ def build_results(repo: Repository, today: date, days: int = RESULT_DAYS) -> tup
     row has result_status: "provisional" (settled by a hand-entered stand-in football-data has not
     published yet; result_source = the provider, source_url = its page) or "confirmed"."""
     rows = repo.settled_results(today - timedelta(days=days), today, FULL_ACCESS, experimental=None)
+    labels = repo.run_surge_labels({r["run_id"] for r in rows})
     results = []
     for r in rows:
         results.append({
@@ -274,6 +366,13 @@ def build_results(repo: Repository, today: date, days: int = RESULT_DAYS) -> tup
             results[-1]["source_url"] = r["source_url"]
         if r["experimental"]:  # additive; absent for ordinary predictions
             results[-1]["experimental"] = True
+        run = labels.get(r["run_id"], {})
+        got = run.get("fixtures", {}).get(r["match_id"])
+        if got is not None:  # additive; only when the pre-match board run assessed this fixture
+            results[-1]["surge"] = _recorded_labels(got, f"result {r['match_id']}")
+        ctx = (run.get("context") or {}).get(r["match_id"])
+        if ctx is not None and not r["experimental"]:  # additive; the table before the match, as recorded
+            results[-1]["context"] = _context(ctx, f"result {r['match_id']}")
     return {"schema": SCHEMA_VERSION, "results": results}, rows
 
 
