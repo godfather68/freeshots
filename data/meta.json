@@ -1,17 +1,17 @@
 {
  "schema": 1,
- "built_at": "2026-10-28T00:45:34Z",
+ "built_at": "2026-10-28T08:02:02Z",
  "results_up_to": "2026-10-26",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-28T00:45:28Z"
+  "finished_at": "2026-10-28T08:01:54Z"
  },
  "models": [
+  "cand_odds_surge-odds_2026-10-26",
   "fin_c-noodds_2026-10-14",
   "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
-  "negbin_pit_comp-noodds_2026-10-12-uel-exp",
-  "negbin_pit_comp_2026-10-12"
+  "negbin_pit_comp-noodds_2026-10-12-uel-exp"
  ],
  "thresholds": {
   "total": [
