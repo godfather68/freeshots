@@ -609,7 +609,7 @@
   "live": {
    "label": "Live picks (saved before kick-off)",
    "settled": 382,
-   "pending": 151,
+   "pending": 154,
    "void": 0,
    "provisional": 0,
    "by_n": {
@@ -1061,7 +1061,7 @@
   "experimental": {
    "label": "European cups (experimental, manual results)",
    "settled": 72,
-   "pending": 9,
+   "pending": 16,
    "void": 0,
    "provisional": 0,
    "by_n": {

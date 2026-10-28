@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-10-27T14:21:27Z",
+ "built_at": "2026-10-28T00:45:34Z",
  "results_up_to": "2026-10-26",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-27T14:21:18Z"
+  "finished_at": "2026-10-28T00:45:28Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
@@ -31,35 +31,35 @@
    "name": "Pro League",
    "country": "Belgium",
    "tier": 1,
-   "fixtures": 27
+   "fixtures": 28
   },
   {
    "id": "england-premier-league",
    "name": "Premier League",
    "country": "England",
    "tier": 1,
-   "fixtures": 30
+   "fixtures": 31
   },
   {
    "id": "england-championship",
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 60
+   "fixtures": 61
   },
   {
    "id": "england-league-one",
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 5
+   "fixtures": 0
   },
   {
    "id": "england-league-two",
    "name": "League Two",
    "country": "England",
    "tier": 4,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "uefa-champions-league",
@@ -104,7 +104,7 @@
    "name": "Bundesliga",
    "country": "Germany",
    "tier": 1,
-   "fixtures": 27
+   "fixtures": 28
   },
   {
    "id": "germany-2-bundesliga",
@@ -125,14 +125,14 @@
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 40
+   "fixtures": 37
   },
   {
    "id": "italy-serie-b",
    "name": "Serie B",
    "country": "Italy",
    "tier": 2,
-   "fixtures": 50
+   "fixtures": 43
   },
   {
    "id": "netherlands-eredivisie",
@@ -160,14 +160,14 @@
    "name": "Championship",
    "country": "Scotland",
    "tier": 2,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "scotland-league-one",
    "name": "League One",
    "country": "Scotland",
    "tier": 3,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "scotland-league-two",
@@ -195,11 +195,10 @@
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 27
+   "fixtures": 29
   }
  ],
  "days": [
-  "2026-10-27",
   "2026-10-28",
   "2026-10-29",
   "2026-10-30",
@@ -219,11 +218,12 @@
   "2026-11-23",
   "2026-11-24",
   "2026-11-25",
-  "2026-11-26"
+  "2026-11-26",
+  "2026-11-27"
  ],
  "counts": {
-  "fixtures": 482,
-  "with_odds": 34,
+  "fixtures": 470,
+  "with_odds": 16,
   "cold_start": 59,
   "results": 454,
   "provisional_results": 0
@@ -232,7 +232,7 @@
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 3,
+  "official": 21,
   "experimental": 0,
   "oldest": "2026-10-23"
  }
