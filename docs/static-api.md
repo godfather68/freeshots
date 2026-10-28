@@ -137,7 +137,7 @@ Rules
   | `home_rating_defence`, `away_rating_defence` | same, defence rating (shots conceded vs an average team) |
   | `head_to_head` | same model: totals of previous meetings of the two clubs vs what the ratings expected |
   | `season_context` | same model: stage of the season, last three league matches, nothing left to play for |
-  | `surge` | only with the candidate odds model "Surge" (`cand_odds_surge`, off by default): label "Surge correction"; the out-of-sample correction of the total, detail lists the signals behind it (season end, head-to-head, low/high-goal run, momentum, ratings, league trend) with their shots |
+  | `surge` | only on fixtures scored by the odds model "Surge" (`cand_odds_surge`, the odds route since 2026-10-27; not Scotland Championship, which stays on `negbin_pit_comp`): label "Surge correction"; the out-of-sample correction of the total, detail lists the signals behind it (season end, head-to-head, low/high-goal run, momentum, ratings, league trend) with their shots |
   | `shrinkage` | same model: the pull of the forecast total toward the league level |
   | `other` | all factors not listed one by one |
 - **No odds values, ever.** Market factors are worded as categories ("strong favourite", "favourite", "slight
@@ -164,10 +164,13 @@ Rules
   common). Ids, labels and the research numbers are in `data/surge.json`. **Labels only: the fixture's
   probabilities are exactly the published ones**, nothing is adjusted.
 - `surge` is an **object or absent** (never `null`). Present when the fixture was assessed: a domestic
-  fixture of a competition the research covered, scored by the production model of its route (with odds
-  `negbin_pit_comp`, without odds `fin_c`). Absent for experimental (cross-border) fixtures, fallback or
-  candidate models, and when the board run recorded its labels with another catalogue version than the
-  published `surge.json`. Both lists may be empty ("assessed, nothing found").
+  fixture of a competition the research covered, scored by the model the research studied for its route (with
+  odds `negbin_pit_comp`, without odds `fin_c`). Since 2026-10-27 the odds route is scored by the Surge model,
+  which already corrects for these patterns, so **odds fixtures are labelled only when Surge is not used**
+  (Scotland Championship, or a Surge fallback): no double counting. Absent for experimental (cross-border)
+  fixtures, Surge-scored fixtures, other fallback or candidate models, and when the board run recorded its labels
+  with another catalogue version than the published `surge.json`. Both lists may be empty ("assessed, nothing
+  found").
 - A label appears only when the catalogue says it `applies` on the fixture's route (`odds` true = route
   `odds`, else `noodds`); ids are in catalogue order; at most one of the season-end signals (`dead_rubber`,
   `dead_team`, `last_three`).

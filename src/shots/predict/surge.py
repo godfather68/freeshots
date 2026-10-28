@@ -14,9 +14,16 @@ Inputs, all pre-match and causal (rule 1):
 Each feature of a fixture uses only matches dated strictly before its date; upcoming fixtures never enter a window,
 so later results cannot change a fixture's signals.
 
-Assessed fixtures: domestic, of a competition the research covered, scored by the production model of their route
-(``ROUTE_MODELS``: odds -> ``negbin_pit_comp``, no odds -> ``fin_c``). Fallback, candidate and experimental
-(cross-border) predictions are not assessed: the research did not study them.
+Assessed fixtures: domestic, of a competition the research covered, scored by the model the research studied for
+their route (``ROUTE_MODELS``: odds -> ``negbin_pit_comp``, no odds -> ``fin_c``). Fallback, candidate and
+experimental (cross-border) predictions are not assessed: the research did not study them.
+
+**No double counting with the Surge model (since 2026-10-27).** The odds route is scored by "Surge"
+(``cand_odds_surge``), which already corrects the total for the same over-shoot patterns. An odds fixture is
+therefore assessed ONLY when it was scored by ``negbin_pit_comp``: today the competitions of
+``shots.config.SURGE_EXCLUDED_COMPETITIONS`` (Scotland Championship), or a Surge fallback. A Surge-scored odds
+fixture never gets Surge Watch labels (the catalogue's odds-route excesses describe production's residuals, part of
+which Surge removes). No-odds fixtures are assessed as before (scored by ``fin_c``).
 """
 
 from __future__ import annotations
@@ -66,7 +73,9 @@ def inputs(feats: pd.DataFrame, expected: pd.Series, dates: pd.Series) -> pd.Dat
 
 
 def assessed(board: pd.DataFrame, table: dict) -> pd.Series:
-    """Fixtures the research applies to (bool, board index)."""
+    """Fixtures the research applies to (bool, board index): the published ``model`` label must start with the
+    route's research model (``table["route_models"]``: ``negbin_pit_comp_`` with odds, ``fin_c-noodds_`` without).
+    A Surge-scored odds fixture (label ``cand_odds_surge-odds_...``) is never assessed (no double counting)."""
     route = np.where(board["odds"].astype(bool), "odds", "noodds")
     prefix = pd.Series(route, index=board.index).map(lambda r: table["route_models"][r] + "_")
     model = board["model"].fillna("").astype(str)

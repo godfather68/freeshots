@@ -126,7 +126,7 @@ export function SurgePage() {
         A <b>surge</b> is a match that ends {surge.margin}+ shots above our expected total. It happens in about {usual}% of matches; these signals raise the odds. <Help term="surge" />
       </p>
       <p className="scaveat" role="note" aria-label="Caveat">
-        <b>A lean, not a promise.</b> The signals come from {thousands(surge.matches)} past matches ({surge.period}), checked out of sample against what our own curves said beforehand. The probabilities on this site are unchanged: a signal never moves our numbers.
+        <b>A lean, not a promise.</b> The signals come from {thousands(surge.matches)} past matches ({surge.period}), checked out of sample against what our own curves said beforehand. The probabilities on this site are unchanged: a signal never moves our numbers. Matches with bookmaker odds are already adjusted by our Surge model, so they are only labelled here when that model is not used.
       </p>
 
       <section aria-labelledby="sg-boost">

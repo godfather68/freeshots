@@ -62,10 +62,15 @@ def _routed(prep):
     return {lab: set(prep.upcoming.loc[mask, "match_id"]) for mask, _, _, lab in prep.routes()}
 
 
-def test_switch_defaults_to_production(monkeypatch):
+def test_adopted_defaults_and_env_override(monkeypatch):
     monkeypatch.delenv("SHOTS_ODDS_MODEL", raising=False)
-    assert config.ODDS_MODEL == "negbin_pit_comp" and config.odds_model() == "negbin_pit_comp"
-    assert not config.candidate_odds()
+    assert config.ODDS_MODEL == "cand_odds_surge" and config.odds_model() == "cand_odds_surge"
+    assert config.candidate_odds()
+    assert config.SURGE_EXCLUDED_COMPETITIONS == ("Scotland Championship",)
+    assert config.odds_excluded_competitions() == ("Scotland Championship",)
+    monkeypatch.setenv("SHOTS_ODDS_MODEL", "negbin_pit_comp")            # env still overrides (revert / tests)
+    assert config.odds_model() == "negbin_pit_comp" and not config.candidate_odds()
+    assert config.odds_excluded_competitions() == ()
     monkeypatch.setenv("SHOTS_ODDS_MODEL", "nope")
     with pytest.raises(ValueError):
         config.odds_model()
@@ -73,10 +78,33 @@ def test_switch_defaults_to_production(monkeypatch):
 
 
 def test_switch_off_keeps_production_odds_routing(stub_models, prod_noodds, monkeypatch):  # noqa: F811
-    monkeypatch.delenv("SHOTS_ODDS_MODEL", raising=False)
+    monkeypatch.setenv("SHOTS_ODDS_MODEL", "negbin_pit_comp")
     prep, odds_ids = _prepare(monkeypatch, frame=lambda ids: pytest.fail("no candidate build when the switch is off"))
     assert prep.odds_fallback is None and prep.odds_info is None and prep.odds_rows is None
     assert _routed(prep)["negbin_pit_comp_2026-10-01"] == odds_ids
+
+
+def test_excluded_competition_stays_on_production_and_is_not_a_fallback(odds_switch, monkeypatch):
+    m, fx, dom, odds_ids = _inputs()
+    turkey = set(fx.loc[fx["competition"].eq("Turkey Super Lig") & fx["match_id"].isin(odds_ids), "match_id"])
+    assert len(turkey) == 1
+    monkeypatch.setattr(config, "SURGE_EXCLUDED_COMPETITIONS", ("Turkey Super Lig",))
+    prep, _ = _prepare(monkeypatch, frame=_frame)
+    routed = _routed(prep)
+    assert routed["negbin_pit_comp_2026-10-01"] == turkey
+    assert routed["cand_odds_surge-odds_x"] == odds_ids - turkey
+    info = prep.odds_info
+    assert info["n_excluded"] == 1 and info["n_fallback"] == 0 and info["n_odds"] == 1
+    assert info["excluded_competitions"] == ["Turkey Super Lig"]
+    prep.check_fallback()                                     # excluded fixtures never fail the run
+
+
+def test_only_excluded_odds_fixtures_need_no_candidate_build(odds_switch, monkeypatch):
+    monkeypatch.setattr(config, "SURGE_EXCLUDED_COMPETITIONS", ("England Premier League", "Turkey Super Lig"))
+    prep, odds_ids = _prepare(monkeypatch, frame=lambda ids: pytest.fail("nothing for the candidate to score"))
+    assert _routed(prep)["negbin_pit_comp_2026-10-01"] == odds_ids
+    assert prep.odds_info["n_excluded"] == 2 and prep.odds_info["n_candidate"] == 0
+    prep.check_fallback()
 
 
 def test_complete_build_routes_odds_fixtures_to_the_candidate(odds_switch, monkeypatch):
@@ -124,3 +152,19 @@ def test_missing_inputs_detection():
     f.loc["b", "h2h_total_shrunk"] = np.nan
     assert missing_odds_candidate_inputs(f).tolist() == [False, True]
     assert missing_odds_candidate_inputs(f.drop(columns="home_ctx_gp")).all()
+
+
+def test_shadow_production_numbers_cover_surge_scored_fixtures_only(odds_switch, monkeypatch):
+    from shots.predict import board as bd
+
+    m, fx, dom, odds_ids = _inputs()
+    turkey = set(fx.loc[fx["competition"].eq("Turkey Super Lig") & fx["match_id"].isin(odds_ids), "match_id"])
+    monkeypatch.setattr(config, "SURGE_EXCLUDED_COMPETITIONS", ("Turkey Super Lig",))
+    prep, _ = _prepare(monkeypatch, frame=_frame)
+    published = pd.DataFrame({"match_id": prep.upcoming["match_id"]})
+    sh = bd.shadow_production(prep, published)
+    assert sh["model"] == "negbin_pit_comp_2026-10-01" and sh["n"] == 24
+    assert set(sh["p"]) == odds_ids - turkey                      # Surge-scored only: not excluded, not no-odds
+    mask = prep.upcoming["match_id"].isin(sh["p"])
+    expect = prep.model.prob_at_least(prep.upcoming[mask], 24)
+    np.testing.assert_allclose([sh["p"][k] for k in prep.upcoming.loc[mask, "match_id"]], expect, atol=1e-4)

@@ -16,11 +16,15 @@ Evidence and the exact user-visible changes: reports/2026-10-16_fin_c_adoption.m
     so that ``expected`` and ``P(total >= n)`` always agree. Applies to every route.
 
 ``ODDS_MODEL``
-    Model of the ODDS route (domestic fixtures with published odds). ``"negbin_pit_comp"`` = production.
-    ``"cand_odds_surge"`` = "Surge", opt-in candidate, NOT adopted (reports/2026-10-26_overshoot_patterns.md,
-    reports/2026-10-27_surge_calibration.md): the production NB + an out-of-sample correction of the total (season
-    end, head to head, rating disagreement, recent form, goal form, league drift; ``shots.models.candidates.OOS_TERMS``),
-    damped to 40%. ``"cand_odds_oos"`` = the undamped first version (kept for reproducibility). With either, the
+    Model of the ODDS route (domestic fixtures with published odds). ``"cand_odds_surge"`` = "Surge", production
+    since 2026-10-27 (user approval; reports/2026-10-27_surge_adoption.md, evidence in
+    reports/2026-10-27_surge_calibration.md and reports/2026-10-27_surge_verification.md): the previous production NB
+    + an out-of-sample correction of the total (season end, head to head, rating disagreement, recent form, goal
+    form, league drift; ``shots.models.candidates.OOS_TERMS``), damped to 40%. ``"negbin_pit_comp"`` = the previous
+    production model (revert: set it back here). ``"cand_odds_oos"`` = the undamped first version (research only).
+    Competitions in ``SURGE_EXCLUDED_COMPETITIONS`` keep ``negbin_pit_comp`` on the odds route (user decision
+    2026-10-27: Scotland Championship, where Surge is worse in 2025/26 and fails the 90% cell); those fixtures are
+    not fallbacks. With a candidate odds model, the
     update builds the candidate features (families A/E/G + recent form) once per run, odds fixtures whose candidate
     rows are missing fall back to the production odds model (same ``FALLBACK_MAX_SHARE`` rule, reported as
     ``odds_route`` in board.meta.json).
@@ -42,8 +46,10 @@ MEDIAN_FROM_CURVE = True           # adopted 2026-10-20 (user approval)
 
 FALLBACK_MAX_SHARE = 0.02          # fin_c route: share of non-cold-start no-odds fixtures allowed to fall back
 CANDIDATE_NOODDS_MODELS = ("fin_c",)
-ODDS_MODEL = "negbin_pit_comp"     # production; opt-in candidate "cand_odds_surge" ("Surge"), not adopted
+ODDS_MODEL = "cand_odds_surge"     # "Surge", adopted 2026-10-27 (user approval); was "negbin_pit_comp"
 CANDIDATE_ODDS_MODELS = ("cand_odds_surge", "cand_odds_oos")
+# Odds-route fixtures of these competitions stay on negbin_pit_comp (user decision 2026-10-27)
+SURGE_EXCLUDED_COMPETITIONS = ("Scotland Championship",)
 
 
 def noodds_model() -> str:
@@ -70,6 +76,11 @@ def candidate_odds() -> bool:
     return odds_model() in CANDIDATE_ODDS_MODELS
 
 
+def odds_excluded_competitions() -> tuple[str, ...]:
+    """Competitions whose odds fixtures keep ``negbin_pit_comp`` when a candidate odds model is on."""
+    return tuple(SURGE_EXCLUDED_COMPETITIONS) if candidate_odds() else ()
+
+
 def median_from_curve() -> bool:
     raw = os.environ.get("SHOTS_MEDIAN_FROM_CURVE")
     if raw is not None and raw.strip() != "":
@@ -77,5 +88,6 @@ def median_from_curve() -> bool:
     return bool(MEDIAN_FROM_CURVE)
 
 
-__all__ = ["NOODDS_MODEL", "MEDIAN_FROM_CURVE", "FALLBACK_MAX_SHARE", "ODDS_MODEL", "noodds_model",
-           "candidate_noodds", "odds_model", "candidate_odds", "median_from_curve"]
+__all__ = ["NOODDS_MODEL", "MEDIAN_FROM_CURVE", "FALLBACK_MAX_SHARE", "ODDS_MODEL", "SURGE_EXCLUDED_COMPETITIONS",
+           "noodds_model", "candidate_noodds", "odds_model", "candidate_odds", "odds_excluded_competitions",
+           "median_from_curve"]

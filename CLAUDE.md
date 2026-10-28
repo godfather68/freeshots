@@ -45,15 +45,24 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
    competition, mid-coverage (avg of P(y ≥ N) and P(y > N)) is within ±2pp of q, and pinball is no
    worse than `team_avg`. Do not force exact-q coverage at the cost of pinball.
 4. Every model change ships with a backtest report in `reports/`.
-5. **Production models (switches in `src/shots/config.py`; env `SHOTS_NOODDS_MODEL` / `SHOTS_MEDIAN_FROM_CURVE`
-   override, tests pin the old values in `tests/conftest.py`):** odds route `negbin_pit_comp`; no-odds route
-   `fin_c` (production NB + EKF opponent-adjusted ratings, head-to-head, season context, shrinkage toward league
-   level, per-competition dispersion; falls back to `negbin_pit_comp` per fixture when candidate inputs are
-   missing, and fails the run if > 2% fall back); cross-border (UCL/UEL/UECL) stays on `negbin_pit_comp`.
-   Published `expected` = median of the published curve. **Recorded exception (user, 2026-10-20):** fin_c was
-   adopted on the no-odds route only (protocol requires both variants; the odds route gain was not
-   significant). Watch Turkey, Portugal and the Scottish leagues at 90% coverage. Reports:
-   `reports/2026-10-15_model_candidates.md`, `2026-10-16_fin_c_verification.md`, `2026-10-16_fin_c_adoption.md`.
+5. **Production models (switches in `src/shots/config.py`; env `SHOTS_ODDS_MODEL` / `SHOTS_NOODDS_MODEL` /
+   `SHOTS_MEDIAN_FROM_CURVE` override, tests pin the old values in `tests/conftest.py`):**
+   - Odds route **"Surge"** `cand_odds_surge` (production NB + out-of-sample correction of the total, damped to
+     40%; adopted 2026-10-27), except `SURGE_EXCLUDED_COMPETITIONS` (Scotland Championship), which stay on
+     `negbin_pit_comp` (not counted as fallbacks). Fixtures missing Surge inputs fall back to `negbin_pit_comp`;
+     the run fails if > 2% fall back.
+   - No-odds route `fin_c` (production NB + EKF opponent-adjusted ratings, head-to-head, season context,
+     shrinkage toward league level, per-competition dispersion; same per-fixture fallback and 2% rule).
+   - Cross-border (UCL/UEL/UECL) stays on `negbin_pit_comp`. Published `expected` = median of the published curve.
+   - **Recorded exceptions (user):** fin_c adopted on the no-odds route only (2026-10-20); Surge adopted on the odds
+     route only and not for Scotland Championship, which misses the 90% cell for both models and where Surge was
+     worse in 2025/26 (2026-10-27).
+   - **Monitor Surge monthly:** `python -m shots.surge_monitor` (vs production's shadow P(24+) stored in
+     `board.meta.json`); revert (`ODDS_MODEL = "negbin_pit_comp"`) when its 70%+ calls trail the shadow by > 1.5pp
+     over 12 months with >= 300 calls each. Watch Turkey, Portugal and the Scottish leagues at 90% coverage.
+   - Reports: `reports/2026-10-15_model_candidates.md`, `2026-10-16_fin_c_verification.md`,
+     `2026-10-16_fin_c_adoption.md`, `2026-10-27_surge_calibration.md`, `2026-10-27_surge_verification.md`,
+     `2026-10-27_surge_adoption.md`.
 
 ## Commands
 - Install: `python -m pip install -r requirements.txt`
@@ -111,8 +120,8 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
   catalogue from `reports/2026-10-26_overshoot_patterns.json` via `python -m shots.evaluation.surge table` →
   committed `src/shots/evaluation/surge_signals.json` (`HELD_BACK` keeps a signal visible but unused); per-fixture
   labels computed in the board build (`shots.predict.surge`), exported as `board.json` `surge` + `data/surge.json`.
-  Never changes a probability. The opt-in odds model "Surge" (`cand_odds_surge`, `SHOTS_ODDS_MODEL`) is separate and
-  not adopted (`reports/2026-10-27_surge_calibration.md`).
+  Never changes a probability. Odds fixtures are labelled only when the Surge model did not score them (Scotland
+  Championship, fallbacks): Surge already corrects for these signals, so labelling them would double count.
 - Web UI (local, server-side rendered): `python -m shots.web` → http://127.0.0.1:8000. Reads the DB through
   `shots.db.repo.Repository` only (never runs a model, no SQL in routes). Access control is by entitlement,
   enforced in the repository queries. Preview config: `.claude/launch.json` (`shots-web`).

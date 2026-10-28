@@ -203,6 +203,27 @@ def _surge(board: pd.DataFrame, matches: pd.DataFrame, fixtures: pd.DataFrame) -
         return None
 
 
+SHADOW_N = 24  # the scan default threshold: shadow production P(total >= 24) for the Surge monitor
+
+
+def shadow_production(prep: sc.Prepared, board: pd.DataFrame) -> dict | None:
+    """Production odds model's P(total >= SHADOW_N) on the published fixtures scored by the candidate odds model
+    (Surge): {"model", "n", "p": {match_id: p}}. Same model, rows and moment as the published numbers, so the
+    monthly monitor (``shots.surge_monitor``) can compare Surge's calls with what production would have
+    said. None when the odds route is not a candidate. Never published per fixture (board meta only)."""
+    if prep.odds_info is None or prep.odds_model is None:
+        return None
+    exp = prep.is_experimental()
+    prod = prep.odds_fallback | (prep.odds_excluded if prep.odds_excluded is not None else False)
+    mask = prep.has_odds & ~exp & ~prod & sc.member(prep.upcoming["match_id"], board["match_id"])
+    if not mask.any():
+        return {"model": prep.model_label, "n": SHADOW_N, "p": {}}
+    rows = prep.upcoming[mask]
+    p = prep.model.prob_at_least(rows, SHADOW_N)
+    return {"model": prep.model_label, "n": SHADOW_N,
+            "p": {mid: round(float(v), 4) for mid, v in sorted(zip(rows["match_id"], p))}}
+
+
 def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFAULT_MODEL,
           today: date | None = None, out_path: Path | None = None, max_model_age_days: int = 30) -> pd.DataFrame:
     today = today or date.today()
@@ -252,7 +273,11 @@ def build(days: int | None = 30, refresh: bool = True, model_name: str = sc.DEFA
     if prep.fallback_info is not None:  # candidate no-odds route only (shots.config.NOODDS_MODEL)
         meta["noodds_route"] = prep.fallback_info
     if prep.odds_info is not None:  # candidate odds route only (shots.config.ODDS_MODEL)
-        meta["odds_route"] = prep.odds_info
+        meta["odds_route"] = dict(prep.odds_info)
+        try:
+            meta["odds_route"]["shadow"] = shadow_production(prep, board)
+        except Exception:  # noqa: BLE001 - monitoring add-on; the board must still be published
+            log.exception("shadow production numbers failed; the board is published without them")
     if surge is not None:
         meta["surge"] = surge
     meta_path(out_path).write_text(json.dumps(meta, indent=2), encoding="utf-8")

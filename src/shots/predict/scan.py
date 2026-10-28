@@ -26,10 +26,12 @@ inputs are missing falls back to the production no-odds model (counted, logged, 
 the step fails after writing its output when more than ``config.FALLBACK_MAX_SHARE`` of the non-cold-start
 no-odds fixtures fell back). The odds route and the cross-border route keep the production models.
 
-Candidate odds model (switch ``shots.config.ODDS_MODEL``, default off; reports/2026-10-26_overshoot_patterns.md):
-with ``"cand_odds_surge"`` ("Surge") the same candidate build (plus the recent-form family) scores the domestic fixtures WITH
+Odds route (switch ``shots.config.ODDS_MODEL``; "Surge" ``cand_odds_surge`` in production since 2026-10-27,
+reports/2026-10-27_surge_adoption.md): with a candidate odds model the same candidate build (plus the recent-form family) scores the domestic fixtures WITH
 odds; a fixture missing from the build falls back to the production odds model (counted in ``odds_route`` of
-board.meta.json, same failure rule). Saved as ``models_store/<name>-odds_<date>``.
+board.meta.json, same failure rule). Saved as ``models_store/<name>-odds_<date>``. Odds fixtures of
+``config.SURGE_EXCLUDED_COMPETITIONS`` (Scotland Championship) are scored by the production odds model
+``negbin_pit_comp`` by design: counted as ``n_excluded``, never as fallbacks.
 """
 
 from __future__ import annotations
@@ -365,7 +367,8 @@ class Prepared:
     fallback_info: dict | None = None
     # candidate odds route (config.ODDS_MODEL != production); None = production odds routing, unchanged
     odds_rows: pd.DataFrame | None = None   # upcoming + candidate columns (same index)
-    odds_fallback: pd.Series | None = None  # odds fixture scored by the production odds model
+    odds_fallback: pd.Series | None = None  # odds fixture scored by negbin_pit_comp because the candidate failed
+    odds_excluded: pd.Series | None = None  # odds fixture of an excluded competition (negbin_pit_comp by design)
     odds_model: object | None = None        # the candidate odds model
     odds_label: str | None = None
     odds_info: dict | None = None
@@ -400,7 +403,8 @@ class Prepared:
             if odds.any():
                 yield odds, self.model, self.upcoming, self.model_label
             return
-        cand, fb = odds & ~self.odds_fallback, odds & self.odds_fallback
+        prod = self.odds_fallback | (self.odds_excluded if self.odds_excluded is not None else False)
+        cand, fb = odds & ~prod, odds & prod
         if cand.any():
             yield cand, self.odds_model, self.odds_rows, self.odds_label
         if fb.any():
@@ -514,7 +518,7 @@ def prepare_upcoming(fixtures: pd.DataFrame, matches: pd.DataFrame, model_name: 
     wide = _SHARED.domestic[1] if (hit is not None and _SHARED is not None) else fixtures
     if config.candidate_noodds() and need_noodds:
         _candidate_route(prep, matches, wide, as_of, max_model_age_days)
-    if config.candidate_odds() and bool((has_odds & ~prep.is_experimental()).any()):
+    if config.candidate_odds() and bool((has_odds & ~prep.is_experimental()).any()):  # excluded-only: see below
         _candidate_odds_route(prep, matches, wide, as_of, max_model_age_days)
     return prep
 
@@ -535,7 +539,7 @@ def latest_candidate_odds_model(name: str, played: pd.DataFrame, max_age_days: i
         model = MODELS[name]().fit(train)
         out = STORE / f"{label}_{last_played:%Y-%m-%d}"
         save(model, out, train, until=str(last_played.date()), variant="odds, candidate features",
-             report="reports/2026-10-26_overshoot_patterns.md")
+             report="reports/2026-10-27_surge_adoption.md")
         log.info("trained %s on %d rows -> %s", label, len(train), out)
         got = model, out.name
     if _SHARED is not None:
@@ -551,7 +555,17 @@ def _candidate_odds_route(prep: Prepared, matches: pd.DataFrame, fixtures: pd.Da
     from shots.models.candidates import missing_odds_candidate_inputs
 
     name = config.odds_model()
-    odds = prep.has_odds & ~prep.is_experimental()
+    excluded = prep.upcoming["competition"].isin(config.odds_excluded_competitions())
+    prep.odds_excluded = (prep.has_odds & ~prep.is_experimental() & excluded).astype(bool)
+    odds = prep.has_odds & ~prep.is_experimental() & ~excluded
+    if not odds.any():  # only excluded competitions have odds fixtures: production scores them, nothing to build
+        prep.odds_fallback = pd.Series(False, index=prep.upcoming.index)
+        prep.odds_info = {"model": name, "model_label": None, "fallback_model": prep.model_label, "n_odds": 0,
+                          "n_candidate": 0, "n_fallback": 0, "n_excluded": int(prep.odds_excluded.sum()),
+                          "excluded_competitions": list(config.odds_excluded_competitions()), "n_non_cold": 0,
+                          "n_fallback_non_cold": 0, "share_non_cold": 0.0, "max_share": config.FALLBACK_MAX_SHARE,
+                          "build_error": None}
+        return
     cand, error = None, None
     try:
         cand = candidate_features(matches, fixtures)
@@ -580,7 +594,8 @@ def _candidate_odds_route(prep: Prepared, matches: pd.DataFrame, fixtures: pd.Da
     prep.odds_info = {
         "model": name, "model_label": prep.odds_label, "fallback_model": prep.model_label,
         "n_odds": int(odds.sum()), "n_candidate": int((odds & ~prep.odds_fallback).sum()),
-        "n_fallback": int(prep.odds_fallback.sum()), "n_non_cold": int(non_cold.sum()),
+        "n_fallback": int(prep.odds_fallback.sum()), "n_excluded": int(prep.odds_excluded.sum()),
+        "excluded_competitions": list(config.odds_excluded_competitions()), "n_non_cold": int(non_cold.sum()),
         "n_fallback_non_cold": n_fb_nc, "share_non_cold": n_fb_nc / max(int(non_cold.sum()), 1),
         "max_share": config.FALLBACK_MAX_SHARE, "build_error": error,
     }

@@ -122,6 +122,18 @@ def test_only_production_domestic_fixtures_of_researched_leagues_are_assessed():
     assert sg.assessed(b, TABLE).tolist() == [True, True, False, False, False, False]
 
 
+def test_surge_scored_odds_fixtures_are_never_labelled_excluded_ones_are():
+    """No double counting (since Surge's adoption, 2026-10-27): with odds, only negbin_pit_comp-scored fixtures (the
+    competitions excluded from Surge, or a Surge fallback) are assessed; no-odds fixtures as before."""
+    b = pd.concat([
+        board_rows(["s"], ["2026-11-01"], odds=True, model="cand_odds_surge-odds_2026-10-26"),            # Surge
+        board_rows(["x"], ["2026-11-01"], odds=True, comp="Scotland Championship",
+                   model="negbin_pit_comp_2026-10-05"),                                                  # excluded
+        board_rows(["n"], ["2026-11-01"], comp="Scotland Championship"),                                  # no odds
+    ], ignore_index=True)
+    assert sg.assessed(b, TABLE).tolist() == [False, True, True]
+
+
 # ----------------------------------------------------------------------------- per fixture, causal
 
 FAM = ("adj", "h2h", "ctx")

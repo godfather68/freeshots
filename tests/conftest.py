@@ -14,10 +14,12 @@ def _isolated_db(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _production_switches(monkeypatch):
-    """Since 2026-10-20 production runs fin_c on the no-odds route with the curve median
-    (src/shots/config.py). Unit tests use stub/synthetic models written for the original routing,
-    so they pin the original switches; tests about fin_c or the median set the variables themselves."""
+    """Since 2026-10-20 production runs fin_c on the no-odds route with the curve median, and since 2026-10-27
+    Surge (cand_odds_surge) on the odds route (src/shots/config.py). Unit tests use stub/synthetic models written
+    for the original routing, so they pin the original switches; tests about fin_c, Surge or the median set the
+    variables themselves."""
     monkeypatch.setenv("SHOTS_NOODDS_MODEL", "negbin_pit_comp")
+    monkeypatch.setenv("SHOTS_ODDS_MODEL", "negbin_pit_comp")
     monkeypatch.setenv("SHOTS_MEDIAN_FROM_CURVE", "0")
 
 
