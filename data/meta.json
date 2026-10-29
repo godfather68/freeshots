@@ -1,13 +1,12 @@
 {
  "schema": 1,
- "built_at": "2026-10-29T12:53:25Z",
- "results_up_to": "2026-10-28",
+ "built_at": "2026-10-29T23:19:50Z",
+ "results_up_to": "2026-10-29",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-29T12:53:19Z"
+  "finished_at": "2026-10-29T23:19:41Z"
  },
  "models": [
-  "cand_odds_surge-odds_2026-10-26",
   "fin_c-noodds_2026-10-14",
   "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
@@ -125,7 +124,7 @@
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 32
+   "fixtures": 30
   },
   {
    "id": "italy-serie-b",
@@ -199,7 +198,6 @@
   }
  ],
  "days": [
-  "2026-10-29",
   "2026-10-30",
   "2026-10-31",
   "2026-11-01",
@@ -222,10 +220,10 @@
   "2026-11-28"
  ],
  "counts": {
-  "fixtures": 504,
-  "with_odds": 2,
+  "fixtures": 502,
+  "with_odds": 0,
   "cold_start": 59,
-  "results": 486,
+  "results": 488,
   "provisional_results": 0
  },
  "record": {

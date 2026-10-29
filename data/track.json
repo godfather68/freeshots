@@ -608,23 +608,23 @@
   },
   "live": {
    "label": "Live picks (saved before kick-off)",
-   "settled": 414,
-   "pending": 122,
+   "settled": 416,
+   "pending": 120,
    "void": 0,
    "provisional": 0,
    "by_n": {
     "24": {
      "selected_min_prob": 0.7,
-     "n": 230,
-     "hits": 187,
-     "hit_rate": 0.813,
-     "mean_stated": 0.7895,
+     "n": 232,
+     "hits": 188,
+     "hit_rate": 0.8103,
+     "mean_stated": 0.7903,
      "wilson95": [
-      0.7577,
-      0.8581
+      0.755,
+      0.8556
      ],
-     "brier": 0.1738,
-     "brier_baseline": 0.238,
+     "brier": 0.1747,
+     "brier_baseline": 0.2381,
      "reliability": [
       {
        "band": [
@@ -703,9 +703,9 @@
         0.8,
         0.9
        ],
-       "n": 73,
-       "stated": 0.8373,
-       "realised": 0.8219
+       "n": 75,
+       "stated": 0.8384,
+       "realised": 0.8133
       },
       {
        "band": [
@@ -731,16 +731,16 @@
        "stated": 0.7794
       },
       {
+       "league": "italy-serie-a",
+       "n": 22,
+       "hit_rate": 0.8182,
+       "stated": 0.808
+      },
+      {
        "league": "england-championship",
        "n": 20,
        "hit_rate": 0.85,
        "stated": 0.7591
-      },
-      {
-       "league": "italy-serie-a",
-       "n": 20,
-       "hit_rate": 0.85,
-       "stated": 0.8012
       },
       {
        "league": "germany-2-bundesliga",
@@ -1039,6 +1039,20 @@
       }
      },
      "provisional": 0
+    },
+    {
+     "date": "2026-10-29",
+     "matches": 2,
+     "mae": 12.0,
+     "bias": 2.0,
+     "floor80_held": 0.5,
+     "by_n": {
+      "24": {
+       "picks": 2,
+       "hits": 1
+      }
+     },
+     "provisional": 0
     }
    ],
    "weekly": [
@@ -1072,14 +1086,14 @@
     },
     {
      "date": "2026-10-26",
-     "matches": 42,
-     "mae": 4.19,
-     "bias": 0.0,
-     "floor80_held": 0.8571,
+     "matches": 44,
+     "mae": 4.55,
+     "bias": 0.09,
+     "floor80_held": 0.8409,
      "by_n": {
       "24": {
-       "picks": 29,
-       "hits": 24
+       "picks": 31,
+       "hits": 25
       }
      },
      "provisional": 0
