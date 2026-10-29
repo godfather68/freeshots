@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-10-28T09:26:58Z",
+ "built_at": "2026-10-29T00:25:13Z",
  "results_up_to": "2026-10-26",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-28T09:26:50Z"
+  "finished_at": "2026-10-29T00:25:07Z"
  },
  "models": [
   "cand_odds_surge-odds_2026-10-26",
@@ -31,21 +31,21 @@
    "name": "Pro League",
    "country": "Belgium",
    "tier": 1,
-   "fixtures": 28
+   "fixtures": 32
   },
   {
    "id": "england-premier-league",
    "name": "Premier League",
    "country": "England",
    "tier": 1,
-   "fixtures": 31
+   "fixtures": 34
   },
   {
    "id": "england-championship",
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 61
+   "fixtures": 71
   },
   {
    "id": "england-league-one",
@@ -104,14 +104,14 @@
    "name": "Bundesliga",
    "country": "Germany",
    "tier": 1,
-   "fixtures": 28
+   "fixtures": 33
   },
   {
    "id": "germany-2-bundesliga",
    "name": "2. Bundesliga",
    "country": "Germany",
    "tier": 2,
-   "fixtures": 27
+   "fixtures": 36
   },
   {
    "id": "greece-super-league",
@@ -125,14 +125,14 @@
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 37
+   "fixtures": 32
   },
   {
    "id": "italy-serie-b",
    "name": "Serie B",
    "country": "Italy",
    "tier": 2,
-   "fixtures": 43
+   "fixtures": 50
   },
   {
    "id": "netherlands-eredivisie",
@@ -153,7 +153,7 @@
    "name": "Premiership",
    "country": "Scotland",
    "tier": 1,
-   "fixtures": 24
+   "fixtures": 23
   },
   {
    "id": "scotland-championship",
@@ -195,11 +195,10 @@
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 29
+   "fixtures": 31
   }
  ],
  "days": [
-  "2026-10-28",
   "2026-10-29",
   "2026-10-30",
   "2026-10-31",
@@ -219,11 +218,12 @@
   "2026-11-24",
   "2026-11-25",
   "2026-11-26",
-  "2026-11-27"
+  "2026-11-27",
+  "2026-11-28"
  ],
  "counts": {
-  "fixtures": 470,
-  "with_odds": 16,
+  "fixtures": 504,
+  "with_odds": 2,
   "cold_start": 59,
   "results": 454,
   "provisional_results": 0
@@ -232,7 +232,7 @@
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 21,
+  "official": 35,
   "experimental": 0,
   "oldest": "2026-10-23"
  }
