@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-10-30T02:57:53Z",
+ "built_at": "2026-10-30T08:43:28Z",
  "results_up_to": "2026-10-29",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-10-30T02:57:43Z"
+  "finished_at": "2026-10-30T08:43:22Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
@@ -234,5 +234,42 @@
   "official": 3,
   "experimental": 0,
   "oldest": "2026-10-23"
- }
+ },
+ "model_history": [
+  {
+   "date": "2026-10-09",
+   "route": "all",
+   "model": "negbin_pit_comp",
+   "label": "Live record starts",
+   "detail": "Negative binomial model, recalibrated per competition, on both routes. Every pick is saved before kick-off from here on."
+  },
+  {
+   "date": "2026-10-13",
+   "route": "cross_border",
+   "model": "negbin_pit_comp",
+   "label": "European cups added (experimental)",
+   "detail": "Champions League first, then Europa and Conference League, built from domestic form. Kept out of the official record."
+  },
+  {
+   "date": "2026-10-20",
+   "route": "all",
+   "model": "median_from_curve",
+   "label": "Expected total = median of the curve",
+   "detail": "The published expected total is now the median of the published curve."
+  },
+  {
+   "date": "2026-10-20",
+   "route": "noodds",
+   "model": "fin_c",
+   "label": "fin_c adopted (no-odds route)",
+   "detail": "Opponent-adjusted ratings, head-to-head, season context and per-competition dispersion for fixtures without odds."
+  },
+  {
+   "date": "2026-10-27",
+   "route": "odds",
+   "model": "cand_odds_surge",
+   "label": "Surge adopted (odds route)",
+   "detail": "Production model plus an out-of-sample correction of the total. Scotland Championship stays on negbin_pit_comp."
+  }
+ ]
 }
