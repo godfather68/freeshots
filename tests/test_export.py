@@ -26,6 +26,7 @@ from shots.export import ExportError, export, league_id, render
 from shots.export import __main__ as export_cli
 from shots.export import verify as verify_mod
 from shots.export.build import DEFAULT_TEAM, DEFAULT_TOTAL
+from shots.export.history import load_history, model_history
 from shots.ingest import calendar_ics, football_data
 from shots.ingest.schema import make_match_id
 from shots.predict import board as board_mod
@@ -161,6 +162,7 @@ def test_export_follows_the_contract_and_the_json_schema(seeded, tmp_path):
     assert meta["counts"] == {"fixtures": 3, "with_odds": 1, "cold_start": 1, "results": 2,
                               "provisional_results": 0} and meta["days"] == [str(D5)]
     assert meta["last_job"] is None and meta["record"]["since"].endswith("Z")
+    assert meta["model_history"] == model_history(EXPORT_DAY)  # the committed milestones up to the export day
     assert meta["leagues"] == [
         {"id": "england-premier-league", "name": "Premier League", "country": "England", "tier": 1, "fixtures": 1},
         {"id": "germany-2-bundesliga", "name": "2. Bundesliga", "country": "Germany", "tier": 2, "fixtures": 1},
@@ -227,7 +229,9 @@ def test_no_odds_values_or_source_columns_are_published(seeded, tmp_path):
                # surge.json `stacking` (2026-10-28), a fixture's `strong` flag and table `context`
                "stacking", "min_boosts", "note", "groups", "phases", "share", "by_count", "season_phase",
                "strong_applies", "0", "1", "2", "3+", "2+", "early", "middle", "late", "run_in", "strong",
-               "context", "phase", "pos", "of", "pts", "gp", "left", "to_top", "to_safety"}
+               "context", "phase", "pos", "of", "pts", "gp", "left", "to_top", "to_safety",
+               # meta.model_history (2026-10-29)
+               "model_history", "route", "detail"}
 
     def keys(obj):
         if isinstance(obj, dict):
@@ -381,6 +385,8 @@ def test_verifier_agrees_with_the_export(seeded, tmp_path, migrated_db):
     ("track", lambda d: d["records"]["live"].__setitem__("pending", 0), "live.pending"),
     ("meta", lambda d: d["counts"].__setitem__("fixtures", 99), "counts"),
     ("meta", lambda d: d["thresholds"].__setitem__("total", [10, 44]), "thresholds.total"),
+    ("meta", lambda d: d["model_history"].append({"date": "2026-01-01", "route": "odds", "model": "x", "label": "x",
+                                                  "detail": "x"}), "model_history"),
 ])
 def test_verifier_detects_differences(seeded, tmp_path, migrated_db, name, tamper, expect):
     out = tmp_path / "out"
@@ -493,3 +499,31 @@ def test_awaiting_results_counts_predicted_matches_finished_before_the_board_run
     got = repo.awaiting_results()
     assert got["official"] >= 1 and got["experimental"] == 0  # Hull v Leeds (D5) has a pre-match prediction, no result
     assert got["oldest"] is not None and got["oldest"] <= D5
+
+
+# ----------------------------------------------------------------------------- model history (meta.model_history)
+
+def test_model_history_committed_file_is_valid_and_filtered_by_day():
+    rows = load_history()
+    assert rows == sorted(rows, key=lambda m: (m["date"], m["route"], m["model"]))
+    assert all(set(m) == {"date", "route", "model", "label", "detail"} for m in rows)
+    # the adoptions recorded in CLAUDE.md / src/shots/config.py are there, on their routes
+    got = {(m["date"], m["route"], m["model"]) for m in rows}
+    assert {("2026-10-20", "noodds", "fin_c"), ("2026-10-20", "all", "median_from_curve"),
+            ("2026-10-27", "odds", "cand_odds_surge")} <= got
+    assert model_history(date(2026, 10, 19)) == [m for m in rows if m["date"] <= "2026-10-19"]
+    assert all(m["date"] <= "2026-10-19" for m in model_history(date(2026, 10, 19)))
+    assert model_history(date(2000, 1, 1)) == []
+    assert model_history(date(2100, 1, 1)) == rows
+
+
+def test_model_history_rejects_malformed_files(tmp_path):
+    bad = tmp_path / "h.json"
+    for doc in ({"milestones": {}},
+                {"milestones": [{"date": "2026-10-20", "route": "moon", "model": "x", "label": "x", "detail": "x"}]},
+                {"milestones": [{"date": "20 Oct", "route": "odds", "model": "x", "label": "x", "detail": "x"}]},
+                {"milestones": [{"date": "2026-10-20", "route": "odds", "model": "", "label": "x", "detail": "x"}]},
+                {"milestones": [{"date": "2026-10-20", "route": "odds", "model": "x", "label": "x"}]}):
+        bad.write_text(json.dumps(doc), encoding="utf-8")
+        with pytest.raises(ValueError):
+            load_history(bad)

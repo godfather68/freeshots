@@ -15,6 +15,21 @@ import { KickoffText } from '../components/Panel'
 import { StrongBadge, SurgeChips, useSurgeCatalog } from '../components/Surge'
 import { SurgeOutcomeChart, tallyText } from '../components/SurgeOutcomes'
 import { Badge, Help, LeagueChip, ProbPill, ScrollRegion } from '../components/ui'
+import { ChartCard, Legend } from '../components/charts'
+
+/** Legend and reading line shared by every signal card. */
+function SignalLegend() {
+  return (
+    <div className="sglegend">
+      <p className="howto"><span className="howto-k">How to read this</span> each card compares how often past matches with the signal surged (solid bar) with what our curve said for those same matches (striped bar). A solid bar longer than the striped one is the signal's edge.</p>
+      <Legend items={[
+        { label: 'Happened (raises the odds ▲)', kind: 'bar', tone: 's1' },
+        { label: 'Happened (lowers them ▼)', kind: 'bar', tone: 's3' },
+        { label: 'What our curve said', kind: 'stripe', tone: 'mut' },
+      ]} />
+    </div>
+  )
+}
 
 const plural = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`
 const thousands = (n: number) => n.toLocaleString('en-GB')
@@ -218,10 +233,18 @@ function Outcomes({ surge }: { surge: Surge }) {
             </div>
           ) : (
             <>
-              <figure className="card">
-                <figcaption><b>Share that surged, week by week</b><br /><small>Circles: matches with 1+ signal. Squares: matches we looked at without one. Dashed: the usual share. Hollow: fewer than {SURGE_SMALL} matches that week.</small></figcaption>
+              <ChartCard
+                title="Share that surged, week by week"
+                howto={<>each week, how many settled matches ended {surge.margin}+ shots above our expected total: those flagged with a signal against those we looked at without one. Flagged above the others (and the dashed line) is what the signals promise.</>}
+                legend={[
+                  { label: 'With 1+ signal', kind: 'dot', tone: 's1' },
+                  { label: 'Looked at, no signal', kind: 'square', tone: 's3' },
+                  { label: `Usual share (${rate(usual)})`, kind: 'dash', tone: 'gold' },
+                  { label: `Hollow: fewer than ${SURGE_SMALL} matches that week`, kind: 'hollow', tone: 's1' },
+                ]}
+              >
                 <SurgeOutcomeChart weeks={weeks} usual={usual} margin={surge.margin} id="sg-out-chart" />
-              </figure>
+              </ChartCard>
               <p className="hint smallnote">Small samples: weeks hold a few dozen matches at most, so a week above or below the line means little. The research behind the signals used about 50,000 matches.</p>
               <ScrollRegion label="Weekly surge numbers">
                 <table>
@@ -323,16 +346,20 @@ export function SurgePage() {
 
   return (
     <div className="page surge">
+      <header className="pagehead">
+      <p className="kicker">Over-shoot signals</p>
       <h1>Surge Watch</h1>
       <p className="lede">
         A <b>surge</b> is a match that ends {surge.margin}+ shots above our expected total. It happens in about {usual}% of matches; these signals raise the odds. <Help term="surge" />
       </p>
+      </header>
       <p className="scaveat" role="note" aria-label="Caveat">
         <b>A lean, not a promise.</b> The signals come from {thousands(surge.matches)} past matches ({surge.period}), checked out of sample against what our own curves said beforehand. The probabilities on this site are unchanged: a signal never moves our numbers. Matches with bookmaker odds are already adjusted by our Surge model, so they are only labelled here when that model is not used.
       </p>
 
       <section aria-labelledby="sg-boost">
         <h2 id="sg-boost">Signals that raise the odds</h2>
+        <SignalLegend />
         <div className="sgrid">{boosts.map((s) => <SignalCard key={s.id} s={s} max={max} />)}</div>
       </section>
       {dampers.length > 0 && (

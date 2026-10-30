@@ -60,6 +60,8 @@ odds_home, odds_draw, odds_away, odds_over25, odds_under25`
    - **Monitor Surge monthly:** `python -m shots.surge_monitor` (vs production's shadow P(24+) stored in
      `board.meta.json`); revert (`ODDS_MODEL = "negbin_pit_comp"`) when its 70%+ calls trail the shadow by > 1.5pp
      over 12 months with >= 300 calls each. Watch Turkey, Portugal and the Scottish leagues at 90% coverage.
+   - **Every production switch change also adds a milestone to `src/shots/export/model_history.json`** (published
+     as `meta.model_history`, drawn on the Track record charts; checked by the export verifier).
    - Reports: `reports/2026-10-15_model_candidates.md`, `2026-10-16_fin_c_verification.md`,
      `2026-10-16_fin_c_adoption.md`, `2026-10-27_surge_calibration.md`, `2026-10-27_surge_verification.md`,
      `2026-10-27_surge_adoption.md`.

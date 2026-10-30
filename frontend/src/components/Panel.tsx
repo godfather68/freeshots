@@ -9,6 +9,7 @@ import type { Item } from '../lib/types'
 import { PANEL_TABS } from '../lib/url'
 import type { PanelTab } from '../lib/url'
 import { CurveChart } from './CurveChart'
+import { Legend } from './charts'
 import { EdgeCheck } from './EdgeCheck'
 import { Explain } from './Explain'
 import { SurgeRow, TableContextRow } from './Surge'
@@ -125,12 +126,19 @@ function Prediction({ item }: { item: Item }) {
       <Explain item={item} />
 
       <h3>Chance by number of shots</h3>
+      <p className="howto"><span className="howto-k">How to read this</span> pick a number of shots along the bottom; the curve gives the chance the match reaches at least that many. The dots mark the 90%, 80% and 70% floors.</p>
+      <Legend items={[
+        { label: 'Chance of N+ shots', kind: 'area', tone: 's1' },
+        { label: `Your line (${n}+)`, kind: 'line', tone: 'mut' },
+        { label: `Floors: 90% ${item.lb['90']}+, 80% ${item.lb['80']}+, 70% ${item.lb['70']}+`, kind: 'milestone', tone: 'gold' },
+      ]} />
       <CurveChart
         title="Chance of at least N total shots"
         summary={summary}
         series={[{ key: 'total', label: 'Total', curve: item.curve, start: totalStart, cls: 'a' }]}
         marker={n}
         guides={[0.7, 0.8, 0.9]}
+        floors={[{ q: 0.9, at: item.lb['90'] }, { q: 0.8, at: item.lb['80'] }, { q: 0.7, at: item.lb['70'] }]}
         ticks={[{ x: Math.min(Math.max(item.expected, lo), lo + item.curve.length - 1), label: `exp ${item.expected}` }]}
       />
       <details className="alt">
@@ -177,6 +185,21 @@ function VsBar({ expected, avg }: { expected: number; avg: number }) {
   )
 }
 
+/** Who takes the shots: expected shots of each side as one split bar, numbers on both ends. */
+function TeamSplit({ home, away, h, a }: { home: string; away: string; h: number; a: number }) {
+  const share = h + a > 0 ? h / (h + a) : 0.5
+  return (
+    <div className="tsplit" role="img" aria-label={`Expected shots: ${home} ${h.toFixed(1)}, ${away} ${a.toFixed(1)} (${Math.round(share * 100)}% to ${Math.round((1 - share) * 100)}%)`}>
+      <p className="ts-names" aria-hidden="true"><span><b>{h.toFixed(1)}</b> {home} <small>{Math.round(share * 100)}%</small></span><span><small>{Math.round((1 - share) * 100)}%</small> {away} <b>{a.toFixed(1)}</b></span></p>
+      <div className="ts-bar" aria-hidden="true">
+        <i className="ts-h" style={{ width: `${share * 100}%` }} />
+        <i className="ts-a" style={{ width: `${(1 - share) * 100}%` }} />
+      </div>
+      <p className="hint ts-cap" aria-hidden="true">Expected shots of each side, and its share of the total.</p>
+    </div>
+  )
+}
+
 function Teams({ item }: { item: Item }) {
   const { state, ds, set, teamStart } = useApp()
   const f = item.fixture
@@ -199,6 +222,7 @@ function Teams({ item }: { item: Item }) {
   return (
     <div className="tabbody">
       <p className="xpnote"><span className="badge xp">experimental</span> Shots for one team on its own. They pass the overall calibration checks but not yet the per-competition one, so trust them less than the match total. <Help term="experimental" /></p>
+      <TeamSplit home={f.home} away={f.away} h={t.home.mean} a={t.away.mean} />
       <Stepper id="ctl-tn" label="Team shots" value={tn} min={tlo} max={thi} onChange={(v) => set({ tn: v }, { replace: true })} />
       <div className="teamcards">
         {([['home', f.home, t.home, ph], ['away', f.away, t.away, pa]] as const).map(([side, name, tc, p]) => (
@@ -213,8 +237,11 @@ function Teams({ item }: { item: Item }) {
           </section>
         ))}
       </div>
+      <p className="howto"><span className="howto-k">How to read this</span> each line gives the chance that one team alone takes at least that many shots; the dots show both at your team line ({tn}+).</p>
+      <Legend label="Teams" items={[{ label: f.home, kind: 'line', tone: 's1' }, { label: f.away, kind: 'dash', tone: 's3' }]} />
       <CurveChart
         title="Chance of at least N shots for each team"
+        xLabel="shots by one team (at least)"
         summary={summary}
         series={[
           { key: 'h', label: f.home, curve: t.home.curve, start: teamStart, cls: 'a' },
@@ -223,7 +250,6 @@ function Teams({ item }: { item: Item }) {
         marker={tn}
         guides={[0.8]}
       />
-      <p className="legend"><span className="key a">{f.home}</span><span className="key b">{f.away}</span></p>
     </div>
   )
 }

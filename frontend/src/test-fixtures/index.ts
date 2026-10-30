@@ -242,6 +242,11 @@ export const meta: Meta = {
   leagues: [],
   days: DAYS,
   counts: { fixtures: 0, with_odds: 0, cold_start: 0 },
+  model_history: [
+    { date: '2026-09-20', route: 'all', model: 'negbin_pit_comp', label: 'Live record starts', detail: 'Negative binomial model on both routes.' },
+    { date: '2026-10-08', route: 'cross_border', model: 'negbin_pit_comp', label: 'European cups added (experimental)', detail: 'Built from domestic form.' },
+    { date: '2026-10-06', route: 'noodds', model: 'fin_c', label: 'fin_c adopted (no-odds route)', detail: 'Opponent-adjusted ratings for fixtures without odds.' },
+  ],
 }
 
 const fixtures = buildFixtures()

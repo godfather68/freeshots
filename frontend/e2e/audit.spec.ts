@@ -50,7 +50,7 @@ for (const scheme of ['light', 'dark'] as const) {
     test('results page and evolution charts', async ({ page }) => {
       await boot(page, '#/results')
       await expect(page.getByRole('heading', { name: 'Results', level: 1 })).toBeVisible()
-      await expect(page.getByRole('heading', { name: /^Champions League/ })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /^European cups/ })).toBeVisible()
       await audit(page, 'results')
       await page.screenshot({ path: `test-results/results-${scheme}.png`, fullPage: true })
       await boot(page, '#/track?rec=live', { data: { 'track.json': trackFull } })

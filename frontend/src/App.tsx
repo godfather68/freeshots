@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AppProvider, go, useApp, useRoute } from './lib/app'
+import { AppProvider, go, useApp, useMedia, useRoute } from './lib/app'
 import { DataError, loadDataset } from './lib/data'
 import { dayLong, freshness } from './lib/format'
 import { stampIn } from './lib/time'
 import type { Dataset } from './lib/types'
-import { guideStore } from './lib/storage'
+import { applyTheme, guideStore, themeStore } from './lib/storage'
+import { useStore } from './components/ui'
 import { BoardPage } from './pages/BoardPage'
 import { HowPage } from './pages/HowPage'
 import { MatchPage } from './pages/MatchPage'
@@ -19,6 +20,24 @@ function PitchMark() {
       <rect x="1" y="1" width="38" height="24" rx="2" /><line x1="20" y1="1" x2="20" y2="25" />
       <circle cx="20" cy="13" r="5" /><rect x="1" y="7" width="6" height="12" /><rect x="33" y="7" width="6" height="12" />
     </svg>
+  )
+}
+
+/** Light / dark switch. Follows the system until the visitor picks one; the choice is remembered (try/catch storage). */
+function ThemeToggle() {
+  const t = useStore(themeStore)
+  const sysDark = useMedia('(prefers-color-scheme: dark)')
+  useEffect(() => applyTheme(t), [t])
+  const dark = t === 'dark' || (t === 'system' && sysDark)
+  return (
+    <button type="button" className="themebtn" aria-pressed={dark} onClick={() => themeStore.set(dark ? 'light' : 'dark')} title={dark ? 'Switch to the light theme' : 'Switch to the dark theme'}>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        {dark
+          ? <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+          : <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" /></>}
+      </svg>
+      <span className="sr">Dark theme</span>
+    </button>
   )
 }
 
@@ -104,11 +123,16 @@ function Shell({ now }: { now?: number }) {
               <li><a href="#/how" aria-current={here === 'how' ? 'page' : undefined}>How it works</a></li>
             </ul>
           </nav>
-          <button type="button" className="quiet guidebtn" onClick={openGuide}>Quick guide</button>
+          <div className="topactions">
+            <button type="button" className="quiet guidebtn" onClick={openGuide}>Quick guide</button>
+            <ThemeToggle />
+          </div>
         </div>
+      </header>
+      <section className="statuswrap" aria-label="Data status">
         <Freshness now={now} />
         <PendingResults onResults={here === 'results'} />
-      </header>
+      </section>
       <main id="main" ref={main} tabIndex={-1}>
         <div className="wrap">
           {path === '/' && <BoardPage />}
@@ -167,7 +191,10 @@ export default function App({ now, today, zone, load = loadDataset }: { now?: nu
   if (!state.ds) {
     return (
       <main id="main" className="wrap" aria-busy="true">
-        <p className="loading" role="status">Loading the board&hellip;</p>
+        <div className="skeleton" role="status" aria-label="Loading the board">
+          <span className="sk sk-hero" /><span className="sk sk-row" /><span className="sk sk-row" /><span className="sk sk-row short" />
+          <span className="sr">Loading the board&hellip;</span>
+        </div>
       </main>
     )
   }

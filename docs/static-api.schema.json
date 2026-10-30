@@ -302,6 +302,20 @@
             "experimental": {"type": "integer", "minimum": 0},
             "oldest": {"anyOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]}
           }
+        },
+        "model_history": {
+          "description": "Additive (schema 1). Model milestones dated on or before the export day, oldest first (committed file src/shots/export/model_history.json).",
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["date", "route", "model", "label", "detail"],
+            "properties": {
+              "date": {"$ref": "#/$defs/date"},
+              "route": {"enum": ["all", "odds", "noodds", "cross_border"]},
+              "model": {"type": "string", "minLength": 1},
+              "label": {"type": "string", "minLength": 1},
+              "detail": {"type": "string", "minLength": 1}
+            }
+          }
         }
       }
     },

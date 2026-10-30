@@ -20,6 +20,7 @@ from shots.db.access import FULL_ACCESS
 from shots.db.repo import Repository
 from shots.db.text import fold
 from shots.evaluation import surge as sv
+from shots.export.history import model_history
 from shots.ingest.cross_border import BY_NAME as CROSS_BORDER
 
 FEATURED = frozenset(CROSS_BORDER)  # competitions the site pins first (meta.leagues[].featured)
@@ -554,6 +555,7 @@ def build_meta(repo: Repository, built_at: datetime, board_src: dict, extra_leag
                    "provisional_results": sum(1 for r in result_rows or [] if r.get("result_status") == "provisional")},
         "record": {"since": iso_z(repo.record_since())},
         "awaiting_results": _awaiting(repo),
+        "model_history": model_history(built_at.date()),
     }
 
 

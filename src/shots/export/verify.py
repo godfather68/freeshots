@@ -641,6 +641,11 @@ class Checker:
         since = self.q("SELECT min(created_at) AS t FROM predictions WHERE pre_match = 1")[0]["t"]
         if "record" in meta and meta["record"]["since"] != utc_z(since):
             self.fail(f"meta: record.since {meta['record']['since']} != database {utc_z(since)}")
+        if "model_history" in meta:
+            from shots.export.history import model_history
+            want_h = model_history(date.fromisoformat(meta["built_at"][:10]))
+            if meta["model_history"] != want_h:
+                self.fail(f"meta: model_history differs from src/shots/export/model_history.json up to {meta['built_at'][:10]}")
         aw = meta.get("awaiting_results")
         if aw is not None:
             want = {"official": 0, "experimental": 0, "oldest": None}

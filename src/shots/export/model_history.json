@@ -1,0 +1,15 @@
+{
+  "note": "Model milestones published as meta.model_history (docs/static-api.md). Committed with the code: the database records which model scored each prediction, not when a model was adopted or a display rule changed. Add an entry with every production switch in src/shots/config.py (same date as the adoption report). route: all | odds | noodds | cross_border.",
+  "milestones": [
+    {"date": "2026-10-09", "route": "all", "model": "negbin_pit_comp", "label": "Live record starts",
+     "detail": "Negative binomial model, recalibrated per competition, on both routes. Every pick is saved before kick-off from here on."},
+    {"date": "2026-10-13", "route": "cross_border", "model": "negbin_pit_comp", "label": "European cups added (experimental)",
+     "detail": "Champions League first, then Europa and Conference League, built from domestic form. Kept out of the official record."},
+    {"date": "2026-10-20", "route": "noodds", "model": "fin_c", "label": "fin_c adopted (no-odds route)",
+     "detail": "Opponent-adjusted ratings, head-to-head, season context and per-competition dispersion for fixtures without odds."},
+    {"date": "2026-10-20", "route": "all", "model": "median_from_curve", "label": "Expected total = median of the curve",
+     "detail": "The published expected total is now the median of the published curve."},
+    {"date": "2026-10-27", "route": "odds", "model": "cand_odds_surge", "label": "Surge adopted (odds route)",
+     "detail": "Production model plus an out-of-sample correction of the total. Scotland Championship stays on negbin_pit_comp."}
+  ]
+}

@@ -53,11 +53,22 @@ export const timeModeStore = persisted<TimeMode>('shots.timemode', 'mine')
 export const oddsFormatStore = persisted<OddsFormat>('shots.oddsformat', 'decimal')
 export const checksStore = persisted<Check[]>('shots.checks', [])
 export const guideStore = persisted<{ dismissed: boolean }>('shots.guide', { dismissed: false })
+/** Colour theme: 'system' follows prefers-color-scheme; 'light' / 'dark' are the visitor's explicit choice. */
+export type Theme = 'system' | 'light' | 'dark'
+export const themeStore = persisted<Theme>('shots.theme', 'system')
+
+/** Stamp the theme on <html data-theme> (absent = follow the system). Safe outside a browser. */
+export function applyTheme(t: Theme): void {
+  if (typeof document === 'undefined') return
+  const el = document.documentElement
+  if (t === 'light' || t === 'dark') el.dataset.theme = t
+  else delete el.dataset.theme
+}
 
 export function toggleIn(list: string[], v: string): string[] {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v]
 }
 
 export function resetStores(): void {
-  for (const s of [favouritesStore, collapsedStore, guideStore, timeModeStore, oddsFormatStore, checksStore]) s.reload()
+  for (const s of [favouritesStore, collapsedStore, guideStore, timeModeStore, oddsFormatStore, checksStore, themeStore]) s.reload()
 }

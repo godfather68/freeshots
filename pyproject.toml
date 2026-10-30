@@ -13,6 +13,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "shots.ingest" = ["*.csv"]
 "shots.auth" = ["*.txt"]
+"shots.export" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

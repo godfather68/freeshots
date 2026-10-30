@@ -12,7 +12,10 @@ export interface Meta {
   counts: { fixtures: number; with_odds: number; cold_start: number }
   /** Additive (optional): finished matches with a prediction still waiting for their result. */
   awaiting_results?: { official: number; experimental: number; oldest: string | null }
+  /** Additive (optional): model milestones up to the export day, oldest first (src/shots/export/model_history.json). */
+  model_history?: ModelMilestone[]
 }
+export interface ModelMilestone { date: string; route: 'all' | 'odds' | 'noodds' | 'cross_border'; model: string; label: string; detail: string }
 export interface TeamCurve { mean: number; median: number; lb80: number; curve: number[] }
 export type DataQuality = 'full' | 'partial' | 'none'
 export interface Bounds { '70': number; '80': number; '90': number }

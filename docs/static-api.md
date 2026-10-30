@@ -27,12 +27,25 @@ Rules
   "leagues": [{"id": "england-premier-league", "name": "Premier League", "country": "England", "tier": 1, "fixtures": 50}],
   "days": ["2026-10-12", "2026-10-13"],
   "counts": {"fixtures": 568, "with_odds": 0, "cold_start": 0, "results": 140, "provisional_results": 12},
-  "awaiting_results": {"official": 169, "experimental": 0, "oldest": "2026-10-15"}
+  "awaiting_results": {"official": 169, "experimental": 0, "oldest": "2026-10-15"},
+  "model_history": [
+    {"date": "2026-10-20", "route": "noodds", "model": "fin_c", "label": "fin_c adopted (no-odds route)",
+     "detail": "Opponent-adjusted ratings, head-to-head, season context and per-competition dispersion for fixtures without odds."}
+  ]
 }
 ```
 - `awaiting_results` (additive): matches with a pre-match prediction that had finished (lock moment + 2.5 h)
   by the latest board run's `built_at`, dated within 30 days of it, with no result yet. Measured against
   the board run, not the clock, so files stay deterministic. The site shows a "results pending" banner.
+- `model_history` (additive): model milestones (a model adopted on a route, a change to what is published) dated
+  on or before the UTC date of `built_at`, oldest first (ties by route, then model). `route` is `all`, `odds`,
+  `noodds` or `cross_border`; `model` is the config name (`fin_c`, `cand_odds_surge`, ...) or, for a display
+  rule, its switch (`median_from_curve`); `label` is a short annotation, `detail` one plain sentence. Source:
+  the committed file `src/shots/export/model_history.json` (the database records which model scored each
+  prediction, not when a model was adopted), so add an entry with every production switch in
+  `src/shots/config.py`. The site annotates the live track-record timeline with these dates; they describe
+  the live record only (the backfill is a single out-of-sample season scored by the model of its time).
+  The verifier checks the field equals the committed file up to that day.
 
 ## `data/board.json` (upcoming fixtures, sorted by kickoff then league then home)
 ```json
@@ -401,7 +414,7 @@ The shapes above are unchanged. Details an implementer of the site needs (JSON S
   competitions only, fixture `experimental` / `data_quality` and league `featured` (see "Experimental
   fixtures"), fixture `explain` (see "`explain`"), fixture `surge` and the file `surge.json` (see "`surge`" and
   "`data/surge.json`"), fixture `context` (see "`context`") and result `surge` (see "Surge labels of settled
-  matches"). `meta.counts.cold_start` includes experimental fixtures with a club without data.
+  matches"), and `meta.model_history` (see `data/meta.json`). `meta.counts.cold_start` includes experimental fixtures with a club without data.
 - `meta.leagues` lists every league id used in any file; `fixtures` is 0 when a league only appears in
   `results.json` or `track.json`. League `name` has no country prefix ("Premier League").
 - `expected`, `lb.*`, `median`, `lb80` are integers; `mean` has 2 decimals; `league_avg` / `above_league` 1.

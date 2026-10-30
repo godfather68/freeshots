@@ -5,6 +5,7 @@ import type { DayGroup, Recap, ResultFilter, Verdict } from '../lib/recap'
 import { OUTCOMES } from '../lib/url'
 import type { Outcome } from '../lib/url'
 import { Badge, Help, LeagueChip, ProbPill, Stepper } from '../components/ui'
+import { ResultsChart } from '../components/ResultsChart'
 
 const n1 = (x: number | null) => (x === null ? 'n/a' : x.toFixed(1))
 const plural = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`
@@ -82,7 +83,7 @@ function Day({ g, n, open, kind, f }: { g: DayGroup; n: number; open: boolean; k
   if (shown.length === 0) return null
   return (
     <section className="card rday" aria-labelledby={`d-${kind}-${g.date}`}>
-      <h3 id={`d-${kind}-${g.date}`}>{dayLong(g.date)} <span className="cnt">&middot; {plural(r.matches, 'match', 'matches')}</span></h3>
+      <h3 id={`d-${kind}-${g.date}`}>{dayLong(g.date)} <span className="cnt">&middot; {plural(r.matches, 'match', 'matches')}</span>{kind === 'xp' && <span className="sr"> (European cups)</span>}</h3>
       <Stats r={r} n={n} />
       {prov > 0 && (
         <p className="hint provnote"><span className="tag ltd prov">Provisional</span> {prov === r.matches ? (r.matches === 1 ? 'This result was' : 'All these results were') : `${prov} of ${r.matches} results were`} entered by hand and will be replaced by the official data when it arrives. <Help term="provisional" /></p>
@@ -161,6 +162,7 @@ function Group({ kind, title, intro, rows, n, empty, f }: { kind: 'official' | '
             <Stats r={all} n={n} />
             <p className="hint">{plural(all.matches, 'match', 'matches')}. With few matches these are anecdotes, not accuracy; the <a href={`#/track?rec=${xp ? 'experimental' : 'live'}&n=${n}`}>track record</a> has the long view.</p>
           </div>
+          <ResultsChart groups={rows} n={n} />
           <ByLeague verdicts={rows.flatMap((g) => g.verdicts)} n={n} kind={kind} />
           {isFiltered(f) && shown === 0 && <div className="card empty"><h3>No match fits these filters</h3><p>Try another outcome, league or shots threshold.</p></div>}
           {rows.map((g, i) => <Day key={g.date} g={g} n={n} open={i < 2} kind={kind} f={f} />)}
@@ -188,8 +190,11 @@ export function ResultsPage() {
   const filtered = isFiltered(f)
   return (
     <div className="page">
-      <h1>Results</h1>
-      <p className="lede">What we said before kick-off against what happened, match by match, for the last 30 days. Move the shots threshold to re-check every call. Days are match days at the venue.</p>
+      <header className="pagehead">
+        <p className="kicker">Last 30 days</p>
+        <h1>Results</h1>
+        <p className="lede">What we said before kick-off against what happened, match by match, for the last 30 days. Move the shots threshold to re-check every call. Days are match days at the venue.</p>
+      </header>
       <div className="card trackctl rfilter">
         <Stepper id="res-n" label="Shots" value={state.n} min={lo} max={hi} onChange={(v) => set({ n: v }, { replace: true })} />
         {all.length > 0 && (
