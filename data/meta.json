@@ -1,13 +1,12 @@
 {
  "schema": 1,
- "built_at": "2026-11-02T15:41:34Z",
+ "built_at": "2026-11-03T01:47:26Z",
  "results_up_to": "2026-11-01",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-02T15:41:27Z"
+  "finished_at": "2026-11-03T01:47:19Z"
  },
  "models": [
-  "cand_odds_surge-odds_2026-10-26",
   "fin_c-noodds_2026-10-14",
   "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
@@ -38,7 +37,7 @@
    "name": "Premier League",
    "country": "England",
    "tier": 1,
-   "fixtures": 41
+   "fixtures": 40
   },
   {
    "id": "england-championship",
@@ -90,14 +89,14 @@
    "name": "Ligue 1",
    "country": "France",
    "tier": 1,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "france-ligue-2",
    "name": "Ligue 2",
    "country": "France",
    "tier": 2,
-   "fixtures": 2
+   "fixtures": 0
   },
   {
    "id": "germany-bundesliga",
@@ -118,14 +117,14 @@
    "name": "Super League",
    "country": "Greece",
    "tier": 1,
-   "fixtures": 2
+   "fixtures": 0
   },
   {
    "id": "italy-serie-a",
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 32
+   "fixtures": 30
   },
   {
    "id": "italy-serie-b",
@@ -146,7 +145,7 @@
    "name": "Primeira Liga",
    "country": "Portugal",
    "tier": 1,
-   "fixtures": 2
+   "fixtures": 0
   },
   {
    "id": "scotland-premiership",
@@ -181,25 +180,24 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 31
+   "fixtures": 30
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 47
+   "fixtures": 44
   },
   {
    "id": "turkey-super-lig",
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 28
+   "fixtures": 27
   }
  ],
  "days": [
-  "2026-11-02",
   "2026-11-03",
   "2026-11-04",
   "2026-11-05",
@@ -221,8 +219,8 @@
   "2026-12-02"
  ],
  "counts": {
-  "fixtures": 479,
-  "with_odds": 15,
+  "fixtures": 464,
+  "with_odds": 0,
   "cold_start": 59,
   "results": 656,
   "provisional_results": 0
@@ -231,7 +229,7 @@
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 15,
+  "official": 30,
   "experimental": 0,
   "oldest": "2026-10-23"
  },
