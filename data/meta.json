@@ -1,12 +1,13 @@
 {
  "schema": 1,
- "built_at": "2026-11-03T10:04:21Z",
+ "built_at": "2026-11-03T16:10:00Z",
  "results_up_to": "2026-11-02",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-03T10:04:15Z"
+  "finished_at": "2026-11-03T16:09:53Z"
  },
  "models": [
+  "cand_odds_surge-odds_2026-10-26",
   "fin_c-noodds_2026-10-14",
   "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
@@ -30,7 +31,7 @@
    "name": "Pro League",
    "country": "Belgium",
    "tier": 1,
-   "fixtures": 27
+   "fixtures": 28
   },
   {
    "id": "england-premier-league",
@@ -44,21 +45,21 @@
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 60
+   "fixtures": 61
   },
   {
    "id": "england-league-one",
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 0
+   "fixtures": 3
   },
   {
    "id": "england-league-two",
    "name": "League Two",
    "country": "England",
    "tier": 4,
-   "fixtures": 0
+   "fixtures": 1
   },
   {
    "id": "uefa-champions-league",
@@ -219,9 +220,9 @@
   "2026-12-02"
  ],
  "counts": {
-  "fixtures": 464,
-  "with_odds": 0,
-  "cold_start": 59,
+  "fixtures": 470,
+  "with_odds": 17,
+  "cold_start": 62,
   "results": 671,
   "provisional_results": 0
  },
