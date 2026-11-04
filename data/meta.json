@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-11-03T16:10:00Z",
+ "built_at": "2026-11-04T02:14:53Z",
  "results_up_to": "2026-11-02",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-03T16:09:53Z"
+  "finished_at": "2026-11-04T02:14:45Z"
  },
  "models": [
   "cand_odds_surge-odds_2026-10-26",
@@ -45,28 +45,28 @@
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 61
+   "fixtures": 52
   },
   {
    "id": "england-league-one",
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 3
+   "fixtures": 1
   },
   {
    "id": "england-league-two",
    "name": "League Two",
    "country": "England",
    "tier": 4,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "uefa-champions-league",
    "name": "UEFA Champions League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 16,
+   "fixtures": 7,
    "featured": true
   },
   {
@@ -195,11 +195,10 @@
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 27
+   "fixtures": 28
   }
  ],
  "days": [
-  "2026-11-03",
   "2026-11-04",
   "2026-11-05",
   "2026-11-06",
@@ -217,12 +216,13 @@
   "2026-11-28",
   "2026-11-29",
   "2026-11-30",
-  "2026-12-02"
+  "2026-12-02",
+  "2026-12-04"
  ],
  "counts": {
-  "fixtures": 470,
-  "with_odds": 17,
-  "cold_start": 62,
+  "fixtures": 450,
+  "with_odds": 5,
+  "cold_start": 58,
   "results": 671,
   "provisional_results": 0
  },
@@ -230,8 +230,8 @@
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 15,
-  "experimental": 0,
+  "official": 28,
+  "experimental": 9,
   "oldest": "2026-10-23"
  },
  "model_history": [
