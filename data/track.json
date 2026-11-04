@@ -608,23 +608,23 @@
   },
   "live": {
    "label": "Live picks (saved before kick-off)",
-   "settled": 599,
-   "pending": 138,
+   "settled": 616,
+   "pending": 121,
    "void": 0,
    "provisional": 0,
    "by_n": {
     "24": {
      "selected_min_prob": 0.7,
-     "n": 334,
-     "hits": 271,
-     "hit_rate": 0.8114,
-     "mean_stated": 0.7905,
+     "n": 345,
+     "hits": 280,
+     "hit_rate": 0.8116,
+     "mean_stated": 0.789,
      "wilson95": [
-      0.766,
-      0.8497
+      0.767,
+      0.8493
      ],
-     "brier": 0.1745,
-     "brier_baseline": 0.2363,
+     "brier": 0.1744,
+     "brier_baseline": 0.2359,
      "reliability": [
       {
        "band": [
@@ -676,36 +676,36 @@
         0.5,
         0.6
        ],
-       "n": 61,
-       "stated": 0.5588,
-       "realised": 0.6066
+       "n": 63,
+       "stated": 0.5586,
+       "realised": 0.5873
       },
       {
        "band": [
         0.6,
         0.7
        ],
-       "n": 149,
-       "stated": 0.6562,
-       "realised": 0.698
+       "n": 153,
+       "stated": 0.657,
+       "realised": 0.6993
       },
       {
        "band": [
         0.7,
         0.8
        ],
-       "n": 202,
-       "stated": 0.7502,
-       "realised": 0.7772
+       "n": 212,
+       "stated": 0.7495,
+       "realised": 0.7783
       },
       {
        "band": [
         0.8,
         0.9
        ],
-       "n": 112,
-       "stated": 0.8399,
-       "realised": 0.8571
+       "n": 113,
+       "stated": 0.8398,
+       "realised": 0.8584
       },
       {
        "band": [
@@ -719,28 +719,28 @@
      ],
      "by_league": [
       {
+       "league": "england-championship",
+       "n": 36,
+       "hit_rate": 0.8333,
+       "stated": 0.761
+      },
+      {
+       "league": "england-league-one",
+       "n": 33,
+       "hit_rate": 0.8182,
+       "stated": 0.7571
+      },
+      {
        "league": "italy-serie-b",
        "n": 31,
        "hit_rate": 0.7742,
        "stated": 0.7792
       },
       {
-       "league": "england-league-one",
-       "n": 30,
-       "hit_rate": 0.8667,
-       "stated": 0.7615
-      },
-      {
        "league": "italy-serie-a",
        "n": 29,
        "hit_rate": 0.7931,
        "stated": 0.8102
-      },
-      {
-       "league": "england-championship",
-       "n": 28,
-       "hit_rate": 0.7857,
-       "stated": 0.7628
       },
       {
        "league": "germany-2-bundesliga",
@@ -1109,6 +1109,34 @@
       }
      },
      "provisional": 0
+    },
+    {
+     "date": "2026-11-03",
+     "matches": 12,
+     "mae": 2.92,
+     "bias": 1.25,
+     "floor80_held": 0.9167,
+     "by_n": {
+      "24": {
+       "picks": 8,
+       "hits": 6
+      }
+     },
+     "provisional": 0
+    },
+    {
+     "date": "2026-11-04",
+     "matches": 5,
+     "mae": 2.8,
+     "bias": 2.8,
+     "floor80_held": 1.0,
+     "by_n": {
+      "24": {
+       "picks": 3,
+       "hits": 3
+      }
+     },
+     "provisional": 0
     }
    ],
    "weekly": [
@@ -1156,14 +1184,14 @@
     },
     {
      "date": "2026-11-02",
-     "matches": 15,
-     "mae": 5.2,
-     "bias": -0.67,
-     "floor80_held": 0.7333,
+     "matches": 32,
+     "mae": 3.97,
+     "bias": 0.59,
+     "floor80_held": 0.8438,
      "by_n": {
       "24": {
-       "picks": 5,
-       "hits": 2
+       "picks": 16,
+       "hits": 11
       }
      },
      "provisional": 0
