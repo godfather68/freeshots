@@ -1,14 +1,13 @@
 {
  "schema": 1,
- "built_at": "2026-11-04T22:40:30Z",
+ "built_at": "2026-11-05T00:32:59Z",
  "results_up_to": "2026-11-04",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-04T22:40:22Z"
+  "finished_at": "2026-11-05T00:32:51Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
-  "negbin_pit_comp-noodds_2026-10-12-ucl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uel-exp"
  ],
@@ -37,14 +36,14 @@
    "name": "Premier League",
    "country": "England",
    "tier": 1,
-   "fixtures": 40
+   "fixtures": 50
   },
   {
    "id": "england-championship",
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 49
+   "fixtures": 59
   },
   {
    "id": "england-league-one",
@@ -65,7 +64,7 @@
    "name": "UEFA Champions League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 7,
+   "fixtures": 0,
    "featured": true
   },
   {
@@ -103,14 +102,14 @@
    "name": "Bundesliga",
    "country": "Germany",
    "tier": 1,
-   "fixtures": 27
+   "fixtures": 36
   },
   {
    "id": "germany-2-bundesliga",
    "name": "2. Bundesliga",
    "country": "Germany",
    "tier": 2,
-   "fixtures": 27
+   "fixtures": 36
   },
   {
    "id": "greece-super-league",
@@ -131,7 +130,7 @@
    "name": "Serie B",
    "country": "Italy",
    "tier": 2,
-   "fixtures": 40
+   "fixtures": 50
   },
   {
    "id": "netherlands-eredivisie",
@@ -152,7 +151,7 @@
    "name": "Premiership",
    "country": "Scotland",
    "tier": 1,
-   "fixtures": 24
+   "fixtures": 30
   },
   {
    "id": "scotland-championship",
@@ -194,11 +193,10 @@
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 28
+   "fixtures": 31
   }
  ],
  "days": [
-  "2026-11-04",
   "2026-11-05",
   "2026-11-06",
   "2026-11-07",
@@ -216,10 +214,11 @@
   "2026-11-29",
   "2026-11-30",
   "2026-12-02",
-  "2026-12-04"
+  "2026-12-04",
+  "2026-12-05"
  ],
  "counts": {
-  "fixtures": 445,
+  "fixtures": 495,
   "with_odds": 0,
   "cold_start": 56,
   "results": 688,
