@@ -608,22 +608,22 @@
   },
   "live": {
    "label": "Live picks (saved before kick-off)",
-   "settled": 616,
-   "pending": 121,
+   "settled": 617,
+   "pending": 120,
    "void": 0,
    "provisional": 0,
    "by_n": {
     "24": {
      "selected_min_prob": 0.7,
-     "n": 345,
-     "hits": 280,
-     "hit_rate": 0.8116,
-     "mean_stated": 0.789,
+     "n": 346,
+     "hits": 281,
+     "hit_rate": 0.8121,
+     "mean_stated": 0.7889,
      "wilson95": [
-      0.767,
-      0.8493
+      0.7676,
+      0.8498
      ],
-     "brier": 0.1744,
+     "brier": 0.1742,
      "brier_baseline": 0.2359,
      "reliability": [
       {
@@ -694,9 +694,9 @@
         0.7,
         0.8
        ],
-       "n": 212,
-       "stated": 0.7495,
-       "realised": 0.7783
+       "n": 213,
+       "stated": 0.7494,
+       "realised": 0.7793
       },
       {
        "band": [
@@ -720,9 +720,9 @@
      "by_league": [
       {
        "league": "england-championship",
-       "n": 36,
-       "hit_rate": 0.8333,
-       "stated": 0.761
+       "n": 37,
+       "hit_rate": 0.8378,
+       "stated": 0.7601
       },
       {
        "league": "england-league-one",
@@ -1112,14 +1112,14 @@
     },
     {
      "date": "2026-11-03",
-     "matches": 12,
+     "matches": 13,
      "mae": 2.92,
-     "bias": 1.25,
-     "floor80_held": 0.9167,
+     "bias": 1.38,
+     "floor80_held": 0.9231,
      "by_n": {
       "24": {
-       "picks": 8,
-       "hits": 6
+       "picks": 9,
+       "hits": 7
       }
      },
      "provisional": 0
@@ -1184,14 +1184,14 @@
     },
     {
      "date": "2026-11-02",
-     "matches": 32,
-     "mae": 3.97,
-     "bias": 0.59,
-     "floor80_held": 0.8438,
+     "matches": 33,
+     "mae": 3.94,
+     "bias": 0.67,
+     "floor80_held": 0.8485,
      "by_n": {
       "24": {
-       "picks": 16,
-       "hits": 11
+       "picks": 17,
+       "hits": 12
       }
      },
      "provisional": 0
