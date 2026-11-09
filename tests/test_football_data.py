@@ -11,7 +11,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 def test_new_format_parses_bom_shots_and_prematch_odds():
     df = to_canonical(read_raw(FIXTURES / "fd_new_format.csv"), "E0", 2025)
-    assert list(df.columns) == CANONICAL_COLUMNS
+    assert list(df.columns)[:len(CANONICAL_COLUMNS)] == CANONICAL_COLUMNS  # extras are appended after
     first = df.iloc[0]
     assert first.home_team == "Liverpool"
     assert first.date == pd.Timestamp("2025-08-15")
@@ -79,3 +79,32 @@ def test_real_header_odds_sources_are_prematch():
     cols = fd.read_raw(header).columns
     used = [next((c for c in cands if c in cols), None) for cands in fd.ODDS_COLUMNS.values()]
     assert all(used) and not any(fd.is_closing_odds_column(c) for c in used)
+
+
+def _raw(**cols):
+    base = {"Date": ["10/08/2024", "11/08/2024", "12/08/2024", "13/08/2024"],
+            "HomeTeam": ["A", "B", "C", "D"], "AwayTeam": ["E", "F", "G", "H"],
+            "HS": ["10", "11", "12", "13"], "AS": ["5", "6", "7", "8"]}
+    base.update(cols)
+    return pd.DataFrame(base)
+
+
+def test_extra_columns_parsed_and_appended_after_original_columns():
+    from shots.ingest.schema import EXTRA_COLUMNS
+    df = to_canonical(_raw(HTHG=["1", "0", "2", "0"], HTAG=["0", "0", "1", "1"], HC=["6", "7", "8", "9"],
+                           AC=["3", "4", "5", "2"], HR=["0", "1", "0", "0"], AR=["0", "0", "0", "1"],
+                           HF=["10", "11", "12", "13"], AF=["9", "8", "7", "6"]), "E0", 2024)
+    assert list(df.columns) == CANONICAL_COLUMNS + EXTRA_COLUMNS
+    assert str(df["home_corners"].dtype) == "Int64"
+    assert df["home_ht_goals"].tolist() == [1, 0, 2, 0]
+    assert df["away_reds"].tolist() == [0, 0, 0, 1]
+
+
+def test_extra_columns_missing_blank_and_non_numeric_are_null_not_zero():
+    from shots.ingest.schema import EXTRA_COLUMNS
+    absent = to_canonical(_raw(), "E0", 2024)
+    assert absent[EXTRA_COLUMNS].isna().all().all()
+    df = to_canonical(_raw(HC=["6", "", None, "n/a"], AC=["1", "2", "3", "x"]), "E0", 2024)
+    assert df["home_corners"].isna().tolist() == [False, True, True, True]
+    assert df["home_corners"].iloc[0] == 6
+    assert df["away_corners"].isna().tolist() == [False, False, False, True]

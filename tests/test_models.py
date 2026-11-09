@@ -101,6 +101,16 @@ def synthetic(n_per_season=1500, seed=0, alpha=0.05) -> pd.DataFrame:
         df[f"{side}_form_promo"] = np.where(r4.random(n) < 0.1, np.nan, r4.choice([-1.0, 0.0, 0.0, 0.0, 1.0], n))
         df.loc[r4.random(n) < 0.02, [f"{side}_form_res_l3", f"{side}_form_tot_l3", f"{side}_form_tot_l10",
                                     f"{side}_form_goals_l5"]] = np.nan
+    # Research family V (venue-split ratings; read only by the 2026-11-06 research candidates). Own random stream,
+    # added last: every column above and the golden hashes are unchanged.
+    r5 = np.random.default_rng(seed + 40_000)
+    for side, opp in (("home", "away"), ("away", "home")):
+        df[f"{side}_vr_att_dev"] = r5.normal(0, 0.03, n)
+        df[f"{side}_vr_def_dev"] = r5.normal(0, 0.03, n)
+        df[f"{side}_vr_att"] = df[f"{side}_adj_att"] + df[f"{side}_vr_att_dev"]
+        df[f"{side}_vr_def"] = df[f"{side}_adj_def"] + df[f"{side}_vr_def_dev"]
+    df["vr_exp_home"] = df["adj_lvl_home"] * np.exp(df["home_vr_att"] + df["away_vr_def"])
+    df["vr_exp_away"] = df["adj_lvl_away"] * np.exp(df["away_vr_att"] + df["home_vr_def"])
     return df
 
 

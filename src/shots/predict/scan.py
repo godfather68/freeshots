@@ -309,6 +309,22 @@ def candidate_families() -> tuple[str, ...]:
     return tuple(dict.fromkeys(fams)) or tuple(fc.PRODUCTION_FAMILIES)
 
 
+def research_families() -> tuple[str, ...]:
+    """Research families (``shots.models.candidates.RESEARCH_FAMILIES``) read by the switched-on candidate models;
+    () for every production setting, so the research build never runs by default."""
+    from shots.models.candidates import RESEARCH_FAMILIES
+
+    names = ([config.noodds_model()] if config.candidate_noodds() else []) + (
+        [config.odds_model()] if config.candidate_odds() else [])
+    fams: list[str] = []
+    for n in names:
+        fams += [f for f in MODELS[n].base_kw.get("families", ()) if f in RESEARCH_FAMILIES]
+    return tuple(dict.fromkeys(fams))
+
+
+_RESEARCH_BUILD = {"V": "venue", "Z": "closed", "K": "corners", "W": "gamestate"}
+
+
 def candidate_features(matches: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataFrame:
     """Candidate features (the families of ``candidate_families()``) indexed by match_id, for
     played ``matches`` + domestic ``fixtures``, from one causal pass (upcoming rows never update any state).
@@ -319,20 +335,28 @@ def candidate_features(matches: pd.DataFrame, fixtures: pd.DataFrame) -> pd.Data
     key = SharedRun.matches_key(matches)
     ids = set(fixtures["match_id"].tolist())
     families = candidate_families()
+    rfams = research_families()
+    marks = tuple(f"research:{f}" for f in rfams)
     if _SHARED is not None and _SHARED.candidates is not None:
         k, built_ids, frame = _SHARED.candidates
-        if k == key and ids <= built_ids and set(families) <= set(_SHARED.candidate_families):
+        if k == key and ids <= built_ids and set(families) | set(marks) <= set(_SHARED.candidate_families):
             return frame
     t0 = time.time()
     sizes = fc.calendar_league_sizes(pd.read_parquet(CALENDAR_PATH)) if CALENDAR_PATH.exists() else {}
     rows = pd.concat([matches, fixtures.drop(columns=["kickoff"], errors="ignore")], ignore_index=True)
     frame = fc.build_candidates(rows, families=families, league_sizes=sizes)
+    if rfams:   # research candidates only (opt-in): venue-split ratings etc. from the same rows, same causality
+        from shots.features import research
+
+        build = tuple(dict.fromkeys(_RESEARCH_BUILD[f] for f in rfams if f in _RESEARCH_BUILD))
+        frame = frame.merge(research.build_research(rows, families=build), on="match_id", how="left",
+                            validate="one_to_one")
     frame = frame.set_index("match_id")
     log.info("candidate features for %d played + %d upcoming matches in %.0fs", len(matches), len(fixtures),
              time.time() - t0)
     if _SHARED is not None:
         _SHARED.candidates = (key, ids, frame)
-        _SHARED.candidate_families = tuple(families)
+        _SHARED.candidate_families = tuple(families) + marks
         _SHARED.stats["candidate_builds"] += 1
     return frame
 
@@ -575,6 +599,11 @@ def _candidate_odds_route(prep: Prepared, matches: pd.DataFrame, fixtures: pd.Da
     prep.odds_rows = with_candidates(prep.upcoming, cand)
     missing = missing_odds_candidate_inputs(prep.odds_rows) if cand is not None else pd.Series(
         True, index=prep.upcoming.index)
+    rfams = [f for f in MODELS[name].base_kw.get("families", ()) if f in research_families()]
+    if cand is not None and rfams:   # research candidate: its own inputs must be in the build too
+        from shots.models.candidates import missing_candidate_inputs
+
+        missing = missing | missing_candidate_inputs(prep.odds_rows, rfams)
     if cand is not None:
         try:
             played = with_candidates(prep.played, cand)

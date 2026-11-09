@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from shots.ingest.schema import CANONICAL_COLUMNS, INT_COLUMNS, make_match_id, make_team_id, normalize_team
+from shots.ingest.schema import CANONICAL_COLUMNS, EXTRA_COLUMNS, INT_COLUMNS, make_match_id, make_team_id, normalize_team
 
 log = logging.getLogger(__name__)
 
@@ -124,6 +124,12 @@ RAW_RENAME = {
     "FTHG": "home_goals", "FTAG": "away_goals",
 }
 
+# football-data header -> extra canonical column (nullable ints)
+EXTRA_RAW = {
+    "HTHG": "home_ht_goals", "HTAG": "away_ht_goals", "HC": "home_corners", "AC": "away_corners",
+    "HR": "home_reds", "AR": "away_reds", "HF": "home_fouls", "AF": "away_fouls",
+}
+
 
 def season_code(start_year: int) -> str:
     """2023 -> '2324'."""
@@ -221,6 +227,8 @@ def to_canonical(raw: pd.DataFrame, div: str, season_start: int) -> pd.DataFrame
     out["away_team_id"] = out["away_team"].map(lambda n: make_team_id(country, n))
     for col in ["home_shots", "away_shots", "home_sot", "away_sot", "home_goals", "away_goals"]:
         out[col] = pd.to_numeric(df[col], errors="coerce") if col in df else pd.NA
+    for raw_col, col in EXTRA_RAW.items():
+        out[col] = pd.to_numeric(df[raw_col], errors="coerce") if raw_col in df else pd.NA
     for col, candidates in ODDS_COLUMNS.items():
         present = next((c for c in candidates if c in df), None)
         out[col] = pd.to_numeric(df[present], errors="coerce") if present else float("nan")
@@ -230,9 +238,9 @@ def to_canonical(raw: pd.DataFrame, div: str, season_start: int) -> pd.DataFrame
         make_match_id(c, d, h, a)
         for c, d, h, a in zip(out["competition"], out["date"], out["home_team"], out["away_team"])
     ]
-    for col in INT_COLUMNS:
+    for col in [*INT_COLUMNS, *EXTRA_COLUMNS]:
         out[col] = out[col].astype("Int64")
-    return out[CANONICAL_COLUMNS].reset_index(drop=True)
+    return out[CANONICAL_COLUMNS + EXTRA_COLUMNS].reset_index(drop=True)
 
 
 def build(first_season: int = 2010, refresh_current: bool = False, out_path: Path | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:

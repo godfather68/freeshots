@@ -31,6 +31,9 @@ Evidence and the exact user-visible changes: reports/2026-10-16_fin_c_adoption.m
 
 Environment overrides (dry runs, tests): ``SHOTS_NOODDS_MODEL``, ``SHOTS_ODDS_MODEL`` and ``SHOTS_MEDIAN_FROM_CURVE``
 (``1`` / ``0``).
+Research candidates (opt-in, never the default; reports/2026-11-06_research_features.md): ``"cand_odds_surge_v"``
+(odds) and ``"cand_fin_v"`` (no-odds) add the venue-split ratings of ``shots.features.research`` (family V); with
+either selected, the update also builds those columns, and a fixture without them falls back like any other.
 The scheduled pipeline sets neither, so the lines below decide what is published.
 """
 
@@ -45,9 +48,9 @@ NOODDS_MODEL = "fin_c"            # adopted 2026-10-20 (user approval); was "neg
 MEDIAN_FROM_CURVE = True           # adopted 2026-10-20 (user approval)
 
 FALLBACK_MAX_SHARE = 0.02          # fin_c route: share of non-cold-start no-odds fixtures allowed to fall back
-CANDIDATE_NOODDS_MODELS = ("fin_c",)
+CANDIDATE_NOODDS_MODELS = ("fin_c", "cand_fin_v")   # cand_fin_v: research, opt-in (2026-11-06)
 ODDS_MODEL = "cand_odds_surge"     # "Surge", adopted 2026-10-27 (user approval); was "negbin_pit_comp"
-CANDIDATE_ODDS_MODELS = ("cand_odds_surge", "cand_odds_oos")
+CANDIDATE_ODDS_MODELS = ("cand_odds_surge", "cand_odds_oos", "cand_odds_surge_v")   # _v: research, opt-in
 # Odds-route fixtures of these competitions stay on negbin_pit_comp (user decision 2026-10-27)
 SURGE_EXCLUDED_COMPETITIONS = ("Scotland Championship",)
 

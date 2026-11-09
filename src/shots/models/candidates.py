@@ -63,6 +63,11 @@ TOTAL_Z = ("comp", "logmu", "close", "o25", "early")
 # Rule 1 (coordinator, 2026-10-15): never ``*_sched_days_to_next`` nor the Champions League ``*_sched_ucl_*``.
 FORBIDDEN = ("sched_days_to_next", "sched_ucl_")
 FAMILIES = ("A", "E", "F", "G", "D", "C", "B", "H")
+# Research families (2026-11-06, reports/2026-11-06_research_features.md; columns from shots.features.research,
+# except S which reads family A's shots-on-target ratings). Opt-in only: no production model reads them.
+#   V venue-split (GAP-style) ratings, K corner ratings, S shots-on-target ratings only, Z closed-door flags,
+#   W game-state-adjusted shot ratings.
+RESEARCH_FAMILIES = ("V", "K", "S", "Z", "W")
 
 
 def _num(rows: pd.DataFrame, col: str) -> pd.Series:
@@ -121,6 +126,27 @@ def family_columns(rows: pd.DataFrame, side: str, fam: str) -> dict[str, pd.Seri
         gap = (_num(rows, "home_adj_att") - _num(rows, "home_adj_def")) - (
             _num(rows, "away_adj_att") - _num(rows, "away_adj_def"))
         out["H_absgap"] = gap.abs()
+    elif fam == "V":  # venue-split ratings: side's attack at this venue vs the opponent's defence at its venue
+        out["V_log_exp"] = np.log(_num(rows, f"vr_exp_{side}").clip(lower=1.0))
+        out["V_att_s"] = _num(rows, f"{side}_vr_att")
+        out["V_def_o"] = _num(rows, f"{o}_vr_def")
+        out["V_dev_s"] = _num(rows, f"{side}_vr_att_dev")
+        out["V_dev_o"] = _num(rows, f"{o}_vr_def_dev")
+    elif fam == "K":  # corner ratings
+        out["K_log_exp"] = np.log(_num(rows, f"cr_exp_{side}").clip(lower=0.5))
+        out["K_att_s"] = _num(rows, f"{side}_cr_att")
+        out["K_def_o"] = _num(rows, f"{o}_cr_def")
+    elif fam == "S":  # shots-on-target ratings (family A's SOT part only)
+        out["S_log_exp"] = np.log(_num(rows, f"adj_exp_{side}_sot").clip(lower=0.3))
+        out["S_att_s"] = _num(rows, f"{side}_adj_sot_att")
+        out["S_def_o"] = _num(rows, f"{o}_adj_sot_def")
+    elif fam == "Z":  # closed doors (match level): no crowd / reduced capacity on the match date
+        out["Z_closed"] = _num(rows, "cd_closed")
+        out["Z_partial"] = _num(rows, "cd_partial")
+    elif fam == "W":  # game-state-adjusted shot ratings
+        out["W_log_exp"] = np.log(_num(rows, f"gs_exp_{side}").clip(lower=1.0))
+        out["W_att_s"] = _num(rows, f"{side}_gs_att")
+        out["W_def_o"] = _num(rows, f"{o}_gs_def")
     else:
         raise ValueError(f"unknown family {fam!r}")
     return out
@@ -148,6 +174,17 @@ def family_inputs(families) -> list[str]:
         elif fam == "H":
             cols += [f"{s}_form_{k}" for s in SIDES for k in ("res_l3", "tot_l3", "tot_l10", "goals_l5", "promo")]
             cols += ["league_level_drift"] + [f"{s}_adj_{k}" for s in SIDES for k in ("att", "def")]
+        elif fam == "V":
+            cols += [f"vr_exp_{s}" for s in SIDES]
+            cols += [f"{s}_vr_{k}" for s in SIDES for k in ("att", "def", "att_dev", "def_dev")]
+        elif fam == "K":
+            cols += [f"cr_exp_{s}" for s in SIDES] + [f"{s}_cr_{k}" for s in SIDES for k in ("att", "def")]
+        elif fam == "S":
+            cols += [f"adj_exp_{s}_sot" for s in SIDES] + [f"{s}_adj_{k}" for s in SIDES for k in ("sot_att", "sot_def")]
+        elif fam == "Z":
+            cols += ["cd_closed", "cd_partial"]
+        elif fam == "W":
+            cols += [f"gs_exp_{s}" for s in SIDES] + [f"{s}_gs_{k}" for s in SIDES for k in ("att", "def")]
     return list(dict.fromkeys(cols))
 
 
@@ -173,6 +210,9 @@ def missing_candidate_inputs(rows: pd.DataFrame, families) -> pd.Series:
 # out-of-sample residual of the fitted model (non-stationarity, disagreement between the model and the ratings /
 # head to head, recent form) but carry ~0 weight when fitted in-sample as ordinary covariates.
 OOS_TERMS = ("disagree", "h2h", "mom", "pace", "goals", "ldrift", "last3", "dead")
+# Research terms (2026-11-06; opt-in): disagreement with the venue-split / game-state-adjusted ratings, and corner
+# volume relative to the shot ratings.
+OOS_RESEARCH_TERMS = ("vdisagree", "wdisagree", "kdisagree")
 
 
 def oos_inputs(terms) -> list[str]:
@@ -182,7 +222,9 @@ def oos_inputs(terms) -> list[str]:
                  "mom": [f"{s}_form_res_l3" for s in SIDES],
                  "pace": [f"{s}_form_tot_{w}" for s in SIDES for w in ("l3", "l10")],
                  "goals": [f"{s}_form_goals_l5" for s in SIDES], "ldrift": ["league_level_drift"],
-                 "last3": [f"{s}_ctx_games_left" for s in SIDES], "dead": ["ctx_dead_n"]}[t]
+                 "last3": [f"{s}_ctx_games_left" for s in SIDES], "dead": ["ctx_dead_n"],
+                 "vdisagree": ["vr_exp_total"], "wdisagree": ["gs_exp_total"],
+                 "kdisagree": ["cr_exp_total", "adj_exp_total_shots"]}[t]
     return list(dict.fromkeys(cols))
 
 
@@ -208,6 +250,13 @@ def oos_raw(rows: pd.DataFrame, mu: np.ndarray, term: str) -> np.ndarray:
         return (gl <= 3).astype(float).where(gl.notna()).to_numpy()
     if term == "dead":       # teams with nothing left to play for
         return _num(rows, "ctx_dead_n").to_numpy()
+    if term == "vdisagree":  # venue-split rating expectation vs the model's total
+        return np.log(_num(rows, "vr_exp_total").clip(lower=1.0)).to_numpy() - lmu
+    if term == "wdisagree":  # game-state-adjusted rating expectation vs the model's total
+        return np.log(_num(rows, "gs_exp_total").clip(lower=1.0)).to_numpy() - lmu
+    if term == "kdisagree":  # corner volume vs the shot volume expected by the ratings (log ratio)
+        return (np.log(_num(rows, "cr_exp_total").clip(lower=1.0))
+                - np.log(_num(rows, "adj_exp_total_shots").clip(lower=1.0))).to_numpy()
     raise ValueError(f"unknown out-of-sample term {term!r}")
 
 
@@ -343,7 +392,8 @@ class FlexNB:
     def __init__(self, side_z=(), total: str = "moment", total_z=TOTAL_Z, half_life_days: float | None = None,
                  comp_intercept: bool = False, lam: float = 50.0, lam_z: float = 50.0, rho_tol: float = 0.03,
                  families=(), shrink: bool = False, oos_terms=(), oos_rows: int = 3000, oos_scale: float = 1.0,
-                 oos_cap: float | None = None, oos_keep=()):
+                 oos_cap: float | None = None, oos_keep=(), closed_weight: float | None = None,
+                 partial_weight: float | None = None):
         assert total in ("moment", "alpha_z", "rho_z")
         self.side_z = tuple(side_z)
         self.total = total
@@ -360,14 +410,20 @@ class FlexNB:
         self.oos_scale = float(oos_scale)
         self.oos_cap = None if oos_cap is None else float(oos_cap)
         self.oos_keep = tuple(oos_keep)   # terms exempt from the damping (kept at full strength)
-        assert set(self.oos_terms) <= set(OOS_TERMS), self.oos_terms
+        # research (2026-11-06): training weight of closed-door / reduced-capacity matches (``cd_closed`` /
+        # ``cd_partial`` of shots.features.research); 0 = drop those rows; None = unweighted (default)
+        self.closed_weight = None if closed_weight is None else float(closed_weight)
+        self.partial_weight = None if partial_weight is None else float(partial_weight)
+        assert set(self.oos_terms) <= set(OOS_TERMS) | set(OOS_RESEARCH_TERMS), self.oos_terms
 
     def input_columns(self) -> list[str]:
         from shots.models.persist import _negbin_inputs
 
         fam = family_inputs(getattr(self, "families", ()))
+        cd = [c for c, w in (("cd_closed", getattr(self, "closed_weight", None)),
+                             ("cd_partial", getattr(self, "partial_weight", None))) if w is not None and c not in fam]
         return (sorted(_negbin_inputs()) + ["competition"] + fam
-                + [c for c in oos_inputs(getattr(self, "oos_terms", ())) if c not in fam])
+                + [c for c in oos_inputs(getattr(self, "oos_terms", ())) if c not in fam] + cd)
 
     # ------------------------------------------------------------------ design
     def _X(self, rows: pd.DataFrame, side: str) -> tuple[np.ndarray, np.ndarray]:
@@ -396,10 +452,29 @@ class FlexNB:
         return np.column_stack(cols), np.asarray(pen)
 
     # ------------------------------------------------------------------ fit
+    def _crowd_weights(self, tr: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray | None]:
+        """Research option: drop (weight 0) or down-weight closed-door / reduced-capacity matches."""
+        w = None
+        for col, wt in (("cd_closed", getattr(self, "closed_weight", None)),
+                        ("cd_partial", getattr(self, "partial_weight", None))):
+            if wt is None:
+                continue
+            flag = _num(tr, col).fillna(0.0).to_numpy() > 0
+            if wt == 0.0:
+                tr = tr[~flag]
+                w = None if w is None else w[~flag]
+                continue
+            f = np.where(flag, wt, 1.0)
+            w = f if w is None else w * f
+        return tr, w
+
     def fit(self, train: pd.DataFrame) -> "FlexNB":
         tr = clean_train(train)
+        tr, cw = self._crowd_weights(tr)
         self.levels_ = sorted(tr["competition"].astype(str).unique())
         w = recency_weights(tr["date"].to_numpy(), self.half_life_days)
+        if cw is not None:
+            w = cw if w is None else w * cw
         self.side_fits_ = {}
         mus, pearson = {}, {}
         for side in SIDES:
@@ -459,6 +534,7 @@ class FlexNB:
             return
         kw = {k: getattr(self, k) for k in ("side_z", "total", "total_z", "half_life_days", "comp_intercept",
                                            "lam", "lam_z", "rho_tol", "families")}
+        kw.update({k: getattr(self, k, None) for k in ("closed_weight", "partial_weight")})
         m = FlexNB(**kw).fit(inner)
         mu, alpha = m.total_params(held)
         L = m._level(held)
@@ -896,9 +972,16 @@ class CandidatePit(NegBinPitComp):
     base_cls = FlexNB
     base_kw: dict = {}
 
-    def __init__(self, base_kw: dict | None = None, **kw):
+    def __init__(self, base_kw: dict | None = None, exclude_closed: bool = False, **kw):
         super().__init__(**kw)
         self.base_kw = {**type(self).base_kw, **(base_kw or {})}
+        # research (2026-11-06): drop closed-door matches (``cd_closed``) from every fit, calibration included
+        self.exclude_closed = bool(exclude_closed)
+
+    def fit(self, train: pd.DataFrame):
+        if getattr(self, "exclude_closed", False):
+            train = train[~(_num(train, "cd_closed").fillna(0.0) > 0)]
+        return super().fit(train)
 
     def _new_nb(self):
         return _Cached(self.base_cls(**self.base_kw))
@@ -1011,6 +1094,13 @@ CANDIDATES: dict[str, type[CandidatePit]] = {
     "cand_odds_surge": _cand("cand_odds_surge", FlexNB, shrink=True, oos_terms=OOS_TERMS, oos_rows=12000,
                              oos_scale=0.4),
     "cand_fin_s": FinS,
+    # research (2026-11-06, reports/2026-11-06_research_features.md): + venue-split (GAP-style) ratings, family V.
+    # Opt-in only (needs the shots.features.research columns; not wired into the update path).
+    "cand_odds_surge_v": _cand("cand_odds_surge_v", FlexNB, shrink=True, oos_terms=OOS_TERMS, oos_rows=12000,
+                               oos_scale=0.4, families=("V",)),
+    "cand_fin_v": type("Cand_cand_fin_v", (FinC,), {"name": "cand_fin_v", "__module__": __name__,
+                                                    "base_kw": {**FIN_C_BASE, "families": FIN_C_FAMILIES + ("V",)},
+                                                    "families": FIN_C_FAMILIES + ("V",)}),
 }
 
 # Candidates with a production route (behind a switch in shots.config); registered in shots.models.MODELS.

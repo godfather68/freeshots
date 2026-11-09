@@ -16,10 +16,34 @@ REPORT_DIR = ROOT / "reports"
 
 def _all_parsed_rows() -> pd.DataFrame:
     frames = []
-    for path in sorted(RAW_DIR.glob("*/*.csv")):
+    for path in sorted(RAW_DIR.glob("[0-9][0-9][0-9][0-9]/*.csv")):
         code, div = path.parent.name, path.stem
         frames.append(to_canonical(read_raw(path), div, 2000 + int(code[:2])))
     return pd.concat(frames, ignore_index=True).drop_duplicates(subset="match_id", keep="last")
+
+
+EXTRA_PAIRS = ["ht_goals", "corners", "reds", "fouls"]
+
+
+def extra_coverage(matches: pd.DataFrame, last_n_seasons: int = 7) -> pd.DataFrame:
+    """Share of matches (with shots) where both home and away value of each extra column is present,
+    per competition, for the last N seasons."""
+    seasons = sorted(matches["season"].unique())[-last_n_seasons:]
+    recent = matches[matches["season"].isin(seasons)]
+    cols = {}
+    for name in EXTRA_PAIRS:
+        h, a = f"home_{name}", f"away_{name}"
+        if h in recent and a in recent:
+            cols[name] = recent[h].notna() & recent[a].notna()
+    flags = pd.DataFrame(cols).assign(competition=recent["competition"].values)
+    return (100 * flags.groupby("competition").mean()).round(1).reset_index()
+
+
+def extra_coverage_by_season(matches: pd.DataFrame) -> pd.DataFrame:
+    cols = {n: matches[f"home_{n}"].notna() & matches[f"away_{n}"].notna()
+            for n in EXTRA_PAIRS if f"home_{n}" in matches}
+    flags = pd.DataFrame(cols).assign(season=matches["season"].values)
+    return (100 * flags.groupby("season").mean()).round(1).reset_index()
 
 
 def build_report() -> str:
@@ -72,6 +96,19 @@ def build_report() -> str:
         "## Coverage by competition",
         "",
         coverage.reset_index().to_markdown(index=False),
+        "",
+        "## Extra columns: % of matches with shots where home and away are both present",
+        "",
+        "Columns: home/away_ht_goals (HTHG/HTAG), corners (HC/AC), reds (HR/AR), fouls (HF/AF). "
+        "Missing stays null, never 0.",
+        "",
+        "### By competition, last 7 seasons",
+        "",
+        extra_coverage(matches).to_markdown(index=False),
+        "",
+        "### By season, all competitions",
+        "",
+        extra_coverage_by_season(matches).to_markdown(index=False),
         "",
     ]
     return "\n".join(lines)

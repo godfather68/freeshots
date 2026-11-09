@@ -18,6 +18,13 @@ CANONICAL_COLUMNS = [
     "odds_home", "odds_draw", "odds_away", "odds_over25", "odds_under25",
 ]
 
+# Appended after the original canonical columns (additive; nullable Int64, missing -> <NA>, never 0).
+# Only sources that carry them (football-data) emit them; calendar/statsbomb frames keep CANONICAL_COLUMNS.
+EXTRA_COLUMNS = [
+    "home_ht_goals", "away_ht_goals", "home_corners", "away_corners",
+    "home_reds", "away_reds", "home_fouls", "away_fouls",
+]
+
 INT_COLUMNS = ["home_shots", "away_shots", "home_sot", "away_sot", "home_goals", "away_goals", "tier"]
 
 

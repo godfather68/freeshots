@@ -20,6 +20,9 @@ The LLM builds the pipeline; **predictions come from statistical models**, never
 `match_id, source, competition, country, tier, season, date (UTC date), home_team, away_team, home_team_id, away_team_id,
 home_shots, away_shots, home_sot, away_sot, home_goals, away_goals,
 odds_home, odds_draw, odds_away, odds_over25, odds_under25`
+- Additive nullable-Int64 columns, football-data only (`EXTRA_COLUMNS` in schema.py): `home_ht_goals, away_ht_goals,
+  home_corners, away_corners, home_reds, away_reds, home_fouls, away_fouls` (HTHG/HTAG, HC/AC, HR/AR, HF/AF). Missing
+  stays null, never 0; not stored in the DB.
 - Odds are **pre-match** market averages only, never closing odds.
 - Defined in `src/shots/ingest/schema.py`.
 - Build: `python -m shots.ingest.football_data` (add `--refresh-current` to re-pull the live season).
