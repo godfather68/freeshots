@@ -1,13 +1,12 @@
 {
  "schema": 1,
- "built_at": "2026-11-09T12:08:29Z",
+ "built_at": "2026-11-10T03:35:55Z",
  "results_up_to": "2026-11-08",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-09T12:08:22Z"
+  "finished_at": "2026-11-10T03:35:48Z"
  },
  "models": [
-  "cand_odds_surge-odds_2026-10-26",
   "fin_c-noodds_2026-10-14",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
   "negbin_pit_comp-noodds_2026-10-12-uel-exp"
@@ -73,7 +72,7 @@
    "name": "UEFA Conference League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 18,
+   "fixtures": 36,
    "featured": true
   },
   {
@@ -81,7 +80,7 @@
    "name": "UEFA Europa League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 18,
+   "fixtures": 36,
    "featured": true
   },
   {
@@ -187,7 +186,7 @@
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 45
+   "fixtures": 44
   },
   {
    "id": "turkey-super-lig",
@@ -198,7 +197,6 @@
   }
  ],
  "days": [
-  "2026-11-09",
   "2026-11-15",
   "2026-11-20",
   "2026-11-21",
@@ -217,12 +215,13 @@
   "2026-12-06",
   "2026-12-07",
   "2026-12-08",
-  "2026-12-09"
+  "2026-12-09",
+  "2026-12-10"
  ],
  "counts": {
-  "fixtures": 414,
-  "with_odds": 1,
-  "cold_start": 29,
+  "fixtures": 449,
+  "with_odds": 0,
+  "cold_start": 56,
   "results": 845,
   "provisional_results": 0
  },
@@ -230,7 +229,7 @@
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 37,
+  "official": 38,
   "experimental": 52,
   "oldest": "2026-10-23"
  },
