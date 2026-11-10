@@ -608,8 +608,8 @@
   },
   "live": {
    "label": "Live picks (saved before kick-off)",
-   "settled": 773,
-   "pending": 49,
+   "settled": 774,
+   "pending": 48,
    "void": 0,
    "provisional": 0,
    "by_n": {
@@ -623,8 +623,8 @@
       0.7814,
       0.8535
      ],
-     "brier": 0.1734,
-     "brier_baseline": 0.2311,
+     "brier": 0.1733,
+     "brier_baseline": 0.2312,
      "reliability": [
       {
        "band": [
@@ -685,9 +685,9 @@
         0.6,
         0.7
        ],
-       "n": 187,
-       "stated": 0.6569,
-       "realised": 0.6631
+       "n": 188,
+       "stated": 0.6571,
+       "realised": 0.6649
       },
       {
        "band": [
@@ -1179,6 +1179,20 @@
       }
      },
      "provisional": 0
+    },
+    {
+     "date": "2026-11-09",
+     "matches": 1,
+     "mae": 3.0,
+     "bias": -3.0,
+     "floor80_held": 1.0,
+     "by_n": {
+      "24": {
+       "picks": 0,
+       "hits": 0
+      }
+     },
+     "provisional": 0
     }
    ],
    "weekly": [
@@ -1234,6 +1248,20 @@
       "24": {
        "picks": 105,
        "hits": 87
+      }
+     },
+     "provisional": 0
+    },
+    {
+     "date": "2026-11-09",
+     "matches": 1,
+     "mae": 3.0,
+     "bias": -3.0,
+     "floor80_held": 1.0,
+     "by_n": {
+      "24": {
+       "picks": 0,
+       "hits": 0
       }
      },
      "provisional": 0

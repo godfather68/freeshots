@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-11-10T03:35:55Z",
- "results_up_to": "2026-11-08",
+ "built_at": "2026-11-10T12:32:22Z",
+ "results_up_to": "2026-11-09",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-10T03:35:48Z"
+  "finished_at": "2026-11-10T12:32:14Z"
  },
  "models": [
   "fin_c-noodds_2026-10-14",
@@ -222,14 +222,14 @@
   "fixtures": 449,
   "with_odds": 0,
   "cold_start": 56,
-  "results": 845,
+  "results": 846,
   "provisional_results": 0
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 38,
+  "official": 37,
   "experimental": 52,
   "oldest": "2026-10-23"
  },
