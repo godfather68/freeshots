@@ -1,17 +1,16 @@
 {
  "schema": 1,
- "built_at": "2026-11-14T02:20:28Z",
+ "built_at": "2026-11-15T02:40:42Z",
  "results_up_to": "2026-11-09",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-14T02:20:23Z"
+  "finished_at": "2026-11-15T02:40:36Z"
  },
  "models": [
   "cand_odds_surge-odds_2026-10-26",
   "fin_c-noodds_2026-10-14",
   "negbin_pit_comp-noodds_2026-10-12-uecl-exp",
-  "negbin_pit_comp-noodds_2026-10-12-uel-exp",
-  "negbin_pit_comp_2026-10-12"
+  "negbin_pit_comp-noodds_2026-10-12-uel-exp"
  ],
  "thresholds": {
   "total": [
@@ -52,14 +51,14 @@
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 5
+   "fixtures": 0
   },
   {
    "id": "england-league-two",
    "name": "League Two",
    "country": "England",
    "tier": 4,
-   "fixtures": 10
+   "fixtures": 0
   },
   {
    "id": "uefa-champions-league",
@@ -160,21 +159,21 @@
    "name": "Championship",
    "country": "Scotland",
    "tier": 2,
-   "fixtures": 4
+   "fixtures": 0
   },
   {
    "id": "scotland-league-one",
    "name": "League One",
    "country": "Scotland",
    "tier": 3,
-   "fixtures": 5
+   "fixtures": 0
   },
   {
    "id": "scotland-league-two",
    "name": "League Two",
    "country": "Scotland",
    "tier": 4,
-   "fixtures": 5
+   "fixtures": 0
   },
   {
    "id": "spain-la-liga",
@@ -188,7 +187,7 @@
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 61
+   "fixtures": 56
   },
   {
    "id": "turkey-super-lig",
@@ -199,7 +198,6 @@
   }
  ],
  "days": [
-  "2026-11-14",
   "2026-11-15",
   "2026-11-16",
   "2026-11-20",
@@ -227,17 +225,17 @@
   "2026-12-14"
  ],
  "counts": {
-  "fixtures": 589,
-  "with_odds": 39,
+  "fixtures": 555,
+  "with_odds": 5,
   "cold_start": 56,
-  "results": 815,
+  "results": 814,
   "provisional_results": 0
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 38,
+  "official": 72,
   "experimental": 52,
   "oldest": "2026-10-23"
  },
