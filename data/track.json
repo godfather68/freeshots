@@ -608,23 +608,23 @@
   },
   "live": {
    "label": "Live picks (saved before kick-off)",
-   "settled": 813,
-   "pending": 150,
+   "settled": 814,
+   "pending": 149,
    "void": 0,
    "provisional": 0,
    "by_n": {
     "24": {
      "selected_min_prob": 0.7,
-     "n": 444,
-     "hits": 365,
-     "hit_rate": 0.8221,
-     "mean_stated": 0.7895,
+     "n": 445,
+     "hits": 366,
+     "hit_rate": 0.8225,
+     "mean_stated": 0.7894,
      "wilson95": [
-      0.7838,
-      0.8548
+      0.7843,
+      0.8552
      ],
-     "brier": 0.1715,
-     "brier_baseline": 0.2292,
+     "brier": 0.1714,
+     "brier_baseline": 0.2293,
      "reliability": [
       {
        "band": [
@@ -694,9 +694,9 @@
         0.7,
         0.8
        ],
-       "n": 276,
+       "n": 277,
        "stated": 0.7512,
-       "realised": 0.7971
+       "realised": 0.7978
       },
       {
        "band": [
@@ -791,16 +791,16 @@
        "stated": 0.7773
       },
       {
+       "league": "spain-segunda-division",
+       "n": 20,
+       "hit_rate": 0.75,
+       "stated": 0.7668
+      },
+      {
        "league": "france-ligue-1",
        "n": 19,
        "hit_rate": 0.7368,
        "stated": 0.7687
-      },
-      {
-       "league": "spain-segunda-division",
-       "n": 19,
-       "hit_rate": 0.7368,
-       "stated": 0.7664
       },
       {
        "league": "england-league-two",
@@ -1235,6 +1235,20 @@
       }
      },
      "provisional": 0
+    },
+    {
+     "date": "2026-11-16",
+     "matches": 1,
+     "mae": 1.0,
+     "bias": 1.0,
+     "floor80_held": 1.0,
+     "by_n": {
+      "24": {
+       "picks": 1,
+       "hits": 1
+      }
+     },
+     "provisional": 0
     }
    ],
    "weekly": [
@@ -1304,6 +1318,20 @@
       "24": {
        "picks": 10,
        "hits": 9
+      }
+     },
+     "provisional": 0
+    },
+    {
+     "date": "2026-11-16",
+     "matches": 1,
+     "mae": 1.0,
+     "bias": 1.0,
+     "floor80_held": 1.0,
+     "by_n": {
+      "24": {
+       "picks": 1,
+       "hits": 1
       }
      },
      "provisional": 0
