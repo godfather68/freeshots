@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-11-15T02:40:42Z",
+ "built_at": "2026-11-16T01:57:39Z",
  "results_up_to": "2026-11-09",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-15T02:40:36Z"
+  "finished_at": "2026-11-16T01:57:33Z"
  },
  "models": [
   "cand_odds_surge-odds_2026-10-26",
@@ -187,7 +187,7 @@
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 56
+   "fixtures": 45
   },
   {
    "id": "turkey-super-lig",
@@ -198,7 +198,6 @@
   }
  ],
  "days": [
-  "2026-11-15",
   "2026-11-16",
   "2026-11-20",
   "2026-11-21",
@@ -225,17 +224,17 @@
   "2026-12-14"
  ],
  "counts": {
-  "fixtures": 555,
-  "with_odds": 5,
+  "fixtures": 544,
+  "with_odds": 1,
   "cold_start": 56,
-  "results": 814,
+  "results": 797,
   "provisional_results": 0
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 72,
+  "official": 83,
   "experimental": 52,
   "oldest": "2026-10-23"
  },
