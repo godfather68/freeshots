@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-11-19T00:18:24Z",
+ "built_at": "2026-11-20T01:46:31Z",
  "results_up_to": "2026-11-16",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-19T00:18:16Z"
+  "finished_at": "2026-11-20T01:46:22Z"
  },
  "models": [
   "fin_c-noodds_2026-11-15",
@@ -29,7 +29,7 @@
    "name": "Pro League",
    "country": "Belgium",
    "tier": 1,
-   "fixtures": 32
+   "fixtures": 36
   },
   {
    "id": "england-premier-league",
@@ -123,7 +123,7 @@
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 40
+   "fixtures": 50
   },
   {
    "id": "italy-serie-b",
@@ -151,7 +151,7 @@
    "name": "Premiership",
    "country": "Scotland",
    "tier": 1,
-   "fixtures": 35
+   "fixtures": 36
   },
   {
    "id": "scotland-championship",
@@ -179,21 +179,21 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 40
+   "fixtures": 50
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 44
+   "fixtures": 55
   },
   {
    "id": "turkey-super-lig",
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 41
+   "fixtures": 44
   }
  ],
  "days": [
@@ -222,13 +222,14 @@
   "2026-12-14",
   "2026-12-17",
   "2026-12-18",
-  "2026-12-19"
+  "2026-12-19",
+  "2026-12-20"
  ],
  "counts": {
-  "fixtures": 626,
+  "fixtures": 665,
   "with_odds": 0,
   "cold_start": 72,
-  "results": 686,
+  "results": 652,
   "provisional_results": 0
  },
  "record": {
