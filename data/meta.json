@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-11-20T14:01:49Z",
+ "built_at": "2026-11-21T00:59:01Z",
  "results_up_to": "2026-11-16",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-20T14:01:43Z"
+  "finished_at": "2026-11-21T00:58:53Z"
  },
  "models": [
   "cand_odds_surge-odds_2026-10-26",
@@ -31,7 +31,7 @@
    "name": "Pro League",
    "country": "Belgium",
    "tier": 1,
-   "fixtures": 36
+   "fixtures": 35
   },
   {
    "id": "england-premier-league",
@@ -52,7 +52,7 @@
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 12
+   "fixtures": 11
   },
   {
    "id": "england-league-two",
@@ -90,28 +90,28 @@
    "name": "Ligue 1",
    "country": "France",
    "tier": 1,
-   "fixtures": 9
+   "fixtures": 8
   },
   {
    "id": "france-ligue-2",
    "name": "Ligue 2",
    "country": "France",
    "tier": 2,
-   "fixtures": 9
+   "fixtures": 4
   },
   {
    "id": "germany-bundesliga",
    "name": "Bundesliga",
    "country": "Germany",
    "tier": 1,
-   "fixtures": 45
+   "fixtures": 44
   },
   {
    "id": "germany-2-bundesliga",
    "name": "2. Bundesliga",
    "country": "Germany",
    "tier": 2,
-   "fixtures": 50
+   "fixtures": 48
   },
   {
    "id": "greece-super-league",
@@ -132,7 +132,7 @@
    "name": "Serie B",
    "country": "Italy",
    "tier": 2,
-   "fixtures": 73
+   "fixtures": 72
   },
   {
    "id": "netherlands-eredivisie",
@@ -160,7 +160,7 @@
    "name": "Championship",
    "country": "Scotland",
    "tier": 2,
-   "fixtures": 5
+   "fixtures": 4
   },
   {
    "id": "scotland-league-one",
@@ -181,25 +181,24 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 56
+   "fixtures": 55
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 61
+   "fixtures": 60
   },
   {
    "id": "turkey-super-lig",
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 44
+   "fixtures": 45
   }
  ],
  "days": [
-  "2026-11-20",
   "2026-11-21",
   "2026-11-22",
   "2026-11-23",
@@ -225,20 +224,21 @@
   "2026-12-17",
   "2026-12-18",
   "2026-12-19",
-  "2026-12-20"
+  "2026-12-20",
+  "2026-12-21"
  ],
  "counts": {
-  "fixtures": 759,
-  "with_odds": 178,
+  "fixtures": 745,
+  "with_odds": 163,
   "cold_start": 72,
-  "results": 652,
+  "results": 641,
   "provisional_results": 0
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 44,
+  "official": 59,
   "experimental": 52,
   "oldest": "2026-10-23"
  },
