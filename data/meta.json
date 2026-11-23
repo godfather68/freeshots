@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-11-23T01:44:41Z",
- "results_up_to": "2026-11-16",
+ "built_at": "2026-11-23T19:11:41Z",
+ "results_up_to": "2026-11-22",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-23T01:44:36Z"
+  "finished_at": "2026-11-23T19:11:32Z"
  },
  "models": [
   "cand_odds_surge-odds_2026-10-26",
@@ -228,14 +228,14 @@
   "fixtures": 570,
   "with_odds": 8,
   "cold_start": 72,
-  "results": 593,
+  "results": 761,
   "provisional_results": 0
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 233,
+  "official": 66,
   "experimental": 52,
   "oldest": "2026-10-24"
  },
