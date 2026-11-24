@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-11-24T13:38:55Z",
+ "built_at": "2026-11-24T13:42:55Z",
  "results_up_to": "2026-11-23",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-24T13:38:49Z"
+  "finished_at": "2026-11-24T13:42:46Z"
  },
  "models": [
   "cand_odds_surge-odds_2026-10-26",
