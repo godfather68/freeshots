@@ -1,13 +1,12 @@
 {
  "schema": 1,
- "built_at": "2026-11-23T19:11:41Z",
- "results_up_to": "2026-11-22",
+ "built_at": "2026-11-24T00:52:23Z",
+ "results_up_to": "2026-11-23",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-23T19:11:32Z"
+  "finished_at": "2026-11-24T00:52:15Z"
  },
  "models": [
-  "cand_odds_surge-odds_2026-10-26",
   "fin_c-noodds_2026-11-15",
   "negbin_pit_comp-noodds_2026-11-15-uecl-exp",
   "negbin_pit_comp-noodds_2026-11-15-uel-exp"
@@ -37,7 +36,7 @@
    "name": "Premier League",
    "country": "England",
    "tier": 1,
-   "fixtures": 51
+   "fixtures": 50
   },
   {
    "id": "england-championship",
@@ -96,7 +95,7 @@
    "name": "Ligue 2",
    "country": "France",
    "tier": 2,
-   "fixtures": 2
+   "fixtures": 0
   },
   {
    "id": "germany-bundesliga",
@@ -117,14 +116,14 @@
    "name": "Super League",
    "country": "Greece",
    "tier": 1,
-   "fixtures": 1
+   "fixtures": 0
   },
   {
    "id": "italy-serie-a",
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 42
+   "fixtures": 40
   },
   {
    "id": "italy-serie-b",
@@ -180,25 +179,24 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 41
+   "fixtures": 40
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 45
+   "fixtures": 44
   },
   {
    "id": "turkey-super-lig",
    "name": "Super Lig",
    "country": "Turkey",
    "tier": 1,
-   "fixtures": 37
+   "fixtures": 36
   }
  ],
  "days": [
-  "2026-11-23",
   "2026-11-24",
   "2026-11-25",
   "2026-11-26",
@@ -225,19 +223,19 @@
   "2026-12-21"
  ],
  "counts": {
-  "fixtures": 570,
-  "with_odds": 8,
+  "fixtures": 561,
+  "with_odds": 0,
   "cold_start": 72,
-  "results": 761,
+  "results": 670,
   "provisional_results": 0
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 66,
+  "official": 64,
   "experimental": 52,
-  "oldest": "2026-10-24"
+  "oldest": "2026-10-31"
  },
  "model_history": [
   {
