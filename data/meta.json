@@ -1,14 +1,15 @@
 {
  "schema": 1,
- "built_at": "2026-11-24T10:56:30Z",
+ "built_at": "2026-11-24T13:38:55Z",
  "results_up_to": "2026-11-23",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-24T10:56:21Z"
+  "finished_at": "2026-11-24T13:38:49Z"
  },
  "models": [
   "cand_odds_surge-odds_2026-10-26",
   "fin_c-noodds_2026-11-15",
+  "negbin_pit_comp-noodds_2026-11-15-ucl-exp",
   "negbin_pit_comp-noodds_2026-11-15-uecl-exp",
   "negbin_pit_comp-noodds_2026-11-15-uel-exp"
  ],
@@ -65,7 +66,7 @@
    "name": "UEFA Champions League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 0,
+   "fixtures": 36,
    "featured": true
   },
   {
@@ -224,9 +225,9 @@
   "2026-12-21"
  ],
  "counts": {
-  "fixtures": 574,
+  "fixtures": 610,
   "with_odds": 31,
-  "cold_start": 72,
+  "cold_start": 84,
   "results": 670,
   "provisional_results": 0
  },
