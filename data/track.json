@@ -609,7 +609,7 @@
   "live": {
    "label": "Live picks (saved before kick-off)",
    "settled": 990,
-   "pending": 207,
+   "pending": 223,
    "void": 0,
    "provisional": 0,
    "by_n": {

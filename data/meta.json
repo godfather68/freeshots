@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "built_at": "2026-11-24T13:42:55Z",
+ "built_at": "2026-11-25T00:36:41Z",
  "results_up_to": "2026-11-23",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-24T13:42:46Z"
+  "finished_at": "2026-11-25T00:36:36Z"
  },
  "models": [
   "cand_odds_surge-odds_2026-10-26",
@@ -45,28 +45,28 @@
    "name": "Championship",
    "country": "England",
    "tier": 2,
-   "fixtures": 72
+   "fixtures": 64
   },
   {
    "id": "england-league-one",
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 5
+   "fixtures": 1
   },
   {
    "id": "england-league-two",
    "name": "League Two",
    "country": "England",
    "tier": 4,
-   "fixtures": 2
+   "fixtures": 0
   },
   {
    "id": "uefa-champions-league",
    "name": "UEFA Champions League",
    "country": "Europe",
    "tier": 1,
-   "fixtures": 36,
+   "fixtures": 27,
    "featured": true
   },
   {
@@ -132,7 +132,7 @@
    "name": "Serie B",
    "country": "Italy",
    "tier": 2,
-   "fixtures": 64
+   "fixtures": 54
   },
   {
    "id": "netherlands-eredivisie",
@@ -153,7 +153,7 @@
    "name": "Premiership",
    "country": "Scotland",
    "tier": 1,
-   "fixtures": 32
+   "fixtures": 30
   },
   {
    "id": "scotland-championship",
@@ -199,7 +199,6 @@
   }
  ],
  "days": [
-  "2026-11-24",
   "2026-11-25",
   "2026-11-26",
   "2026-11-27",
@@ -225,18 +224,18 @@
   "2026-12-21"
  ],
  "counts": {
-  "fixtures": 610,
-  "with_odds": 31,
-  "cold_start": 84,
-  "results": 670,
+  "fixtures": 575,
+  "with_odds": 9,
+  "cold_start": 82,
+  "results": 618,
   "provisional_results": 0
  },
  "record": {
   "since": "2026-10-13T08:48:36Z"
  },
  "awaiting_results": {
-  "official": 64,
-  "experimental": 52,
+  "official": 90,
+  "experimental": 61,
   "oldest": "2026-10-31"
  },
  "model_history": [
