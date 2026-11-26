@@ -608,23 +608,23 @@
   },
   "live": {
    "label": "Live picks (saved before kick-off)",
-   "settled": 990,
-   "pending": 223,
+   "settled": 1020,
+   "pending": 193,
    "void": 0,
    "provisional": 0,
    "by_n": {
     "24": {
      "selected_min_prob": 0.7,
-     "n": 549,
-     "hits": 452,
-     "hit_rate": 0.8233,
-     "mean_stated": 0.7906,
+     "n": 570,
+     "hits": 470,
+     "hit_rate": 0.8246,
+     "mean_stated": 0.79,
      "wilson95": [
-      0.7892,
-      0.8529
+      0.7912,
+      0.8536
      ],
-     "brier": 0.1713,
-     "brier_baseline": 0.2297,
+     "brier": 0.1707,
+     "brier_baseline": 0.2303,
      "reliability": [
       {
        "band": [
@@ -667,9 +667,9 @@
         0.4,
         0.5
        ],
-       "n": 18,
-       "stated": 0.4663,
-       "realised": 0.5556
+       "n": 19,
+       "stated": 0.4632,
+       "realised": 0.5263
       },
       {
        "band": [
@@ -685,62 +685,62 @@
         0.6,
         0.7
        ],
-       "n": 236,
-       "stated": 0.6562,
-       "realised": 0.6653
+       "n": 244,
+       "stated": 0.6564,
+       "realised": 0.668
       },
       {
        "band": [
         0.7,
         0.8
        ],
-       "n": 334,
-       "stated": 0.7513,
-       "realised": 0.8024
+       "n": 349,
+       "stated": 0.751,
+       "realised": 0.8052
       },
       {
        "band": [
         0.8,
         0.9
        ],
-       "n": 185,
-       "stated": 0.8403,
-       "realised": 0.8432
+       "n": 190,
+       "stated": 0.8404,
+       "realised": 0.8421
       },
       {
        "band": [
         0.9,
         1.0
        ],
-       "n": 30,
-       "stated": 0.9207,
-       "realised": 0.9333
+       "n": 31,
+       "stated": 0.9203,
+       "realised": 0.9355
       }
      ],
      "by_league": [
       {
        "league": "england-championship",
+       "n": 60,
+       "hit_rate": 0.8333,
+       "stated": 0.765
+      },
+      {
+       "league": "italy-serie-b",
        "n": 53,
-       "hit_rate": 0.8302,
-       "stated": 0.7647
+       "hit_rate": 0.7736,
+       "stated": 0.7772
       },
       {
        "league": "england-league-one",
-       "n": 45,
-       "hit_rate": 0.8667,
-       "stated": 0.7614
+       "n": 48,
+       "hit_rate": 0.875,
+       "stated": 0.761
       },
       {
        "league": "germany-bundesliga",
        "n": 45,
        "hit_rate": 0.8,
        "stated": 0.8512
-      },
-      {
-       "league": "italy-serie-b",
-       "n": 45,
-       "hit_rate": 0.7778,
-       "stated": 0.7783
       },
       {
        "league": "netherlands-eredivisie",
@@ -767,16 +767,16 @@
        "stated": 0.757
       },
       {
+       "league": "scotland-premiership",
+       "n": 31,
+       "hit_rate": 0.9355,
+       "stated": 0.7916
+      },
+      {
        "league": "belgium-pro-league",
        "n": 29,
        "hit_rate": 0.8966,
        "stated": 0.8023
-      },
-      {
-       "league": "scotland-premiership",
-       "n": 29,
-       "hit_rate": 0.931,
-       "stated": 0.7866
       },
       {
        "league": "spain-la-liga",
@@ -804,9 +804,9 @@
       },
       {
        "league": "england-league-two",
-       "n": 18,
-       "hit_rate": 0.7778,
-       "stated": 0.7451
+       "n": 19,
+       "hit_rate": 0.7895,
+       "stated": 0.7452
       },
       {
        "league": "greece-super-league",
@@ -830,34 +830,6 @@
     }
    },
    "daily": [
-    {
-     "date": "2026-10-17",
-     "matches": 99,
-     "mae": 4.69,
-     "bias": -0.42,
-     "floor80_held": 0.8283,
-     "by_n": {
-      "24": {
-       "picks": 49,
-       "hits": 42
-      }
-     },
-     "provisional": 0
-    },
-    {
-     "date": "2026-10-18",
-     "matches": 44,
-     "mae": 5.82,
-     "bias": -0.77,
-     "floor80_held": 0.7727,
-     "by_n": {
-      "24": {
-       "picks": 26,
-       "hits": 17
-      }
-     },
-     "provisional": 0
-    },
     {
      "date": "2026-10-19",
      "matches": 8,
@@ -1249,6 +1221,34 @@
       }
      },
      "provisional": 0
+    },
+    {
+     "date": "2026-11-24",
+     "matches": 22,
+     "mae": 5.27,
+     "bias": -1.0,
+     "floor80_held": 0.8636,
+     "by_n": {
+      "24": {
+       "picks": 15,
+       "hits": 13
+      }
+     },
+     "provisional": 0
+    },
+    {
+     "date": "2026-11-25",
+     "matches": 8,
+     "mae": 4.62,
+     "bias": -2.12,
+     "floor80_held": 0.875,
+     "by_n": {
+      "24": {
+       "picks": 6,
+       "hits": 5
+      }
+     },
+     "provisional": 0
     }
    ],
    "weekly": [
@@ -1338,14 +1338,14 @@
     },
     {
      "date": "2026-11-23",
-     "matches": 8,
-     "mae": 6.25,
-     "bias": -1.25,
-     "floor80_held": 0.75,
+     "matches": 38,
+     "mae": 5.34,
+     "bias": -1.29,
+     "floor80_held": 0.8421,
      "by_n": {
       "24": {
-       "picks": 5,
-       "hits": 4
+       "picks": 26,
+       "hits": 22
       }
      },
      "provisional": 0
