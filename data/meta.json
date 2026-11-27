@@ -1,12 +1,13 @@
 {
  "schema": 1,
- "built_at": "2026-11-27T03:40:00Z",
+ "built_at": "2026-11-27T14:20:52Z",
  "results_up_to": "2026-11-25",
  "last_job": {
   "status": "ok",
-  "finished_at": "2026-11-27T03:39:51Z"
+  "finished_at": "2026-11-27T14:20:42Z"
  },
  "models": [
+  "cand_odds_surge-odds_2026-10-26",
   "fin_c-noodds_2026-11-15",
   "negbin_pit_comp-noodds_2026-11-15-ucl-exp",
   "negbin_pit_comp-noodds_2026-11-15-uecl-exp",
@@ -51,14 +52,14 @@
    "name": "League One",
    "country": "England",
    "tier": 3,
-   "fixtures": 0
+   "fixtures": 11
   },
   {
    "id": "england-league-two",
    "name": "League Two",
    "country": "England",
    "tier": 4,
-   "fixtures": 0
+   "fixtures": 12
   },
   {
    "id": "uefa-champions-league",
@@ -89,7 +90,7 @@
    "name": "Ligue 1",
    "country": "France",
    "tier": 1,
-   "fixtures": 0
+   "fixtures": 9
   },
   {
    "id": "france-ligue-2",
@@ -110,42 +111,42 @@
    "name": "2. Bundesliga",
    "country": "Germany",
    "tier": 2,
-   "fixtures": 36
+   "fixtures": 41
   },
   {
    "id": "greece-super-league",
    "name": "Super League",
    "country": "Greece",
    "tier": 1,
-   "fixtures": 0
+   "fixtures": 7
   },
   {
    "id": "italy-serie-a",
    "name": "Serie A",
    "country": "Italy",
    "tier": 1,
-   "fixtures": 40
+   "fixtures": 46
   },
   {
    "id": "italy-serie-b",
    "name": "Serie B",
    "country": "Italy",
    "tier": 2,
-   "fixtures": 60
+   "fixtures": 65
   },
   {
    "id": "netherlands-eredivisie",
    "name": "Eredivisie",
    "country": "Netherlands",
    "tier": 1,
-   "fixtures": 0
+   "fixtures": 9
   },
   {
    "id": "portugal-primeira-liga",
    "name": "Primeira Liga",
    "country": "Portugal",
    "tier": 1,
-   "fixtures": 0
+   "fixtures": 9
   },
   {
    "id": "scotland-premiership",
@@ -180,14 +181,14 @@
    "name": "La Liga",
    "country": "Spain",
    "tier": 1,
-   "fixtures": 40
+   "fixtures": 46
   },
   {
    "id": "spain-segunda-division",
    "name": "Segunda Division",
    "country": "Spain",
    "tier": 2,
-   "fixtures": 44
+   "fixtures": 51
   },
   {
    "id": "turkey-super-lig",
@@ -223,8 +224,8 @@
   "2026-12-27"
  ],
  "counts": {
-  "fixtures": 568,
-  "with_odds": 0,
+  "fixtures": 654,
+  "with_odds": 162,
   "cold_start": 49,
   "results": 620,
   "provisional_results": 0
